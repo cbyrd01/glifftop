@@ -1,0 +1,50 @@
+name: Bug
+description: Something in Glifftop doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Thanks for the report. Please leave out host names, user names and anything you
+        copied: they aren't needed.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Connect to a virtual screen
+        2. …
+    validations:
+      required: true
+  - type: input
+    id: glifftop
+    attributes:
+      label: Glifftop version or commit
+    validations:
+      required: true
+  - type: input
+    id: mac
+    attributes:
+      label: macOS version and Mac
+      placeholder: macOS 27.2, MacBook Pro M4
+    validations:
+      required: true
+  - type: input
+    id: remote
+    attributes:
+      label: gliff-server and Hyprland versions, and the remote GPU
+      placeholder: gliff-server 0.4.3, Hyprland 0.56.2, NVIDIA RTX 3070 Ti
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: >-
+        Optional. `log show --last 10m --predicate 'subsystem == "me.cbyrd.Glifftop"'` in
+        Terminal. The log never holds clipboard contents, but read it before you paste it.
+      render: text

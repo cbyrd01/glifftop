@@ -1,0 +1,279 @@
+import Foundation
+import GliffProtocol
+import Testing
+
+@testable import GliffClipboard
+
+@Suite struct ClipboardBridgeTests {
+    private let text = ClipboardMimes.text
+    private func textOffer(token: Int = 1) -> LocalClipboardOffer {
+        LocalClipboardOffer(mimeTypes: ClipboardMimes.textFlavours, token: token)
+    }
+
+    /// The types alone: no history marker.
+    @Test func anOfferIsTheTypesAlone() async {
+        let (bridge, wire) = recordedBridge()
+        await bridge.offer(textOffer())
+        guard case .offer(_, let mimes, let files)? = wire.messages.first else {
+            Issue.record("no offer sent")
+            return
+        }
+        #expect(mimes == ClipboardMimes.textFlavours)
+        #expect(files.isEmpty)
+    }
+
+    /// A password manager's copy goes with KDE's marker, so the host's history doesn't keep it.
+    @Test func aPasswordOfferCarriesTheHint() async {
+        let (bridge, wire) = recordedBridge()
+        await bridge.offer(
+            LocalClipboardOffer(mimeTypes: ClipboardMimes.textFlavours, token: 1, isPassword: true))
+        guard case .offer(_, let mimes, _)? = wire.messages.first else {
+            Issue.record("no offer sent")
+            return
+        }
+        #expect(mimes == ClipboardMimes.textFlavours + [ClipboardMimes.passwordHint])
+    }
+
+    @Test func aPasswordsHintIsAnsweredEmpty() async throws {
+        let source = FakeLocalSource(bytes: [1, 2, 3])
+        let (bridge, wire) = recordedBridge(source)
+        await bridge.offer(
+            LocalClipboardOffer(mimeTypes: ClipboardMimes.textFlavours, token: 1, isPassword: true))
+        let serial = try #require(wire.lastOfferSerial)
+        await bridge.receive(
+            .request(id: 2, serial: serial, item: .mime(ClipboardMimes.passwordHint)), payload: [])
+        await wire.wait { $0.dataCount == 1 }
+        #expect(wire.messages.last == .data(id: 2, offset: 0, dataLength: 0, done: true))
+        #expect(source.callCount == 0)
+    }
+
+    /// The marker is the bridge's to add: listed once, even if the app's types held it.
+    @Test func aPasswordOfferListsTheHintOnce() async {
+        let (bridge, wire) = recordedBridge()
+        let mimes = [text, ClipboardMimes.passwordHint]
+        await bridge.offer(LocalClipboardOffer(mimeTypes: mimes, token: 1, isPassword: true))
+        await bridge.offer(LocalClipboardOffer(mimeTypes: mimes, token: 2))
+        let offered = wire.messages.compactMap { message -> [String]? in
+            guard case .offer(_, let mimes, _) = message else { return nil }
+            return mimes
+        }
+        #expect(offered == [[text, ClipboardMimes.passwordHint], [text]])
+    }
+
+    /// An empty offer lists no marker: a request for it is refused like any type not offered.
+    @Test func theHintOfAnEmptyPasswordOfferIsRefused() async throws {
+        let (bridge, wire) = recordedBridge(FakeLocalSource(bytes: [1]))
+        await bridge.offer(LocalClipboardOffer(mimeTypes: [], token: 1, isPassword: true))
+        let serial = try #require(wire.lastOfferSerial)
+        await bridge.receive(
+            .request(id: 2, serial: serial, item: .mime(ClipboardMimes.passwordHint)), payload: [])
+        await wire.wait { $0.contains(.abort(id: 2)) }
+        #expect(wire.dataCount == 0)
+    }
+
+    /// No marker was offered: a request for it is a type not offered.
+    @Test func theHintOfAnOrdinaryCopyIsRefused() async throws {
+        let (bridge, wire) = recordedBridge(FakeLocalSource(bytes: [1]))
+        await bridge.offer(textOffer())
+        let serial = try #require(wire.lastOfferSerial)
+        await bridge.receive(
+            .request(id: 2, serial: serial, item: .mime(ClipboardMimes.passwordHint)), payload: [])
+        await wire.wait { $0.contains(.abort(id: 2)) }
+        #expect(wire.dataCount == 0)
+    }
+
+    @Test func anEmptyOfferIsEmpty() async {
+        let (bridge, wire) = recordedBridge()
+        await bridge.offer(LocalClipboardOffer(mimeTypes: [], token: 1))
+        #expect(wire.messages == [.offer(serial: wire.lastOfferSerial ?? 0, mimeTypes: [], files: [])])
+    }
+
+    @Test func serialsKeepIncreasingAfterARevoke() async throws {
+        let (bridge, wire) = recordedBridge()
+        await bridge.offer(textOffer())
+        let first = try #require(wire.lastOfferSerial)
+        await bridge.revoke(sendEmpty: true)
+        let empty = try #require(wire.lastOfferSerial)
+        await bridge.revoke(sendEmpty: false)
+        await bridge.offer(textOffer())
+        let last = try #require(wire.lastOfferSerial)
+        #expect(first < empty && empty < last && last - empty == 2)
+        #expect(wire.messages[1] == .offer(serial: empty, mimeTypes: [], files: []))
+    }
+
+    /// Served whenever it comes, with no input first.
+    @Test func aReadIsServedAtOnce() async throws {
+        let source = FakeLocalSource(bytes: [1, 2, 3])
+        let (bridge, wire) = recordedBridge(source)
+        await bridge.offer(textOffer())
+        let serial = try #require(wire.lastOfferSerial)
+        await bridge.receive(.request(id: 2, serial: serial, item: .mime("text/plain")), payload: [])
+        await wire.wait { $0.dataCount == 2 }
+        #expect(
+            Array(wire.messages.dropFirst()) == [
+                .data(id: 2, offset: 0, dataLength: 3, done: false),
+                .data(id: 2, offset: 3, dataLength: 0, done: true),
+            ])
+        #expect(source.callCount == 1)
+    }
+
+    /// Files aren't shared: a file request is refused.
+    @Test func aFileRequestIsAlwaysRefused() async throws {
+        let source = FakeLocalSource(bytes: [1])
+        let (bridge, wire) = recordedBridge(source)
+        await bridge.offer(textOffer())
+        let serial = try #require(wire.lastOfferSerial)
+        await bridge.receive(
+            .request(id: 2, serial: serial, item: .file(index: 0)), payload: [])
+        await wire.wait { $0.contains(.abort(id: 2)) }
+        #expect(wire.contains(.abort(id: 2)))
+        #expect(wire.dataCount == 0)
+        #expect(source.callCount == 0)
+    }
+
+    @Test func aStaleSerialIsRefused() async throws {
+        let (bridge, wire) = recordedBridge(FakeLocalSource(bytes: [1]))
+        await bridge.offer(textOffer())
+        let serial = try #require(wire.lastOfferSerial)
+        await bridge.receive(
+            .request(id: 2, serial: serial &+ 5, item: .mime(text)), payload: [])
+        await wire.wait { $0.contains(.abort(id: 2)) }
+        #expect(wire.contains(.abort(id: 2)))
+    }
+
+    @Test func aMimeNotOfferedIsRefused() async throws {
+        let (bridge, wire) = recordedBridge(FakeLocalSource(bytes: [1]))
+        await bridge.offer(textOffer())
+        let serial = try #require(wire.lastOfferSerial)
+        await bridge.receive(
+            .request(id: 2, serial: serial, item: .mime(ClipboardMimes.png)), payload: [])
+        await wire.wait { $0.contains(.abort(id: 2)) }
+        #expect(wire.contains(.abort(id: 2)))
+    }
+
+    @Test func aReplacedClipboardIsRefused() async throws {
+        let (bridge, wire) = recordedBridge(FakeLocalSource(error: .replaced))
+        await bridge.offer(textOffer())
+        let serial = try #require(wire.lastOfferSerial)
+        await bridge.receive(.request(id: 2, serial: serial, item: .mime(text)), payload: [])
+        await wire.wait { $0.contains(.abort(id: 2)) }
+        #expect(wire.contains(.abort(id: 2)))
+    }
+
+    @Test func aNewOfferAbortsWhatTheOldOneServes() async throws {
+        let (bridge, wire) = recordedBridge(FakeLocalSource(bytes: pattern(10 * 262_144)))
+        await bridge.offer(textOffer())
+        let serial = try #require(wire.lastOfferSerial)
+        await bridge.receive(.request(id: 2, serial: serial, item: .mime(text)), payload: [])
+        await wire.wait { $0.dataCount == 4 }
+        await bridge.offer(textOffer(token: 2))
+        #expect(wire.contains(.abort(id: 2)))
+        await bridge.receive(.request(id: 4, serial: serial, item: .mime(text)), payload: [])
+        await wire.wait { $0.contains(.abort(id: 4)) }
+        #expect(wire.contains(.abort(id: 4)))
+        #expect(wire.dataCount == 4)
+    }
+
+    @Test func aRevokeWithoutEmptySendsNothing() async {
+        let (bridge, wire) = recordedBridge()
+        await bridge.offer(textOffer())
+        await bridge.revoke(sendEmpty: false)
+        #expect(wire.messages.count == 1)
+    }
+
+    @Test func activityIsReportedForALongRead() async throws {
+        let source = FakeLocalSource(bytes: [1, 2, 3], delay: .milliseconds(300))
+        let (bridge, wire) = recordedBridge(source)
+        await bridge.offer(textOffer())
+        let serial = try #require(wire.lastOfferSerial)
+        await bridge.receive(.request(id: 2, serial: serial, item: .mime(text)), payload: [])
+        var states: [ClipboardActivity] = []
+        for await case .activity(let activity) in bridge.events {
+            states.append(activity)
+            if activity.state != .running { break }
+        }
+        let run = try #require(states.first?.run)
+        #expect(states.first == ClipboardActivity(run: run, label: "text", done: 0, state: .running))
+        #expect(states.last == ClipboardActivity(run: run, label: "text", done: 3, state: .done))
+    }
+
+    /// Two reads of one offer that end alike are two activities: the view shows the second.
+    @Test func eachReadIsItsOwnActivity() async throws {
+        let source = FakeLocalSource(bytes: [1, 2, 3], delay: .milliseconds(300))
+        let (bridge, wire) = recordedBridge(source)
+        await bridge.offer(textOffer())
+        let serial = try #require(wire.lastOfferSerial)
+        var events = bridge.events.makeAsyncIterator()
+        var ends: [ClipboardActivity] = []
+        for id: UInt32 in [2, 4] {
+            await bridge.receive(.request(id: id, serial: serial, item: .mime(text)), payload: [])
+            while case .activity(let activity)? = await events.next() {
+                if activity.state != .running {
+                    ends.append(activity)
+                    break
+                }
+            }
+        }
+        #expect(ends.count == 2)
+        #expect(ends.first?.run != ends.last?.run)
+    }
+
+    @Test func aQuickReadIsNeverReported() async throws {
+        let (bridge, wire) = recordedBridge(FakeLocalSource(bytes: [1, 2, 3]))
+        await bridge.offer(textOffer())
+        let serial = try #require(wire.lastOfferSerial)
+        await bridge.receive(.request(id: 2, serial: serial, item: .mime(text)), payload: [])
+        await wire.wait { $0.dataCount == 2 }
+        try await Task.sleep(for: .milliseconds(200))
+        await bridge.close()
+        var events: [ClipboardBridgeEvent] = []
+        for await event in bridge.events { events.append(event) }
+        #expect(events.isEmpty)
+    }
+
+    @Test func aStuckSourceIsRefused() async throws {
+        let source = FakeLocalSource(bytes: [1], stalls: true)
+        defer { source.stall?.release() }
+        let (bridge, wire) = recordedBridge(source, idleTimeout: .milliseconds(100))
+        await bridge.offer(textOffer())
+        let serial = try #require(wire.lastOfferSerial)
+        await bridge.receive(.request(id: 2, serial: serial, item: .mime(text)), payload: [])
+        await wire.wait { $0.contains(.abort(id: 2)) }
+        #expect(wire.contains(.abort(id: 2)))
+    }
+
+    @Test func cancelStopsAReadStillBeingPrepared() async throws {
+        let source = FakeLocalSource(bytes: [1], stalls: true)
+        let (bridge, wire) = recordedBridge(source)
+        await bridge.offer(textOffer())
+        let serial = try #require(wire.lastOfferSerial)
+        await bridge.receive(.request(id: 2, serial: serial, item: .mime(text)), payload: [])
+        while source.callCount == 0 { try await Task.sleep(for: .milliseconds(10)) }
+        await bridge.cancelServing()
+        source.stall?.release()
+        await wire.wait { $0.contains(.abort(id: 2)) }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(wire.contains(.abort(id: 2)))
+        #expect(wire.dataCount == 0)
+    }
+
+    @Test func aClosedBridgeIgnoresOffersAndRequests() async throws {
+        let source = FakeLocalSource(bytes: [1])
+        let (bridge, wire) = recordedBridge(source)
+        await bridge.offer(textOffer())
+        let serial = try #require(wire.lastOfferSerial)
+        await bridge.close()
+        await bridge.offer(textOffer(token: 2))
+        await bridge.receive(
+            .request(id: 2, serial: serial &+ 1, item: .mime(text)), payload: [])
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(source.callCount == 0)
+        #expect(wire.messages.count == 1)
+    }
+
+    @Test func labelsSayWhatIsMoving() {
+        #expect(ClipboardActivity.label(mime: ClipboardMimes.png) == "image")
+        #expect(ClipboardActivity.label(mime: ClipboardMimes.html) == "HTML")
+        #expect(ClipboardActivity.label(mime: "UTF8_STRING") == "text")
+    }
+}

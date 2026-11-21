@@ -1,0 +1,81 @@
+# The gate on every pull request and every push to main, on GitHub's runners: code from a pull
+# request never runs on the maintainer's Mac.
+#
+# Safe for pull requests from forks:
+# - only the pull_request and push triggers (never pull_request_target or workflow_run), so a
+#   fork's code runs without secrets and with a read-only token;
+# - no permissions by default, contents: read per job, and checkout keeps no credentials;
+# - no caches or artifacts, so nothing one run writes is read by another;
+# - every action, and each action it uses, locked to a commit in actions.lock (`gh
+#   actions-lock`; the repository requires the lockfile, and Dependabot updates it);
+# - each downloaded tool pinned by version: mise checked here against its sha256, gitleaks and
+#   sfw against mise.lock, and Rust installed by rustup at its pinned version.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # A newer push to a pull request replaces its run; every push to main is gated.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  gate:
+    name: Gate
+    # macOS minutes are free only in a public repository; in a private one, run it by hand.
+    if: ${{ !github.event.repository.private || github.event_name == 'workflow_dispatch' }}
+    runs-on: xcode-27
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+      MISE_VERSION: v2026.11.10
+      MISE_SHA256: 0ff163f78007130393ed5303aad06bc5e793c0bd298bc77eeb5913a3748e1922
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # the secret scan reads the whole history
+      - name: Install mise
+        run: |
+          archive="$RUNNER_TEMP/mise.tar.gz"
+          curl -fsSL -o "$archive" \
+            "https://github.com/jdx/mise/releases/download/${MISE_VERSION}/mise-${MISE_VERSION}-macos-arm64.tar.gz"
+          echo "${MISE_SHA256}  $archive" | shasum -a 256 -c -
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/mise/bin" >>"$GITHUB_PATH"
+      - name: Install the pinned tools
+        env:
+          # Read-only, for mise's downloads from GitHub releases; only this step has it.
+          MISE_GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mise trust mise.toml
+          mise install
+      - name: Install the Metal Toolchain
+        run: xcodebuild -downloadComponent MetalToolchain
+      - name: Fetch the test tooling's crates through sfw
+        run: mise exec -- scripts/cargo-net.sh fetch --locked
+      - name: Gate
+        run: mise exec -- scripts/test.sh
+
+  workflows:
+    name: Workflow audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: zizmorcore/zizmor-action@v0.8.1
+        with:
+          version: 1.32.0
+          advanced-security: false

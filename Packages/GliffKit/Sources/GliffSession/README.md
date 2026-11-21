@@ -1,0 +1,69 @@
+# GliffSession
+
+Owns one Gliff protocol session: the handshake, the stream's rules, acks, recording, and
+the feature seam.
+
+- **Imports:** GliffProtocol, GliffTransport, GliffVideo, GliffInput, GliffClipboard, Foundation, `os` (Logger),
+  `Synchronization`. Must not import AppKit, UIKit, SwiftUI or Observation.
+- **`SessionCore`:** the rules as a pure struct (no I/O, clock or concurrency): server
+  messages in, `SessionAction`s out. Ported from upstream's client (`net.rs`): Hello first;
+  Ping answered with Pong in every state; HelloAck version 1 or the session is incompatible;
+  anything but Ping, HelloAck, StreamConfig, Error, a clipboard message (or an unknown
+  variant) before the first StreamConfig is a protocol error; a clipboard message before
+  HelloAck is ignored; Error codes 1–255 are incompatible, 256 a setup failure.
+  While streaming (`SessionCore+Streaming.swift`, `StreamRules`): StreamConfig checks,
+  exactly one FrameAck per VideoFrame after decoding, the keyframe latch, RTT Pings, stats.
+  A StreamConfig that changes the coded stream (size, chroma, codec, extradata) configures a
+  new decoder; any other updates the kept one (`updateDecoder`: a new view box, pace, scale
+  or pipeline).
+- **`Session`:** the actor that runs a core against a `Transport` and a `FrameDecoder`: one
+  reader, one writer task (`SessionWriter`), a 500 ms tick, and `status` as an
+  `AsyncStream`. It reports `.interrupted(true)` when `Liveness` says so (a Ping unanswered
+  for 2 s and not a byte for 4 s, on a clock that stops in sleep), and `.interrupted(false)`
+  at the next bytes. Closing waits up to 1 s for queued frames (Bye), then closes the
+  connection. Cancelling `run()` is a disconnect. A run of decode failures logs each
+  reason once; the next picture ends the run.
+- **Input:** `Session.send(_:)` queues an `InputMessage` from any thread (`InputQueue`, in
+  order); the session sends what `InputGate` admits: a key or button press, motion and
+  scrolling only while streaming and not interrupted; a release (or a scroll's stop) only if
+  what it ends went, and then even while interrupted (so the remote never holds a key or
+  button past a stall, nor gets an unpaired release); a keymap always.
+  Anything queued before the handshake is judged then (a press is dropped). `disconnect()`
+  sends the queue before Bye; after the end nothing is kept.
+- **Resize:** `Session.setViewTarget(_:)` takes the window's size in pixels, its backing scale
+  and text factor (`ViewTarget`) from any thread, latest wins. `ResizeRules` sends a Resize
+  once the target has stayed unchanged for 200 ms and video is streaming (a wake just past
+  the settle time, the tick as backup): no smaller than 320×240; a mirror's scale the backing
+  scale (0.5–4), a virtual screen's the backing scale times the text factor (1–4); never the
+  same request twice, nor one the StreamConfig in force already answers.
+- **Cursor:** a CursorShape while streaming is checked with its frame's payload
+  (GliffInput's `CursorImage`, with the pixels it declares; bytes past them are skipped) and
+  published to the `CursorSlot` the session was made with (latest wins, a generation per
+  publish, like `PictureSlot`: a shape can be 4 MB). One that can't be shown is published as
+  nil, so the arrow replaces the old shape (upstream `set_remote_cursor`), and logged once per
+  session. CursorPos is ignored, as upstream's
+  client does. A shape before the first StreamConfig is a protocol error (upstream).
+- **`SessionSnapshot`:** the statuses folded into what a window shows (phase, the server's
+  session (headless or not), its own output from HelloAck (`output`; nil when HelloAck lists
+  none, or its size is impossible, outside 1–16384 a side), `mirrorSize` (what a mirror's
+  window is fitted to: the first view, which the server caps to its encoder, within the
+  monitor), stream, last stats, end, and `isInterrupted`, which the end
+  clears); nothing after the end changes it.
+- **Recording:** `StreamRecorder` writes the raw frames, wire-exact, to a `.gliffrec` file:
+  the StreamConfig, then video frames from the first keyframe. Nothing else.
+- **Ends:** `SessionEnd` says why a session ended, with the message the app shows and
+  whether a reconnect may help (`mayReconnect`). Before HelloAck any failure is a failure to
+  connect (a write error waits for ssh's classified exit); after it, a lost connection. A
+  parse error on the very first frame means stdout wasn't Gliff (`remoteNotGliff`). Server
+  text is made displayable as ssh's stderr is.
+- **Features:** `SessionFeature` is an optional protocol feature as a plug-in unit: offered
+  in Hello by name, active once HelloAck echoes it, then handed the unknown server variants
+  it claims. `FeatureContext` lets it send its own client messages.
+- **Clipboard:** a session given a `ClipboardSetup` owns a `ClipboardBridge` (`clipboard`).
+  Its messages go straight to the writer (`ClipboardWire`), `Data` chunks in a bulk lane that
+  yields to other frames (but takes a turn after every 8) and is dropped at the drain.
+  `offerClipboard` and `revokeClipboard` are queued with the input, in the order they
+  happened: input before one goes first, input after it waits until it is carried out, and
+  they wait for the writer. The app never calls the bridge's `offer` or `revoke` itself. The
+  bridge's events arrive as `.clipboardOffer` and `.clipboardActivity`; it closes before the connection does,
+  and a read still shown running then ends as failed.

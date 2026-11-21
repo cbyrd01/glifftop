@@ -1,0 +1,88 @@
+import GliffTransport
+import SwiftUI
+
+/// View ▸ Text Size: the window's text size on a virtual screen, the one in use
+/// checked; a step that gives the same remote scale as a larger one on this display is off.
+struct TextSizeMenu: View {
+    @Bindable var model: SessionModel
+
+    var body: some View {
+        Menu("Text Size") {
+            Picker("Text Size", selection: $model.textSize) {
+                ForEach(TextSize.allCases) { size in
+                    Text(size.label(backingScale: model.backingScale))
+                        .tag(size)
+                        // The one in use stays enabled, so it never shows checked but off.
+                        .disabled(
+                            size != model.textSize && (model.backingScale.map(size.changesNothing) ?? false))
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        }
+        // A mirror's scale is the monitor's own.
+        .disabled(!model.isVirtual)
+    }
+}
+
+/// View ▸ Screen: what the session shows, the one in use checked; another starts a
+/// new session to the same host. The host's monitors appear once listed.
+struct ScreenMenu: View {
+    let model: SessionModel
+
+    var body: some View {
+        Menu("Screen") {
+            Picker("Screen", selection: Binding(get: { model.screenChoice }, set: model.switchScreen)) {
+                Text(focusedLabel).tag(ScreenChoice.focused)
+                Text(ScreenChoice.virtual.label).tag(ScreenChoice.virtual)
+                if !named.isEmpty {
+                    Divider()
+                    ForEach(named, id: \.self) { Text(label(for: $0)).tag($0) }
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+            Divider()
+            // While streaming only: during connecting the session's own ssh may still be
+            // waiting for approval, and a second would ask beside it.
+            Button("Refresh Screen List") { model.screenList.list(host: model.host) }
+                .disabled(model.screenList.isListing || !model.hasPicture)
+            if let error = model.screenList.error, model.screenList.isFor(model.host) {
+                Text(error)
+            }
+        }
+        .disabled(model.destination == nil)
+    }
+
+    /// "Focused Monitor (DP-2)" once a session on it names its output.
+    private var focusedLabel: String {
+        // A name as a monitor's must be: no empty or odd text in the menu.
+        guard model.screenChoice == .focused, let output = model.outputName,
+            ScreenListParser.isValidName(output)
+        else {
+            return ScreenChoice.focused.label
+        }
+        return "\(ScreenChoice.focused.label) (\(output))"
+    }
+
+    /// A listed monitor as the connect form shows it, shortened to keep the menu narrow; one in
+    /// use though not listed, its name.
+    private func label(for choice: ScreenChoice) -> String {
+        guard case .named(let name) = choice, model.screenList.isFor(model.host),
+            let listed = model.screenList.screens.first(where: { $0.name == name })
+        else { return choice.label }
+        return listed.menuLabel
+    }
+
+    /// The listed monitors (if listed for this host), and a monitor in use though not listed,
+    /// so the one in use is always there to be checked.
+    private var named: [ScreenChoice] {
+        let listed =
+            model.screenList.isFor(model.host)
+            ? model.screenList.screens.map { ScreenChoice.named($0.name) } : []
+        if case .named = model.screenChoice, !listed.contains(model.screenChoice) {
+            return [model.screenChoice] + listed
+        }
+        return listed
+    }
+}

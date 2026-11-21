@@ -1,0 +1,21 @@
+# Version updates for the workflow actions and the test tooling's crates. Each bumped
+# dependency waits 7 days after its release; crates it pulls in with it don't, so review the
+# Cargo.lock diff of each pull request.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+  - package-ecosystem: cargo
+    directory: /tools/fake-server
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    ignore:
+      # Upstream's protocol, pinned by commit: adopting a release is the maintainer's call
+      # (README.md, "Updating upstream").
+      - dependency-name: gliff-proto

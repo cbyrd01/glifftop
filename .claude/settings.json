@@ -1,0 +1,106 @@
+{
+  "enabledPlugins": {
+    "swift-lsp@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git push -u origin *)"
+    ],
+    "deny": [
+      "Edit(/.swift-format)",
+      "Edit(**/.swift-format)",
+      "Edit(/.gitleaks.toml)",
+      "Edit(/.claude/settings.json)",
+      "Edit(/.claude/hooks/**)",
+      "Edit(/scripts/git-hooks/**)",
+      "Edit(/Glifftop.xcodeproj/**)",
+      "Edit(/.cargo/**)",
+      "Edit(/scripts/cargo-net.sh)",
+      "Edit(/captures.sha256)",
+      "Edit(/scripts/approve-capture.sh)",
+      "Edit(/scripts/check-captures.sh)",
+      "Bash(*approve-capture*)",
+      "Bash(*--no-verify*)",
+      "Bash(git commit -n*)",
+      "Bash(*CLAUDECODE=*)",
+      "Bash(env -u CLAUDECODE*)",
+      "Bash(unset CLAUDECODE*)",
+      "Bash(git -c core.hooksPath*)",
+      "Bash(git config *core.hooksPath*)",
+      "Bash(git push --force*)",
+      "Bash(git push * --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * -f*)",
+      "Bash(git push *+*)",
+      "Bash(*net.offline=false*)",
+      "Bash(*net.offline = false*)",
+      "Bash(*CARGO_NET_OFFLINE=*)",
+      "Bash(*CARGO_RESOLVER_INCOMPATIBLE_PUBLISH_AGE=*)",
+      "Bash(*CARGO_REGISTRY_GLOBAL_MIN_PUBLISH_AGE=*)",
+      "Bash(*global-min-publish-age=*)"
+    ],
+    "ask": [
+      "Bash(git push)",
+      "Bash(git push *main*)",
+      "Bash(git push *HEAD*)",
+      "Bash(git push *:*)",
+      "Bash(git push -u origin -*)",
+      "Bash(git push -u origin * *)",
+      "Bash(git push --delete*)",
+      "Bash(git push * --delete*)",
+      "Bash(git push * -d *)",
+      "Bash(git push * :*)",
+      "Bash(git push --all*)",
+      "Bash(git push * --all*)",
+      "Bash(git push * --mirror*)",
+      "Bash(git push * --tags*)",
+      "Bash(brew install *)",
+      "Bash(mise install *)",
+      "Bash(cargo install *)",
+      "Bash(gh repo *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-lint.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/record-review.sh skill"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/record-review.sh prompt"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-gate.sh",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  }
+}

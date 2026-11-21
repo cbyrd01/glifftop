@@ -1,0 +1,15 @@
+[package]
+name = "glifftop-fake-server"
+version = "0.1.0"
+edition = "2024"
+# 1.100 is the first Cargo that honours the min-publish-age cooldown. This stops older ones
+# building the crate; resolving (update, fetch) still only warns, so scripts/cargo-net.sh
+# checks the version itself.
+rust-version = "1.100"
+publish = false
+description = "Test tooling for Glifftop: golden CBOR fixtures and a scripted fake gliff-server, both from upstream gliff-proto."
+
+[dependencies]
+# Upstream protocol crate, pinned to gliff v0.4.3. The only way upstream code enters the repo.
+gliff-proto = { git = "https://github.com/omacom/gliff", rev = "9d93732ae3fd4319e071feeecf38ab2cfc19edfc" }
+minicbor = { version = "2.3", features = ["alloc"] }

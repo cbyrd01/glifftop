@@ -1,0 +1,6 @@
+# Golden fixtures, synthetic video planes and test streams are exact bytes: no line-ending or text filters,
+# binary diffs.
+*.cbor binary
+*.nv12 binary
+*.bgra binary
+*.h264 binary

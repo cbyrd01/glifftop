@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/cbyrd01/glifftop/security/advisories/new
+    about: Privately, never in a public issue (see SECURITY.md).
+  - name: Gliff itself
+    url: https://github.com/omacom/gliff/issues
+    about: Problems with gliff-server or the protocol belong upstream.

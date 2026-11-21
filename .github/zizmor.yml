@@ -1,0 +1,7 @@
+# Actions are referenced by tag in the workflows and locked to a commit, with their own
+# dependencies, in .github/workflows/actions.lock, which the repository requires.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        "*": ref-pin

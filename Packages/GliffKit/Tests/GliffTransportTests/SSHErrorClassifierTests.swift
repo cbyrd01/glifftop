@@ -1,0 +1,106 @@
+import Testing
+
+@testable import GliffTransport
+
+@Suite struct SSHErrorClassifierTests {
+    struct Case: Sendable, CustomTestStringConvertible {
+        let stderr: String
+        let status: Int32
+        let failure: ConnectFailure
+        var testDescription: String { "\(status) \(stderr.prefix(40))" }
+    }
+
+    static let cases: [Case] = [
+        Case(
+            stderr: "No ED25519 host key is known for omarchy and you have requested strict checking.\n"
+                + "Host key verification failed.\n", status: 255, failure: .unknownHostKey),
+        Case(
+            stderr: "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n"
+                + "@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\n"
+                + "Host key verification failed.\n", status: 255, failure: .changedHostKey),
+        Case(
+            stderr:
+                "sign_and_send_pubkey: signing failed for ED25519 \"key\" from agent: agent refused operation\n"
+                + "user@omarchy: Permission denied (publickey).\n", status: 255, failure: .agentRefused),
+        Case(
+            stderr: "user@omarchy: Permission denied (publickey).\n", status: 255, failure: .permissionDenied
+        ),
+        Case(
+            stderr: "ssh: Could not resolve hostname nope: nodename nor servname provided, or not known\n",
+            status: 255, failure: .hostNotFound),
+        Case(
+            stderr: "ssh: connect to host omarchy port 22: Connection refused\n", status: 255,
+            failure: .connectionRefused),
+        Case(
+            stderr: "ssh: connect to host omarchy port 22: Operation timed out\n", status: 255,
+            failure: .unreachable),
+        Case(
+            stderr: "ssh: connect to host omarchy port 22: No route to host\n", status: 255,
+            failure: .unreachable),
+        Case(
+            stderr: "ssh: connect to host omarchy port 22: Network is unreachable\n", status: 255,
+            failure: .unreachable),
+        // The keepalives gave up (ServerAliveCountMax), e.g. mid-handshake.
+        Case(stderr: "Timeout, server host not responding.\n", status: 255, failure: .unreachable),
+        // The remote end's own message, not ssh's keepalive.
+        Case(
+            stderr: "compositor not responding\n", status: 255,
+            failure: .other("compositor not responding")),
+        Case(
+            stderr: "bash: line 1: gliff-server: command not found\n", status: 127,
+            failure: .serverNotInstalled),
+        Case(stderr: "zsh:1: command not found: gliff-server\n", status: 127, failure: .serverNotInstalled),
+        Case(stderr: "fish: Unknown command: gliff-server\n", status: 127, failure: .serverNotInstalled),
+        Case(
+            stderr: "ssh: connect to host omarchy port 22: Host is down\n", status: 255, failure: .unreachable
+        ),
+        Case(stderr: "something odd\nlast line\n", status: 1, failure: .other("last line")),
+        Case(stderr: "", status: 1, failure: .other("ssh exited with status 1")),
+        Case(stderr: "", status: -9, failure: .other("ssh was stopped by signal 9")),
+    ]
+
+    @Test(arguments: cases)
+    func classifies(_ test: Case) {
+        #expect(SSHErrorClassifier.classify(exitStatus: test.status, stderr: test.stderr) == test.failure)
+    }
+
+    /// Network words from the remote program (not ssh, which exits 255) aren't ssh failures.
+    @Test func remoteOutputIsNotMistakenForSSH() {
+        #expect(
+            SSHErrorClassifier.classify(exitStatus: 1, stderr: "gliff-server: Connection refused\n")
+                == .other("gliff-server: Connection refused"))
+    }
+
+    /// The last line comes from the remote host: control characters go, and it is capped.
+    @Test func otherLineIsCleanedAndCapped() {
+        let escaped = SSHErrorClassifier.classify(exitStatus: 1, stderr: "\u{1b}[31mred\u{1b}[0m\n")
+        #expect(escaped == .other("[31mred[0m"))
+        // Bidi overrides and other format characters could make the text read differently.
+        #expect(SSHErrorClassifier.displayable("evil\u{202E}txt.exe\u{2066}x") == "eviltxt.exex")
+        let long = SSHErrorClassifier.classify(exitStatus: 1, stderr: String(repeating: "x", count: 10_000))
+        #expect(long == .other(String(repeating: "x", count: 200) + "…"))
+    }
+
+    /// Line and paragraph separators would break one remote line into several.
+    @Test func separatorsAreRemoved() {
+        #expect(SSHErrorClassifier.displayable("a\u{2028}b\u{2029}c") == "abc")
+    }
+
+    /// One Character can hold any number of combining marks: the cap counts scalars.
+    @Test func combiningMarksCountTowardTheCap() {
+        let flood = "A" + String(repeating: "\u{301}", count: 5000)
+        #expect(SSHErrorClassifier.displayable(flood).unicodeScalars.count <= 201)
+    }
+
+    @Test func everyFailureHasAMessage() {
+        let all: [ConnectFailure] = [
+            .unknownHostKey, .changedHostKey, .permissionDenied, .agentRefused, .hostNotFound,
+            .connectionRefused, .unreachable, .serverNotInstalled,
+        ]
+        for failure in all { #expect(!failure.message.isEmpty) }
+        #expect(ConnectFailure.other("boom").message == "boom")
+        #expect(ConnectFailure.hostNotFound.message == "That host name couldn't be found.")
+        // Plain text: SwiftUI shows a String verbatim, so no Markdown or placeholders.
+        for failure in all { #expect(!failure.message.contains("`") && !failure.message.contains("<")) }
+    }
+}

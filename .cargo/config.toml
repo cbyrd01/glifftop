@@ -1,0 +1,13 @@
+# Cargo reads this from the current directory, so it applies to every cargo command run
+# from the repo root (including --manifest-path tools/fake-server/Cargo.toml).
+
+[registry]
+# Supply-chain cooldown: never resolve a crates.io version published in the last 7 days.
+# Git dependencies (gliff-proto) are pinned by rev instead. An urgent exception needs
+# Maintainer's OK: CARGO_RESOLVER_INCOMPATIBLE_PUBLISH_AGE=allow cargo update <crate> --precise <v>
+global-min-publish-age = "7 days"
+
+[net]
+# Offline by default: cargo here never touches the network on its own. Crates arrive only
+# through scripts/cargo-net.sh, which runs cargo under Socket Firewall Free (sfw).
+offline = true

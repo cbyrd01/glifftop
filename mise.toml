@@ -1,0 +1,8 @@
+[tools]
+gitleaks = "8.30.1"
+# Test tooling only (tools/fake-server). 1.100 is the first Cargo with the stable
+# min-publish-age cooldown that .cargo/config.toml sets.
+rust = "1.100.0"
+# Socket Firewall Free: every crate download goes through `sfw` (see .cargo/config.toml).
+# From GitHub releases, which carry GitHub's release attestation; mise.lock pins the sha256.
+"github:SocketDev/sfw-free" = { version = "1.16.0", bin = "sfw" }

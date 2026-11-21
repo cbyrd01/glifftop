@@ -1,0 +1,10 @@
+Glifftop is an independent, unofficial client for Gliff.
+
+It implements the Gliff wire protocol, as defined by Gliff
+(https://github.com/omacom/gliff), Copyright (c) 2026 Kevin McConnell
+and contributors, released under the MIT License. Where algorithms are
+ported from Gliff (for example the AVC444 recombine shader math), the
+credit belongs to them.
+
+In particular, GliffKit's Shaders/Recombine.metal is a port of Gliff's
+crates/gliff-vk/shaders/recombine.comp and common.glsl.

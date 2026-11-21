@@ -1,0 +1,28 @@
+// Every build setting Glifftop owns. Never set these in the Xcode project:
+// scripts/check-xcodeproj.sh fails if a setting is set in both places.
+
+MACOSX_DEPLOYMENT_TARGET = 27.0
+PRODUCT_BUNDLE_IDENTIFIER = me.cbyrd.Glifftop
+
+// Swift 6, strict concurrency, warnings are errors.
+SWIFT_VERSION = 6.0
+SWIFT_STRICT_CONCURRENCY = complete
+SWIFT_TREAT_WARNINGS_AS_ERRORS = YES
+GCC_TREAT_WARNINGS_AS_ERRORS = YES
+
+// App target: MainActor by default, plus Approachable Concurrency, which turns on the
+// NonisolatedNonsendingByDefault and InferIsolatedConformances features that
+// Packages/GliffKit/Package.swift enables by name.
+SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor
+SWIFT_APPROACHABLE_CONCURRENCY = YES
+SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY = YES
+SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES
+SWIFT_UPCOMING_FEATURE_INTERNAL_IMPORTS_BY_DEFAULT = YES
+
+// Resolves to NO in Debug: Xcode 27 turns it off when ENABLE_PREVIEWS/ENABLE_DEBUG_DYLIB are
+// on, so SwiftUI Previews can inject code. Release builds are hardened.
+ENABLE_HARDENED_RUNTIME = YES
+// No sandbox: the app spawns /usr/bin/ssh.
+ENABLE_APP_SANDBOX = NO
+// Ad-hoc signing for local builds.
+CODE_SIGN_IDENTITY = -

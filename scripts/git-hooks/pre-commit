@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# 1. Blocks a commit whose staged changes contain a secret, or a screen capture or stream
+#    recording the maintainer hasn't approved (scripts/check-captures.sh).
+# 2. For Claude Code's commits only (CLAUDECODE is set): blocks a commit that changes code
+#    unless /simplify and /code-review both ran at this HEAD, as recorded by
+#    .claude/hooks/record-review.sh (post-commit clears the record). Checking here sees the
+#    real staged set, however the commit was invoked (`git add … && git commit`, `-a`, `-C`).
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+    echo "pre-commit: gitleaks not found; run 'mise install' in the repo root." >&2
+    exit 1
+fi
+gitleaks git --pre-commit --staged --redact --no-banner
+
+# Every commit, the maintainer's included: a staged capture needs approval (captures.sha256).
+"$(git rev-parse --show-toplevel)/scripts/check-captures.sh"
+
+[ -n "${CLAUDECODE:-}" ] || exit 0
+# Capture first: grep -q would exit early, git diff would die of SIGPIPE, and pipefail
+# would then read the match as "no code".
+# -z: git otherwise quotes non-ASCII names ("R\303\251sum\303\251.swift"), which no pattern matches.
+staged=$(git diff --cached --name-only -z | tr '\0' '\n')
+# Code, plus the files through which third-party code and toolchains enter.
+code='(\.swift|\.rs|\.sh|\.xcconfig)$|^scripts/|^\.claude/hooks/|(^|/)Cargo\.(toml|lock)$|^\.cargo/|^mise\.(toml|lock)$'
+grep -Eq "$code" <<<"$staged" || exit 0
+
+head=$(git rev-parse -q --verify HEAD || echo none)
+record="$(git rev-parse --git-common-dir)/claude-reviews"
+missing=
+for skill in simplify code-review; do
+    grep -qx "$skill $head" "$record" 2>/dev/null || missing="$missing /$skill"
+done
+if [ -n "$missing" ]; then
+    echo "pre-commit: this commit changes code, but these reviews have not run since the" \
+        "last commit:$missing. Run them (Task workflow steps 3-4), then commit again." >&2
+    exit 1
+fi

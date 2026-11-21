@@ -1,0 +1,3 @@
+# Screen captures and stream recordings the maintainer approved for the repo, one exact file per line:
+# "<sha256>  <path>". Written only by scripts/approve-capture.sh; checked at every commit by
+# scripts/check-captures.sh. Everything else stays local in .recordings/.

@@ -1,0 +1,6 @@
+# gitleaks config: the default ruleset, plus repo-specific allowlists.
+# Add a false positive's fingerprint to .gitleaksignore instead of widening these rules.
+title = "glifftop"
+
+[extend]
+useDefault = true

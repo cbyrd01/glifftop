@@ -1,0 +1,28 @@
+# Xcode / SwiftPM
+xcuserdata/
+DerivedData/
+.build/
+.swiftpm/
+
+# Rust test tooling
+tools/fake-server/target/
+
+# Local agent workspace and settings
+.superpowers/
+.claude/settings.local.json
+# The maintainer's machine notes for Claude Code (see CLAUDE.md)
+CLAUDE.local.md
+# Apple's Xcode agent skills (scripts/apple-skills.sha256): not redistributable, installed by
+# scripts/check-apple-skills.sh --install
+.claude/skills/modernize-tests/
+.claude/skills/swiftui-specialist/
+.claude/skills/swiftui-whats-new-27/
+.claude/skills/xctrace/
+
+.DS_Store
+
+# Specs, plans and research: local working notes, never committed
+notes/
+
+# Screen captures and stream recordings: local unless the maintainer approves one (captures.sha256)
+.recordings/
