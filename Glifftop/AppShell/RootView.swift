@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 struct RootView: View {
     @Bindable var model: SessionModel
     @State private var isFullScreen = false
-    @AppStorage(AppSettings.shareClipboardKey) private var shareClipboard = false
+    @StoredClipboardSharing private var clipboardSharing
 
     var body: some View {
         Group {
@@ -34,7 +34,9 @@ struct RootView: View {
         .navigationSubtitle(model.subtitle)
         .toolbar { SessionToolbar(model: model) }
         .windowToolbarFullScreenVisibility(.onHover)
-        .shareClipboardConfirmation(isPresented: $model.confirmingShare) { shareClipboard = true }
+        .clipboardSharingConfirmation($model.askingClipboard) {
+            clipboardSharing = $0
+        }
         .sheet(item: $model.machineEdit) {
             EditMachineView(model: model, machine: $0.machine, isNew: $0.isNew)
         }

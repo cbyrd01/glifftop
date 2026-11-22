@@ -6,14 +6,14 @@ import os
 /// The Mac's side of the shared clipboard for one window's session: tells
 /// `ClipboardPolicy` when the window comes to the front or leaves it, when the Mac clipboard
 /// changes (its `changeCount`, polled twice a second, in front or not: a change behind still
-/// withdraws our offer) and when "Share the clipboard" or "Include passwords" changes, and carries out what it says
-/// through the session. Only the pasteboard's types are read here; the data is read when the
+/// withdraws our offer) and when the clipboard's sharing (`ClipboardSharing`) changes, and
+/// carries out what it says through the session. Only the pasteboard's types are read here; the data is read when the
 /// remote pastes (`PasteboardSource`).
 final class ClipboardController {
     private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "clipboard")
-    /// "Share the clipboard", read again whenever the app's defaults change.
+    /// Whether the clipboard is shared, read again whenever the app's defaults change.
     private let sharingSetting: () -> Bool
-    /// "Include passwords", read again likewise.
+    /// Whether passwords are shared too, read again likewise.
     private let includePasswordsSetting: () -> Bool
     private var includePasswords: Bool
     private var session: Session?
@@ -125,7 +125,7 @@ final class ClipboardController {
         carryOut(policy.handle(.front(now, mac())))
     }
 
-    /// Both read before either is judged: a sharing change sees Include passwords as it now is.
+    /// Both read before either is judged: a sharing change sees the passwords setting as it now is.
     private func settingsChanged() {
         let (on, include) = (sharingSetting(), includePasswordsSetting())
         let includeChanged = include != includePasswords

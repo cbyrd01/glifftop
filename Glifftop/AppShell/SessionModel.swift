@@ -113,7 +113,7 @@ import os
     private(set) var clipboardActivity: ClipboardActivity?
     /// Input capture (keys and pointer) for this window's session.
     let capture = CaptureController()
-    /// The shared clipboard for this window's session: "Share the clipboard" from Settings.
+    /// The shared clipboard for this window's session, as the app's `ClipboardSharing` says.
     let clipboard = ClipboardController(
         sharing: { AppSettings.shareClipboard }, includePasswords: { AppSettings.includePasswords })
     /// The stream on screen, set only when it changes: the stats change `snapshot` every
@@ -187,8 +187,9 @@ import os
     /// Connection Info's popover (⌘I, the toolbar's ⓘ); closed at each session's start and at
     /// Back.
     var showsConnectionInfo = false
-    /// The toolbar's Share the clipboard is asking first (the alert is the window's).
-    var confirmingShare = false
+    /// The clipboard sharing the toolbar's button is asking first for (the alert is the
+    /// window's).
+    var askingClipboard: ClipboardQuestion?
     /// The clipboard read whose failure was already shown its 3 s (`ClipboardReadView`), shared
     /// by the toolbar and the status bar; a new session's runs count again.
     var dismissedClipboardRun: Int?

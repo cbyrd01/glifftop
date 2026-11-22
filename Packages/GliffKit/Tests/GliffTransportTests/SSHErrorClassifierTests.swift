@@ -31,6 +31,16 @@ import Testing
         Case(
             stderr: "ssh: connect to host omarchy port 22: Connection refused\n", status: 255,
             failure: .connectionRefused),
+        // sshd dropping the connection before it's ready (still starting after a wake, or too
+        // many at once): refused, so a reconnect tries again.
+        Case(
+            stderr:
+                "kex_exchange_identification: read: Connection reset by peer\r\nConnection reset by 192.168.1.20 port 22\r\n",
+            status: 255, failure: .connectionRefused),
+        Case(
+            stderr:
+                "kex_exchange_identification: Connection closed by remote host\r\nConnection closed by 192.168.1.20 port 22\r\n",
+            status: 255, failure: .connectionRefused),
         Case(
             stderr: "ssh: connect to host omarchy port 22: Operation timed out\n", status: 255,
             failure: .unreachable),

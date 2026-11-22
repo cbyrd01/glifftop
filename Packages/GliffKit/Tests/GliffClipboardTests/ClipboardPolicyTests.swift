@@ -189,7 +189,7 @@ import Testing
         #expect(policy.handle(.macChanged(mac(2))) == [])
     }
 
-    /// A copy with types to offer is offered; a password manager's only with Include passwords.
+    /// A copy with types to offer is offered; a password manager's only while passwords are shared.
     @Test func aPasswordIsNotOfferableUnlessIncluded() {
         #expect(ClipboardPolicy.offerable(typeCount: 1, isPassword: false, includePasswords: false))
         #expect(ClipboardPolicy.offerable(typeCount: 1, isPassword: false, includePasswords: true))
@@ -199,7 +199,7 @@ import Testing
         #expect(!ClipboardPolicy.offerable(typeCount: 0, isPassword: true, includePasswords: true))
     }
 
-    /// Include passwords turned off: a password offered is withdrawn, as a Mac change would; on
+    /// Passwords no longer shared: a password offered is withdrawn, as a Mac change would; on
     /// again, it is offered again.
     @Test func aRecheckWithdrawsWhatIsNoLongerOfferable() {
         var policy = offering()
@@ -228,7 +228,7 @@ import Testing
         #expect(policy.handle(.front(true, mac(2))) == [.offerMac(changeCount: 2)])
     }
 
-    /// Settings takes the front from the session's window: turning Include passwords off there
+    /// Settings takes the front from the session's window: no longer sharing passwords there
     /// still withdraws the password the host could read.
     @Test func aRecheckWithdrawsEvenAway() {
         var policy = offering()

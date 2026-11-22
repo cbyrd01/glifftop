@@ -16,10 +16,11 @@ enum AppSettings {
     static let resolutionKey = "virtualResolution"
     /// "Reconnect automatically": on unless turned off.
     static let reconnectsKey = "reconnects"
-    /// "Share the clipboard": off until turned on, which asks first.
+    /// Whether the clipboard is shared (`ClipboardSharing`): off until turned on, which asks
+    /// first.
     static let shareClipboardKey = "shareClipboard"
-    /// "Include passwords": a password manager's copies are offered too. Off until turned on,
-    /// which asks first.
+    /// Whether a password manager's copies are shared too (`ClipboardSharing.withPasswords`):
+    /// off until turned on, which asks first; turning sharing off clears it.
     static let includePasswordsKey = "includePasswords"
     /// View ▸ Show Status Bar, app-wide; off by default.
     static let showsStatusBarKey = "showsStatusBar"
@@ -45,10 +46,8 @@ struct SettingsView: View {
     @AppStorage(AppSettings.scaleToFitKey) private var scaleToFit = false
     @AppStorage(AppSettings.resolutionKey) private var resolution = VirtualResolution.automatic
     @AppStorage(AppSettings.reconnectsKey) private var reconnects = true
-    @AppStorage(AppSettings.shareClipboardKey) private var shareClipboard = false
-    @AppStorage(AppSettings.includePasswordsKey) private var includePasswords = false
-    @State private var confirmingShare = false
-    @State private var confirmingPasswords = false
+    @StoredClipboardSharing private var clipboardSharing
+    @State private var askingClipboard: ClipboardQuestion?
 
     var body: some View {
         Form {
@@ -65,19 +64,13 @@ struct SettingsView: View {
             }
             Toggle("Scale smaller screens to fit", isOn: $scaleToFit)
             Toggle("Reconnect automatically", isOn: $reconnects)
-            Toggle("Share the clipboard", isOn: .askingFirst($shareClipboard, confirming: $confirmingShare))
-            Toggle(
-                "Include passwords", isOn: .askingFirst($includePasswords, confirming: $confirmingPasswords)
-            )
-            .disabled(!shareClipboard)
+            Picker("Clipboard", selection: .askingFirst($clipboardSharing, asking: $askingClipboard)) {
+                ForEach(ClipboardSharing.allCases, id: \.self) { Text($0.label).tag($0) }
+            }
         }
         .formStyle(.grouped)
-        .shareClipboardConfirmation(isPresented: $confirmingShare) { shareClipboard = true }
-        .alert("Include passwords?", isPresented: $confirmingPasswords) {
-            Button("Cancel", role: .cancel) {}
-            Button("Include") { includePasswords = true }
-        } message: {
-            Text("Copies your password manager marks as concealed will reach the host.")
+        .clipboardSharingConfirmation($askingClipboard) {
+            clipboardSharing = $0
         }
         .frame(width: 420)
         .fixedSize()

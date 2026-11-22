@@ -18,7 +18,8 @@ public enum SSHErrorClassifier {
             if has("agent refused operation") { return .agentRefused }
             if has("Permission denied") { return .permissionDenied }
             if has("Could not resolve hostname") { return .hostNotFound }
-            if has("Connection refused") { return .connectionRefused }
+            // sshd closing the connection before its greeting: still starting, or too busy.
+            if has("Connection refused") || has("kex_exchange_identification") { return .connectionRefused }
             if unreachablePhrases.contains(where: has) { return .unreachable }
         }
         // 127 is the shell's "command not found", in whatever words the shell uses.

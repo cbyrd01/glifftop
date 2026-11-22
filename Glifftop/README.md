@@ -44,8 +44,9 @@ under the picture, with View ▸ Show Status Bar, `StatusBar`: the state, fps, M
 trip, chroma · encoder and the clipboard read, on the bar material, its height counted when
 a mirror's window is fitted), the window's title (the machine's name, else the host) and subtitle ("Virtual Screen ·
 Connected", `SessionModel+Chrome.swift`), the toolbar (`SessionToolbar`, while a session is
-shown, shown on hover in full screen: Screen and, on a virtual screen, Text Size; Share the
-clipboard (`ClipboardToolbarItem`, asking first as Settings does, with the clipboard read
+shown, shown on hover in full screen: Screen and, on a virtual screen, Text Size; the
+clipboard (`ClipboardToolbarItem`: one button stepping through Not shared, Shared and Shared
+including passwords, each step up asking first as Settings does, with the clipboard read
 beside it); Connection Info, a popover of `StatsView`'s numbers and "The host draws W × H",
 and Disconnect), the Connection menu (`ConnectionCommands`: Disconnect ⇧⌘D, Reconnect ⇧⌘R,
 Connection Info ⌘I, Edit Machine… ⌘E), the View menu (Actual Size ⌘0, disabled on a virtual
@@ -62,7 +63,8 @@ the stats or a new StreamConfig (`hasPicture`, not `picture`), so Enter Full Scr
 lost), the Input menu (Release Input, ⇧⎋), Settings (`SettingsView`: the options a
 new host or machine starts from (`AppSettings.defaultOptions`: the screen, the virtual
 screen's text size (`TextSize`) and resolution, Scale to Fit, Reconnect automatically) and
-Share the clipboard (off by default; turning it on asks first; at once for an open session), in `UserDefaults` through
+the clipboard (`ClipboardSharing`: Not shared by default, Shared, or Shared including passwords; a
+step up asks first; at once for an open session), in `UserDefaults` through
 `AppSettings`) and (Debug builds) the Debug menu: Record 5 Seconds
 and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes).
 
@@ -161,12 +163,11 @@ AppKit adapters for what SwiftUI can't do:
   (one per window's session) tells GliffClipboard's `ClipboardPolicy` when the session's
   window comes to the front or leaves it (the app active and the window key, from
   `ClipboardTracker`), when the pasteboard's `changeCount` moves (polled twice a second, in
-  front or not) and when Share the clipboard or Include passwords changes, and carries out its offers and
+  front or not) and when the clipboard's sharing changes, and carries out its offers and
   withdrawals through the session; it reads only the pasteboard's types. `PasteboardTypes`
   maps them to mime types (text, HTML, PNG or TIFF as `image/png`; a Finder copy only as its
   names in text) and finds password managers' concealed and transient marks: such a copy is
-  offered only with Include passwords on (Settings, under Share the clipboard, disabled while
-  it's off, asking first), and then with KDE's `x-kde-passwordManagerHint`, so the host's
+  offered only while it's Shared including passwords, and then with KDE's `x-kde-passwordManagerHint`, so the host's
   clipboard history skips it.
   `PasteboardSource` reads the data when the remote pastes, only from the copy the offer was
   made from, a TIFF converted to PNG with ImageIO, at most 32 MiB.

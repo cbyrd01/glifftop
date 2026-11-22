@@ -19,15 +19,15 @@ public struct ClipboardPolicy: Sendable {
         case remoteOffer(RemoteClipboardOffer, MacClipboard)
         /// The app put a remote offer on the Mac; the clipboard is now at `changeCount`.
         case wrote(changeCount: Int)
-        /// "Share the clipboard" was turned on or off.
+        /// The app's clipboard sharing was turned on or off.
         case sharing(Bool, MacClipboard)
-        /// What may be offered changed (Include passwords): our offer the Mac clipboard no
+        /// What may be offered changed (whether passwords are shared): our offer the Mac clipboard no
         /// longer allows is withdrawn, in front or not; in front, one it now allows is offered.
         case recheck(MacClipboard)
     }
 
     /// Whether a Mac copy may be offered: it has types to forward, and a password manager's
-    /// (concealed or transient) only with Include passwords on. Offered, it carries KDE's
+    /// (concealed or transient) only while passwords are shared. Offered, it carries KDE's
     /// password hint.
     public static func offerable(typeCount: Int, isPassword: Bool, includePasswords: Bool) -> Bool {
         typeCount > 0 && (!isPassword || includePasswords)

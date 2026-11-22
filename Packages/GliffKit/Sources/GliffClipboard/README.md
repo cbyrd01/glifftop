@@ -40,6 +40,6 @@ file request refused; GliffProtocol still reads and writes both.
     (32 MiB at most).
 - **`ClipboardPolicy`:** when to offer, withdraw, or put the remote's offer on the Mac,
   as a pure struct whose actions the app carries out. A Mac copy may be offered if it has types to
-  forward, a password manager's only with Include passwords on (`offerable`); a `recheck`
+  forward, a password manager's only while passwords are shared (`offerable`); a `recheck`
   when that changes withdraws our offer the clipboard no longer allows, in front or not, and
   in front offers one it now allows (never over a newer host copy).
