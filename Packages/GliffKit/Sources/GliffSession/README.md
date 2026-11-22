@@ -56,6 +56,9 @@ the feature seam.
   connect (a write error waits for ssh's classified exit); after it, a lost connection. A
   parse error on the very first frame means stdout wasn't Gliff (`remoteNotGliff`). Server
   text is made displayable as ssh's stderr is.
+- **Reconnect:** `ReconnectPolicy` says whether an end is tried again and after how long: an
+  end that may reconnect, and, once retrying, a host not found or a connection refused (a
+  network or host coming back after a wake); after 1, 2, 4, 8 and 16 s, then it gives up.
 - **Features:** `SessionFeature` is an optional protocol feature as a plug-in unit: offered
   in Hello by name, active once HelloAck echoes it, then handed the unknown server variants
   it claims. `FeatureContext` lets it send its own client messages.

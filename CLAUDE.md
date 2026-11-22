@@ -237,6 +237,7 @@ GliffKit       Packages/GliffKit/, platform-neutral, one target per module
   GliffInput      macOS keycode → evdev, key ledger, XKB keymap text, pointer mapping, cursor
   GliffTransport  `Transport` protocol; SystemSSHTransport spawns /usr/bin/ssh … gliff-server --stdio
   GliffProtocol   frame header, minimal CBOR, ClientMessage/ServerMessage; pure, no I/O
+  GliffTestSupport  test doubles shared by the test targets (ManualClock); never in the product
 ```
 
 - Dependencies point down only. `GliffProtocol` depends on nothing. `GliffSession` composes

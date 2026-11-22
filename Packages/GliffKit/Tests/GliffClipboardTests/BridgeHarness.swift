@@ -1,4 +1,5 @@
 import GliffProtocol
+import GliffTestSupport
 import Synchronization
 
 @testable import GliffClipboard

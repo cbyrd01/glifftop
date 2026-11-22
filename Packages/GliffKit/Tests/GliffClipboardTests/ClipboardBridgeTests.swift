@@ -1,5 +1,6 @@
 import Foundation
 import GliffProtocol
+import GliffTestSupport
 import Testing
 
 @testable import GliffClipboard

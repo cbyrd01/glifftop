@@ -2,13 +2,15 @@ import Synchronization
 
 /// A clock that moves only when a test advances it, so timing in a test never depends on how
 /// busy the machine is.
-final class ManualClock: Clock, Sendable {
-    struct Instant: InstantProtocol {
-        var offset: Duration
+public final class ManualClock: Clock, Sendable {
+    public struct Instant: InstantProtocol {
+        public let offset: Duration
 
-        func advanced(by duration: Duration) -> Instant { Instant(offset: offset + duration) }
-        func duration(to other: Instant) -> Duration { other.offset - offset }
-        static func < (lhs: Instant, rhs: Instant) -> Bool { lhs.offset < rhs.offset }
+        public init(offset: Duration) { self.offset = offset }
+
+        public func advanced(by duration: Duration) -> Instant { Instant(offset: offset + duration) }
+        public func duration(to other: Instant) -> Duration { other.offset - offset }
+        public static func < (lhs: Instant, rhs: Instant) -> Bool { lhs.offset < rhs.offset }
     }
 
     private struct Sleeper {
@@ -24,13 +26,15 @@ final class ManualClock: Clock, Sendable {
 
     private let state = Mutex(State())
 
-    var now: Instant { state.withLock { $0.now } }
-    var minimumResolution: Duration { .zero }
+    public init() {}
+
+    public var now: Instant { state.withLock { $0.now } }
+    public var minimumResolution: Duration { .zero }
 
     /// How many sleeps are waiting for the clock to move.
-    var sleeperCount: Int { state.withLock { $0.sleepers.count } }
+    public var sleeperCount: Int { state.withLock { $0.sleepers.count } }
 
-    func sleep(until deadline: Instant, tolerance: Duration?) async throws {
+    public func sleep(until deadline: Instant, tolerance: Duration?) async throws {
         let id = state.withLock { state in
             state.nextID += 1
             return state.nextID
@@ -53,7 +57,7 @@ final class ManualClock: Clock, Sendable {
     }
 
     /// Moves the clock on, waking every sleep whose deadline it reaches.
-    func advance(by duration: Duration) {
+    public func advance(by duration: Duration) {
         let due = state.withLock { state in
             state.now = state.now.advanced(by: duration)
             let now = state.now
@@ -68,7 +72,7 @@ final class ManualClock: Clock, Sendable {
 
     /// Waits until exactly `count` sleeps are waiting; false if that hasn't happened within 10 s
     /// of real time, a bound only a broken test reaches.
-    func waitForSleepers(_ count: Int) async -> Bool {
+    public func waitForSleepers(_ count: Int) async -> Bool {
         for _ in 0..<1000 {
             if sleeperCount == count { return true }
             try? await Task.sleep(for: .milliseconds(10))
