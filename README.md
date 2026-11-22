@@ -55,8 +55,8 @@ encode).
 3. **View ▸ Actual Size** (⌘0) shows the remote 1:1; **View ▸ Scale to Fit** (⌥⌘0) scales a
    smaller screen up.
 4. **Settings ▸ Share the clipboard** turns on the shared clipboard, after asking. While
-   Glifftop is in front, what you copy on the Mac (passwords included) goes to the remote
-   computer, and its copies come to the Mac.
+   Glifftop is in front, what you copy on the Mac goes to the remote computer, and its copies
+   come to the Mac. A password manager's copies go only with **Include passwords** on.
 
 ## Build
 

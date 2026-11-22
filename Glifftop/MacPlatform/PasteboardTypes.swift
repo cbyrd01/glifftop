@@ -20,8 +20,9 @@ nonisolated enum PasteboardTypes {
         return mimes
     }
 
-    /// Whether a password manager marked the copy concealed or transient: it is offered with
-    /// KDE's marker, so the host's clipboard history doesn't keep it.
+    /// Whether a password manager marked the copy concealed or transient: it is offered only
+    /// with Include passwords on, and then with KDE's marker, so the host's clipboard history
+    /// doesn't keep it.
     static func isPassword(_ types: [NSPasteboard.PasteboardType]) -> Bool {
         types.contains(concealed) || types.contains(transient)
     }

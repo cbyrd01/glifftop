@@ -6,13 +6,16 @@ import os
 /// The Mac's side of the shared clipboard for one window's session: tells
 /// `ClipboardPolicy` when the window comes to the front or leaves it, when the Mac clipboard
 /// changes (its `changeCount`, polled twice a second, in front or not: a change behind still
-/// withdraws our offer) and when "Share the clipboard" changes, and carries out what it says
+/// withdraws our offer) and when "Share the clipboard" or "Include passwords" changes, and carries out what it says
 /// through the session. Only the pasteboard's types are read here; the data is read when the
 /// remote pastes (`PasteboardSource`).
 final class ClipboardController {
     private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "clipboard")
     /// "Share the clipboard", read again whenever the app's defaults change.
     private let sharingSetting: () -> Bool
+    /// "Include passwords", read again likewise.
+    private let includePasswordsSetting: () -> Bool
+    private var includePasswords: Bool
     private var session: Session?
     /// The ssh destination as typed, which the paste panel names.
     private var host = ""
@@ -31,14 +34,15 @@ final class ClipboardController {
     private var windowObservers: [any NSObjectProtocol] = []
     private var observers: [any NSObjectProtocol] = []
 
-    init(sharing: @escaping () -> Bool) {
-        sharingSetting = sharing
+    init(sharing: @escaping () -> Bool, includePasswords: @escaping () -> Bool) {
+        (sharingSetting, includePasswordsSetting) = (sharing, includePasswords)
         self.sharing = sharing()
+        self.includePasswords = includePasswords()
         policy = ClipboardPolicy(sharing: self.sharing)
         for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification] {
             observers.append(observe(name, object: nil) { $0.frontChanged() })
         }
-        observers.append(observe(UserDefaults.didChangeNotification, object: nil) { $0.sharingChanged() })
+        observers.append(observe(UserDefaults.didChangeNotification, object: nil) { $0.settingsChanged() })
     }
 
     isolated deinit {
@@ -50,7 +54,7 @@ final class ClipboardController {
     func attach(_ session: Session, host: String) {
         detach()
         (self.session, self.host) = (session, host)
-        sharing = sharingSetting()
+        (sharing, includePasswords) = (sharingSetting(), includePasswordsSetting())
         policy = ClipboardPolicy(sharing: sharing)
         changeCount = NSPasteboard.general.changeCount
         front = isFront
@@ -121,11 +125,16 @@ final class ClipboardController {
         carryOut(policy.handle(.front(now, mac())))
     }
 
-    private func sharingChanged() {
-        let on = sharingSetting()
-        guard on != sharing else { return }
-        sharing = on
-        carryOut(policy.handle(.sharing(on, mac())))
+    /// Both read before either is judged: a sharing change sees Include passwords as it now is.
+    private func settingsChanged() {
+        let (on, include) = (sharingSetting(), includePasswordsSetting())
+        let includeChanged = include != includePasswords
+        includePasswords = include
+        if on != sharing {
+            sharing = on
+            carryOut(policy.handle(.sharing(on, mac())))
+        }
+        if includeChanged { carryOut(policy.handle(.recheck(mac()))) }
     }
 
     /// The host's clipboard changed: ours is no longer there, so withdrawing it later sends no
@@ -155,7 +164,11 @@ final class ClipboardController {
         // after a session's end while a paste is being answered).
         return ClipboardPolicy.MacClipboard(
             changeCount: read.changeCount,
-            offerable: read.changeCount != written && !PasteboardTypes.mimes(for: read.types).isEmpty)
+            offerable: read.changeCount != written
+                && ClipboardPolicy.offerable(
+                    typeCount: PasteboardTypes.mimes(for: read.types).count,
+                    isPassword: PasteboardTypes.isPassword(read.types), includePasswords: includePasswords)
+        )
     }
 
     private func carryOut(_ actions: [ClipboardPolicy.Action]) {

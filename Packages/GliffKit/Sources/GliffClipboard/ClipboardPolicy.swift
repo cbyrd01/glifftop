@@ -1,8 +1,8 @@
 /// When the Mac's clipboard is offered or withdrawn, and when the remote's goes on the Mac: a
 /// pure decision the app carries out.
 public struct ClipboardPolicy: Sendable {
-    /// The Mac clipboard as the app sees it: its `changeCount`, and whether it holds something
-    /// forwardable (a password manager's copy too, offered with KDE's marker).
+    /// The Mac clipboard as the app sees it: its `changeCount`, and whether it may be offered
+    /// (`offerable(typeCount:isPassword:includePasswords:)`).
     public struct MacClipboard: Equatable, Sendable {
         public var changeCount: Int
         public var offerable: Bool
@@ -21,6 +21,16 @@ public struct ClipboardPolicy: Sendable {
         case wrote(changeCount: Int)
         /// "Share the clipboard" was turned on or off.
         case sharing(Bool, MacClipboard)
+        /// What may be offered changed (Include passwords): our offer the Mac clipboard no
+        /// longer allows is withdrawn, in front or not; in front, one it now allows is offered.
+        case recheck(MacClipboard)
+    }
+
+    /// Whether a Mac copy may be offered: it has types to forward, and a password manager's
+    /// (concealed or transient) only with Include passwords on. Offered, it carries KDE's
+    /// password hint.
+    public static func offerable(typeCount: Int, isPassword: Bool, includePasswords: Bool) -> Bool {
+        typeCount > 0 && (!isPassword || includePasswords)
     }
 
     public enum Action: Equatable, Sendable {
@@ -41,6 +51,9 @@ public struct ClipboardPolicy: Sendable {
     private var hostHasOurs = false
     /// The Mac `changeCount` right after we put a remote offer there (the loop guard).
     private var owned: Int?
+    /// The Mac `changeCount` judged in front but not offerable, and still newer than the host's
+    /// clipboard: a recheck or the front offers it once it may be.
+    private var withheld: Int?
     /// A remote offer that came while away, and the Mac's `changeCount` then.
     private var held: (offer: RemoteClipboardOffer, changeCount: Int)?
 
@@ -70,7 +83,7 @@ public struct ClipboardPolicy: Sendable {
             guard sharing, !offer.isFirst else { return [] }
             hostHasOurs = false
             seen = nil
-            held = nil
+            (held, withheld) = (nil, nil)
             guard offer.isPasteable else {
                 // A copy of nothing the Mac takes (files, which aren't shared; JPEG, RTF)
                 // stands on the host: the Mac's clipboard is offered over it only once it
@@ -84,6 +97,7 @@ public struct ClipboardPolicy: Sendable {
         case .wrote(let changeCount):
             owned = changeCount
             seen = changeCount
+            withheld = nil
             return withdraw()
         case .sharing(let on, let mac):
             guard on != sharing else { return [] }
@@ -91,16 +105,29 @@ public struct ClipboardPolicy: Sendable {
             if on { return front ? offerCurrent(mac) : [] }
             var actions = live || hostHasOurs ? [Action.revokeMac(sendEmpty: hostHasOurs)] : []
             if mac.changeCount == owned { actions.append(.clearOwned) }
-            (live, hostHasOurs, seen, owned, held) = (false, false, nil, nil, nil)
+            (live, hostHasOurs, seen, owned, held, withheld) = (false, false, nil, nil, nil, nil)
             return actions
+        case .recheck(let mac):
+            guard sharing else { return [] }
+            if live, !mac.offerable {
+                // Ours is the host's clipboard still: offered again once allowed.
+                if hostHasOurs, mac.changeCount == seen { withheld = mac.changeCount }
+                return withdraw()
+            }
+            return front ? offerCurrent(mac) : []
         }
     }
 
     /// In front: offers the Mac clipboard, or withdraws ours if it can't be offered.
     private mutating func offerCurrent(_ mac: MacClipboard) -> [Action] {
-        guard mac.changeCount != seen, mac.changeCount != owned else { return [] }
+        let nowAllowed = mac.offerable && mac.changeCount == withheld
+        guard mac.changeCount != seen || nowAllowed, mac.changeCount != owned else { return [] }
         seen = mac.changeCount
-        guard mac.offerable else { return withdraw() }
+        guard mac.offerable else {
+            withheld = mac.changeCount
+            return withdraw()
+        }
+        withheld = nil
         (live, hostHasOurs) = (true, true)
         return [.offerMac(changeCount: mac.changeCount)]
     }

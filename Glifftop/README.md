@@ -129,11 +129,13 @@ AppKit adapters for what SwiftUI can't do:
   (one per window's session) tells GliffClipboard's `ClipboardPolicy` when the session's
   window comes to the front or leaves it (the app active and the window key, from
   `ClipboardTracker`), when the pasteboard's `changeCount` moves (polled twice a second, in
-  front or not) and when Share the clipboard changes, and carries out its offers and
+  front or not) and when Share the clipboard or Include passwords changes, and carries out its offers and
   withdrawals through the session; it reads only the pasteboard's types. `PasteboardTypes`
   maps them to mime types (text, HTML, PNG or TIFF as `image/png`; a Finder copy only as its
   names in text) and finds password managers' concealed and transient marks: such a copy is
-  offered with KDE's `x-kde-passwordManagerHint`, so the host's clipboard history skips it.
+  offered only with Include passwords on (Settings, under Share the clipboard, disabled while
+  it's off, asking first), and then with KDE's `x-kde-passwordManagerHint`, so the host's
+  clipboard history skips it.
   `PasteboardSource` reads the data when the remote pastes, only from the copy the offer was
   made from, a TIFF converted to PNG with ImageIO, at most 32 MiB.
 

@@ -59,7 +59,8 @@ import os
     /// Input capture (keys and pointer) for this window's session.
     let capture = CaptureController()
     /// The shared clipboard for this window's session: "Share the clipboard" from Settings.
-    let clipboard = ClipboardController(sharing: { AppSettings.shareClipboard })
+    let clipboard = ClipboardController(
+        sharing: { AppSettings.shareClipboard }, includePasswords: { AppSettings.includePasswords })
     /// The stream on screen, set only when it changes: the stats change `snapshot` every
     /// second, and what reads `picture` (the window's size, the menus) needn't follow them. A
     /// View menu rebuilt every second loses the Enter Full Screen item macOS adds to it.
