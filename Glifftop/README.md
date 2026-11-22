@@ -57,8 +57,8 @@ and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes
   one listing at a time, stopped (its error dismissed) when a session starts; a refresh keeps the list until the
   new one arrives; the list belongs to its host and is forgotten when the field names
   another, and a monitor is chosen only from its own host's list), the
-  views, and the app's display text for protocol values (`DisplayNames.swift`; GliffKit
-  carries no UI text). Among the views, `ClipboardActivityView` shows the host's read of the
+  views, and the app's display text for GliffKit values, text sizes included
+  (`DisplayNames.swift`; GliffKit carries no UI text). Among the views, `ClipboardActivityView` shows the host's read of the
   Mac clipboard over the picture's bottom leading corner: while it runs (reported
   after a second) with the bytes sent and Cancel (`SessionModel.cancelClipboardServing`), and
   for 3 s after a failure with why; temporary chrome, as the stats are.

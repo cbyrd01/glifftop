@@ -1,16 +1,21 @@
 import GliffProtocol
 
 /// What the window wants the remote screen to be: its drawable size in pixels, the
-/// display's backing scale, and the text size chosen for a virtual screen (1 is the Mac's).
+/// display's backing scale, and, for a virtual screen, the text size chosen (1 is the Mac's)
+/// and the resolution.
 public struct ViewTarget: Equatable, Sendable {
     public var width: UInt32
     public var height: UInt32
     public var backingScale: Double
     public var textFactor: Double
+    public var resolution: VirtualResolution
 
-    public init(width: UInt32, height: UInt32, backingScale: Double, textFactor: Double) {
-        (self.width, self.height, self.backingScale, self.textFactor) = (
-            width, height, backingScale, textFactor
+    public init(
+        width: UInt32, height: UInt32, backingScale: Double, textFactor: Double,
+        resolution: VirtualResolution = .retina
+    ) {
+        (self.width, self.height, self.backingScale, self.textFactor, self.resolution) = (
+            width, height, backingScale, textFactor, resolution
         )
     }
 
@@ -27,6 +32,9 @@ public struct ViewTarget: Equatable, Sendable {
 /// - nothing smaller than the server takes (320×240);
 /// - a virtual screen's scale is the backing scale times the text factor, 1–4 (never below
 ///   the Mac's 1×); a mirror's is the backing scale, 0.5–4 (the server ignores it there);
+/// - a virtual screen's size and scale are then multiplied by its resolution's factor
+///   (`VirtualResolution`, ½ for Standard), which keeps its layout and may take the scale
+///   below 1 (to 0.5);
 /// - never the request last sent, nor the server's view at that scale: the server's rounded
 ///   answer (`clean_mode`, `fit_mirror`) sends nothing more. (A virtual screen larger than
 ///   the encoder's limit streams a smaller view: one Resize per target then goes, which the
@@ -54,18 +62,29 @@ struct ResizeRules {
     }
 
     /// The Resize to send now, if any; it is then recorded as sent.
-    mutating func due(now: UInt64, headless: Bool, view: View) -> ClientMessage? {
+    /// `pipeline` is the stream's, for Automatic resolution (nil before it's known).
+    mutating func due(now: UInt64, headless: Bool, view: View, pipeline: VideoPipeline?) -> ClientMessage? {
         // A clock step backwards counts as settled rather than waiting it out.
         guard let target, now < changedAt || now - changedAt >= Self.settle,
             target.width >= Self.minimum.width, target.height >= Self.minimum.height,
             // Never equal to what was sent, so it would go every tick.
             target.backingScale.isFinite, target.textFactor.isFinite
         else { return nil }
-        let scale =
-            headless
-            ? ViewTarget.virtualScale(backingScale: target.backingScale, textFactor: target.textFactor)
-            : min(max(target.backingScale, 0.5), 4)
-        let request = View(width: target.width, height: target.height, scale: Float(scale))
+        let request: View
+        if headless {
+            let r = target.resolution.factor(
+                pipeline: pipeline, backingScale: target.backingScale, width: target.width,
+                height: target.height)
+            let scale = ViewTarget.virtualScale(
+                backingScale: target.backingScale, textFactor: target.textFactor)
+            request = View(
+                width: UInt32(Double(target.width) * r), height: UInt32(Double(target.height) * r),
+                scale: Float(scale * r))
+        } else {
+            request = View(
+                width: target.width, height: target.height,
+                scale: Float(min(max(target.backingScale, 0.5), 4)))
+        }
         guard request != lastSent else { return nil }
         if view.width == request.width, view.height == request.height,
             !headless || abs(view.scale - request.scale) < 0.005

@@ -33,12 +33,16 @@ the feature seam.
   button past a stall, nor gets an unpaired release); a keymap always.
   Anything queued before the handshake is judged then (a press is dropped). `disconnect()`
   sends the queue before Bye; after the end nothing is kept.
-- **Resize:** `Session.setViewTarget(_:)` takes the window's size in pixels, its backing scale
-  and text factor (`ViewTarget`) from any thread, latest wins. `ResizeRules` sends a Resize
-  once the target has stayed unchanged for 200 ms and video is streaming (a wake just past
-  the settle time, the tick as backup): no smaller than 320×240; a mirror's scale the backing
-  scale (0.5–4), a virtual screen's the backing scale times the text factor (1–4); never the
-  same request twice, nor one the StreamConfig in force already answers.
+- **Resize:** `Session.setViewTarget(_:)` takes the window's size in pixels, its backing
+  scale, text factor (`TextSize`) and resolution (`VirtualResolution`), as a `ViewTarget`,
+  from any thread, latest wins. `ResizeRules` sends a Resize once the target has stayed unchanged for
+  200 ms and video is streaming (a wake just past the settle time, the tick as backup): no
+  smaller than 320×240; a mirror's scale the backing scale (0.5–4), a virtual screen's the
+  backing scale times the text factor (1–4); a virtual screen's size and scale then times
+  its resolution's factor (½ for Standard on a Retina display whose window at ½ still fits
+  320×240, or Automatic on a CPU pipeline; the layout stays the same, the scale perhaps
+  down to 0.5); never the same
+  request twice, nor one the StreamConfig in force already answers.
 - **Cursor:** a CursorShape while streaming is checked with its frame's payload
   (GliffInput's `CursorImage`, with the pixels it declares; bytes past them are skipped) and
   published to the `CursorSlot` the session was made with (latest wins, a generation per

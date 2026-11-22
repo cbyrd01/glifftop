@@ -130,7 +130,9 @@ extension SessionCore {
         let view = ResizeRules.View(
             width: stream.viewWidth, height: stream.viewHeight, scale: Float(StreamInfo(stream).screenScale))
         let headless = session?.headless ?? false
-        return resize.due(now: now, headless: headless, view: view).map { [.send($0)] } ?? []
+        return resize.due(now: now, headless: headless, view: view, pipeline: stream.pipeline).map {
+            [.send($0)]
+        } ?? []
     }
 
     private mutating func ping(now: UInt64) -> SessionAction? {

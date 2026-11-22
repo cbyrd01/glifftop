@@ -21,6 +21,13 @@ struct VideoFitTests {
                 == VideoViewport(x: 220, y: 0, width: 2560, height: 1440, isActualSize: false))
     }
 
+    /// A Standard virtual screen (half a side) fills a Retina window at twice.
+    @Test func aHalfSizePictureFillsAtTwiceUnderScaleToFit() {
+        #expect(
+            viewport((1512, 982), in: (3024, 1964), scaleToFit: true)
+                == VideoViewport(x: 0, y: 0, width: 3024, height: 1964, isActualSize: false))
+    }
+
     /// A picture already filling a side stays 1:1, pixel for pixel.
     @Test func scaleToFitKeepsActualSizeWhenItFits() {
         #expect(
