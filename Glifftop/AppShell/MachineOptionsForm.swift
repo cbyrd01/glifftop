@@ -20,7 +20,17 @@ struct MachineOptionsForm: View {
                 Text(ScreenChoice.virtual.label).tag(ScreenChoice.virtual)
                 if !monitors.isEmpty {
                     Divider()
-                    ForEach(monitors, id: \.self) { Text(label(for: $0)).tag($0) }
+                    ForEach(monitors, id: \.self) { Text(screenList.label(for: $0, host: host)).tag($0) }
+                }
+            }
+            // As wide as its labels, up to a cap: a longer one is shortened, and whole on hover.
+            .frame(maxWidth: 320)
+            .fixedSize()
+            .help(screenList.label(for: options.screen, host: host, full: true))
+            // A monitor a new list for this host leaves out is gone: it can't stay chosen.
+            .onChange(of: screenList.screens) {
+                if screenList.isFor(host), !screenList.allows(options.screen, host: host) {
+                    options.screen = .focused
                 }
             }
             Button("Get Screens", action: getScreens)
@@ -52,12 +62,5 @@ struct MachineOptionsForm: View {
         let listed = screenList.isFor(host) ? screenList.screens.map { ScreenChoice.named($0.name) } : []
         if case .named = options.screen, !listed.contains(options.screen) { return [options.screen] + listed }
         return listed
-    }
-
-    private func label(for choice: ScreenChoice) -> String {
-        guard case .named(let name) = choice, screenList.isFor(host),
-            let listed = screenList.screens.first(where: { $0.name == name })
-        else { return choice.label }
-        return listed.label
     }
 }

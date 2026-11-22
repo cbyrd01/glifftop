@@ -90,6 +90,16 @@ import Observation
         return Self.key(host) == self.host && screens.contains { $0.name == name }
     }
 
+    /// How a choice reads in a screen menu or picker: a monitor listed for `host` as
+    /// `RemoteScreen.shortLabel`, else the choice's own label. `full` gives the whole label, for a
+    /// tooltip.
+    func label(for choice: ScreenChoice, host: String, full: Bool = false) -> String {
+        guard case .named(let name) = choice, isFor(host),
+            let listed = screens.first(where: { $0.name == name })
+        else { return choice.label }
+        return full ? listed.label : listed.shortLabel
+    }
+
     /// Whether the list is for `host` (as typed, or a session's `SSHTarget.value`).
     func isFor(_ host: String) -> Bool { Self.key(host) == self.host }
 

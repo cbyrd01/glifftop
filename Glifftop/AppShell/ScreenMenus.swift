@@ -69,7 +69,9 @@ struct ScreenMenu: View {
                 Text(ScreenChoice.virtual.label).tag(ScreenChoice.virtual)
                 if !named.isEmpty {
                     Divider()
-                    ForEach(named, id: \.self) { Text(label(for: $0)).tag($0) }
+                    ForEach(named, id: \.self) {
+                        Text(model.screenList.label(for: $0, host: model.host)).tag($0)
+                    }
                 }
             }
             .pickerStyle(.inline)
@@ -97,15 +99,6 @@ struct ScreenMenu: View {
             return ScreenChoice.focused.label
         }
         return "\(ScreenChoice.focused.label) (\(output))"
-    }
-
-    /// A listed monitor as the options form shows it, shortened to keep the menu narrow; one in
-    /// use though not listed, its name.
-    private func label(for choice: ScreenChoice) -> String {
-        guard case .named(let name) = choice, model.screenList.isFor(model.host),
-            let listed = model.screenList.screens.first(where: { $0.name == name })
-        else { return choice.label }
-        return listed.menuLabel
     }
 
     /// The listed monitors (if listed for this host), and a monitor in use though not listed,

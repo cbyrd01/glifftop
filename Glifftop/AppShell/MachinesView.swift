@@ -37,9 +37,13 @@ struct MachinesView: View {
         .frame(width: Self.width)
         .toolbar {
             ToolbarItem {
-                Button("New Machine", systemImage: "plus", action: model.newMachine)
-                    .labelStyle(.titleAndIcon)
-                    .help("New Machine… (⌘N)")
+                // Room either side, inside the button, as the session's text menus have.
+                Button(action: model.newMachine) {
+                    Label("New Machine", systemImage: "plus")
+                        .labelStyle(.titleAndIcon)
+                        .padding(.horizontal, 6)
+                }
+                .help("New Machine… (⌘N)")
             }
         }
         .onAppear { fillOptions(for: target) }

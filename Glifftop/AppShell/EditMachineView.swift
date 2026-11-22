@@ -1,4 +1,5 @@
 import GliffMachines
+import GliffSession
 import GliffTransport
 import SwiftUI
 
@@ -41,7 +42,11 @@ struct EditMachineView: View {
                     // record follow it.
                     .disabled(isSessionMachine)
                     .help(isSessionMachine ? "Disconnect to change the host" : "")
-                    .onChange(of: machine.destination) { screenList.forget(unless: machine.destination) }
+                    .onChange(of: machine.destination) {
+                        screenList.forget(unless: machine.destination)
+                        // A monitor is another host's once the host changes.
+                        if case .named = machine.options.screen { machine.options.screen = .focused }
+                    }
                 if let refused, refused.host == machine.destination {
                     Text(refused.message)
                         .foregroundStyle(.red)
@@ -71,8 +76,10 @@ struct EditMachineView: View {
         .onDisappear { screenList.stop() }
     }
 
-    /// Whether it's the machine of the window's session.
-    private var isSessionMachine: Bool { !isNew && model.machine?.id == machine.id }
+    /// Whether it's the machine of a session still running (or reconnecting) in the window.
+    private var isSessionMachine: Bool {
+        !isNew && model.machine?.id == machine.id && (model.phase != .ended || model.isReconnecting)
+    }
 
     /// Another machine with the host typed: saving this one replaces it.
     private var other: Machine? {

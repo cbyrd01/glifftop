@@ -99,7 +99,7 @@ import os
     private(set) var screenChoice = ScreenChoice.focused
     /// Another screen the sheet saved for the session's machine: Try Again shows it, a
     /// reconnect's try the session's own. Cleared by any other start.
-    @ObservationIgnored var sheetScreen: ScreenChoice?
+    var sheetScreen: ScreenChoice?
     /// The host's monitors, from Get Screens (or View ▸ Screen's Refresh Screen List).
     let screenList = ScreenList()
     /// The video view's drawable size in pixels, last reported (with `backingScale`). Changes
