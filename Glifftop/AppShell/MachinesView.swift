@@ -1,3 +1,4 @@
+import Combine
 import GliffMachines
 import GliffTransport
 import SwiftUI
@@ -47,7 +48,11 @@ struct MachinesView: View {
             }
         }
         .onAppear { fillOptions(for: target) }
-        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+        // Posted on whichever thread changed the defaults: handled on the main one.
+        .onReceive(
+            NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification).receive(
+                on: DispatchQueue.main)
+        ) { _ in
             fillOptions(for: target)
         }
         .alert(

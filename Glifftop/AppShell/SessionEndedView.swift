@@ -2,10 +2,11 @@ import GliffSession
 import GliffTransport
 import SwiftUI
 
-/// Why the session ended: "Couldn't reconnect to …" once the tries ran out, else "Disconnected
-/// from …", the reason, and Try Again (when there's a host to try), Edit Machine… (once the
-/// host is a machine) and Close (back to the machines). A monitor the host doesn't have is
-/// said plainly, with the screens that are always there to use instead.
+/// Why the session ended: "Couldn't reconnect to …" once the tries ran out, "Couldn't connect
+/// to …" when it never got through, else "Disconnected from …"; the reason; and Try Again
+/// (when there's a host to try), Edit Machine… (once the host is a machine) and Close (back to
+/// the machines). A monitor the host doesn't have is said plainly, with the screens that are
+/// always there to use instead.
 struct SessionEndedView: View {
     let model: SessionModel
 
@@ -48,6 +49,8 @@ struct SessionEndedView: View {
     /// The host is gone when the session never started (no GPU video): just "Disconnected".
     private var headline: String {
         guard !model.host.isEmpty else { return "Disconnected" }
-        return model.gaveUp ? "Couldn't reconnect to \(model.title)" : "Disconnected from \(model.title)"
+        if model.gaveUp { return "Couldn't reconnect to \(model.title)" }
+        return model.neverConnected
+            ? "Couldn't connect to \(model.title)" : "Disconnected from \(model.title)"
     }
 }

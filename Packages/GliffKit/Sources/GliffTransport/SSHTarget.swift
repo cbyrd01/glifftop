@@ -6,6 +6,10 @@ public struct SSHTarget: Equatable, Sendable {
     public let value: String
 
     private static let forbidden = CharacterSet.whitespacesAndNewlines.union(.controlCharacters)
+    /// ssh_config's wildcards, which no host has, and the shell characters ssh itself refuses
+    /// in a host name (`valid_hostname`): caught here, so the field says why. A user name may
+    /// hold some of them, and ssh checks it itself.
+    private static let invalid = CharacterSet(charactersIn: "*?'\"`$\\;&<>|(){}")
 
     public init(_ text: String) throws(SSHTargetError) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -15,6 +19,9 @@ public struct SSHTarget: Equatable, Sendable {
         guard trimmed.unicodeScalars.allSatisfy({ !Self.forbidden.contains($0) }) else {
             throw .containsWhitespaceOrControl
         }
+        guard Self.host(of: trimmed).unicodeScalars.allSatisfy({ !Self.invalid.contains($0) }) else {
+            throw .invalidCharacter
+        }
         value = trimmed
     }
 
@@ -23,11 +30,23 @@ public struct SSHTarget: Equatable, Sendable {
     /// Bytes, not Characters: `-` plus a combining mark is one Character.
     private static func partStartsWithDash(_ target: String) -> Bool {
         let dash = UInt8(ascii: "-")
-        var rest = target.utf8[...]
-        // `| 0x20` lowercases letters and leaves `:` and `/` as they are.
-        if rest.prefix(6).elementsEqual("ssh://".utf8, by: { $0 | 0x20 == $1 }) { rest = rest.dropFirst(6) }
-        let host = rest.lastIndex(of: UInt8(ascii: "@")).map { rest[rest.index(after: $0)...] } ?? rest
-        return rest.first == dash || host.first == dash
+        return withoutScheme(target).first == dash || host(of: target).utf8.first == dash
+    }
+
+    /// The target after a leading `ssh://`, any case. `| 0x20` lowercases letters and leaves
+    /// `:` and `/` as they are.
+    private static func withoutScheme(_ target: String) -> Substring.UTF8View {
+        let bytes = target.utf8[...]
+        return bytes.prefix(6).elementsEqual("ssh://".utf8, by: { $0 | 0x20 == $1 })
+            ? bytes.dropFirst(6) : bytes
+    }
+
+    /// The host, with its port: what follows the last `@`, else the whole target (after
+    /// `ssh://`).
+    private static func host(of target: String) -> Substring {
+        let rest = withoutScheme(target)
+        let start = rest.lastIndex(of: UInt8(ascii: "@")).map { rest.index(after: $0) } ?? rest.startIndex
+        return Substring(rest[start...])
     }
 }
 
@@ -35,6 +54,7 @@ public enum SSHTargetError: Error, Equatable, Sendable {
     case empty
     case startsWithDash
     case containsWhitespaceOrControl
+    case invalidCharacter
 
     /// Shown under the connect field.
     public var message: String {
@@ -42,6 +62,7 @@ public enum SSHTargetError: Error, Equatable, Sendable {
         case .empty: "Enter a host, like user@host."
         case .startsWithDash: "A host can't start with a dash."
         case .containsWhitespaceOrControl: "A host can't contain spaces or control characters."
+        case .invalidCharacter: "A host can't contain * or ?, or characters like $ ; | & ' \" ( )."
         }
     }
 }

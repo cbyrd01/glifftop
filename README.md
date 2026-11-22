@@ -53,8 +53,8 @@ encode).
    <img src="docs/media/screen-choice.png" width="460" alt="The connect window: the host omarchy, and the screen menu with Focused Monitor, Virtual Screen and two monitors">
 2. While the window is in front, the keyboard and pointer go to the remote computer;
    **Input ▸ Release Input** (⇧Esc) gives them back to the Mac.
-3. **View ▸ Actual Size** (⌘0) shows the remote 1:1; **View ▸ Scale to Fit** (⌥⌘0) scales a
-   smaller screen up.
+3. **View ▸ Actual Size** (⌘0) shows the remote 1:1, turning Scale to Fit off; **View ▸ Scale
+   to Fit** (⌥⌘0) scales a smaller screen up.
 4. **Settings ▸ Share the clipboard** turns on the shared clipboard, after asking. While
    Glifftop is in front, what you copy on the Mac goes to the remote computer, and its copies
    come to the Mac. A password manager's copies go only with **Include passwords** on.

@@ -8,8 +8,9 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
 - **Seam:** `Transport.connect()` gives a `ByteConnection` (`incoming` chunks, `write`,
   `close`). The session only sees this, so tests run against `tools/fake-server` instead
   of ssh.
-- **ssh:** `SSHTarget` checks what was typed (trimmed; no leading dash, whitespace or
-  control characters), `SSHCommand` builds the argv (`BatchMode=yes`,
+- **ssh:** `SSHTarget` checks what was typed (trimmed; no leading dash, whitespace,
+  control characters, ssh_config wildcards or the shell characters ssh refuses),
+  `SSHCommand` builds the argv (`BatchMode=yes`,
   `StrictHostKeyChecking=yes` first so nothing can relax it, `IPQoS=ef`, keepalives that
   end a dead link after about a minute, `--` before the target, server arguments
   shell-quoted for the remote login shell), and `SSHErrorClassifier` turns ssh's stderr

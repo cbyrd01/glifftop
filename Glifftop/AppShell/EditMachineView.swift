@@ -41,7 +41,7 @@ struct EditMachineView: View {
                     // The running session's machine keeps its host: its reconnects and its
                     // record follow it.
                     .disabled(isSessionMachine)
-                    .help(isSessionMachine ? "Disconnect to change the host" : "")
+                    .help(isSessionMachine ? hostLockedHelp : "")
                     .onChange(of: machine.destination) {
                         screenList.forget(unless: machine.destination)
                         // A monitor is another host's once the host changes.
@@ -76,9 +76,12 @@ struct EditMachineView: View {
         .onDisappear { screenList.stop() }
     }
 
-    /// Whether it's the machine of a session still running (or reconnecting) in the window.
-    private var isSessionMachine: Bool {
-        !isNew && model.machine?.id == machine.id && (model.phase != .ended || model.isReconnecting)
+    /// Whether it's the machine of the window's session, running or ended: the window finds its
+    /// machine by host, so the host can't change until the session is closed.
+    private var isSessionMachine: Bool { !isNew && model.machine?.id == machine.id }
+
+    private var hostLockedHelp: String {
+        model.canDisconnect ? "Disconnect to change the host" : "Close the session to change the host"
     }
 
     /// Another machine with the host typed: saving this one replaces it.

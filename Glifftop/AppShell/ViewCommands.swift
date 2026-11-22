@@ -1,7 +1,8 @@
 import GliffSession
 import SwiftUI
 
-/// View ▸ Actual Size (⌘0, a mirror only), Scale to Fit (⌥⌘0), Show Status Bar (⌘/), Text Size
+/// View ▸ Actual Size (⌘0, a mirror only; it turns Scale to Fit off), Scale to Fit (⌥⌘0), Show
+/// Status Bar (⌘/), Text Size
 /// and Resolution (a virtual screen only) and Screen. Everything they read changes only when its value does,
 /// never with the stats each second: a View menu rebuilt every second loses Enter Full Screen.
 struct ViewCommands: Commands {

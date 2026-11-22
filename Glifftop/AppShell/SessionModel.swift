@@ -131,7 +131,7 @@ import os
     /// Set by `shutdown()`: no new session may start while the app quits.
     private(set) var quitting = false
     /// Whether this session has streamed (and been recorded on its machine).
-    @ObservationIgnored private(set) var recorded = false
+    private(set) var recorded = false
 
     // Reconnect (`SessionModel+Reconnect.swift`).
     /// The reconnect under way, while a lost session is tried again.
@@ -298,8 +298,10 @@ import os
         return made
     }
 
-    /// View ▸ Actual Size.
+    /// View ▸ Actual Size: the picture 1:1, so Scale to Fit goes off (and off on the machine,
+    /// as unticking it does), and the window fitted to it again.
     func actualSize() {
+        scaleToFit = false
         actualSizeRequests += 1
     }
 
