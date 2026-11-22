@@ -15,6 +15,7 @@ public actor ClipboardBridge {
 
     let transfers: ClipboardTransfers
     let source: any LocalClipboardSource
+    private let clock: any Clock<Duration>
     private let activityDelay: Duration
     private let activityEvery: Duration
     public nonisolated let events: AsyncStream<ClipboardBridgeEvent>
@@ -41,15 +42,15 @@ public actor ClipboardBridge {
 
     public init(transfers: ClipboardTransfers, source: any LocalClipboardSource) {
         self.init(
-            transfers: transfers, source: source, activityDelay: .seconds(1),
+            transfers: transfers, source: source, clock: ContinuousClock(), activityDelay: .seconds(1),
             activityEvery: .milliseconds(250))
     }
 
     init(
-        transfers: ClipboardTransfers, source: any LocalClipboardSource, activityDelay: Duration,
-        activityEvery: Duration
+        transfers: ClipboardTransfers, source: any LocalClipboardSource, clock: any Clock<Duration>,
+        activityDelay: Duration, activityEvery: Duration
     ) {
-        (self.transfers, self.source) = (transfers, source)
+        (self.transfers, self.source, self.clock) = (transfers, source, clock)
         (self.activityDelay, self.activityEvery) = (activityDelay, activityEvery)
         (events, continuation) = AsyncStream.makeStream()
     }
@@ -226,12 +227,12 @@ public actor ClipboardBridge {
         nextRun += 1
         runs[key] = ActivityRun(
             id: nextRun, label: ClipboardActivity.label(mime: mime), progress: TransferProgress())
-        runs[key]?.reporter = Task { [activityDelay, activityEvery, id = nextRun] in
+        runs[key]?.reporter = Task { [clock, activityDelay, activityEvery, id = nextRun] in
             do {
-                try await Task.sleep(for: activityDelay)
+                try await clock.sleep(for: activityDelay)
                 while true {
                     report(key, run: id)
-                    try await Task.sleep(for: activityEvery)
+                    try await clock.sleep(for: activityEvery)
                 }
             } catch {}
         }
