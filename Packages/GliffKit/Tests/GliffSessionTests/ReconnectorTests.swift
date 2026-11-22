@@ -219,17 +219,101 @@ import Testing
         #expect(await run.value == .reconnected)
     }
 
-    /// Each reconnect counts from the first try.
-    @Test func eachRunStartsAgain() async {
+    /// A session that streamed for `steadyTime` before it ended: the next run counts afresh.
+    @Test func aRunAfterASteadySessionStartsAgain() async {
         let script = Script([.outcome(.ended(.connectionLost)), .outcome(.streaming), .outcome(.streaming)])
         let reconnector = Reconnector(clock: clock, attempt: script.next)
         var states = reconnector.states.makeAsyncIterator()
         let first = Task { await reconnector.run(after: .connectionLost) }
         _ = await follow(&states, count: 4)
         #expect(await first.value == .reconnected)
+        clock.advance(by: ReconnectMemory.steadyTime)
         let second = Task { await reconnector.run(after: .connectionLost) }
         let seen = await follow(&states, count: 2)
         #expect(seen == [.waiting(attempt: 1, delay: .seconds(1)), .trying(attempt: 1)])
+        #expect(await second.value == .reconnected)
+    }
+
+    /// A host that streams, then drops at once, each time: the count goes on from the last
+    /// run, so the waits grow and the tries run out rather than going on every second.
+    @Test func aSessionThatDropsSoonCarriesTheCount() async {
+        let lost = Script.Step.outcome(.ended(.connectionLost))
+        let script = Script([lost, .outcome(.streaming), .outcome(.streaming), lost, lost])
+        let reconnector = Reconnector(clock: clock, attempt: script.next)
+        var states = reconnector.states.makeAsyncIterator()
+        let first = Task { await reconnector.run(after: .connectionLost) }
+        _ = await follow(&states, count: 4)
+        #expect(await first.value == .reconnected)
+        clock.advance(by: ReconnectMemory.steadyTime - .seconds(1))
+        let second = Task { await reconnector.run(after: .connectionLost) }
+        let seen = await follow(&states, count: 2)
+        #expect(seen == [.waiting(attempt: 3, delay: .seconds(4)), .trying(attempt: 3)])
+        #expect(await second.value == .reconnected)
+        let third = Task { await reconnector.run(after: .connectionLost) }
+        let last: [ReconnectState] = [
+            .waiting(attempt: 4, delay: .seconds(8)), .trying(attempt: 4),
+            .waiting(attempt: 5, delay: .seconds(16)), .trying(attempt: 5),
+        ]
+        let seenLast = await follow(&states, count: 4)
+        #expect(seenLast == last)
+        // Counting afresh, it would wait for a try past the script's end.
+        if seenLast != last { third.cancel() }
+        #expect(await third.value == .gaveUp(.connectionLost))
+    }
+
+    /// The window makes a reconnector per run; a memory they share carries the count.
+    @Test func aSharedMemoryCarriesTheCountToTheNextReconnector() async {
+        let memory = ReconnectMemory(clock: clock)
+        let script = Script([.outcome(.streaming), .outcome(.streaming)])
+        let first = Reconnector(clock: clock, memory: memory, attempt: script.next)
+        var firstStates = first.states.makeAsyncIterator()
+        let run = Task { await first.run(after: .connectionLost) }
+        _ = await follow(&firstStates, count: 2)
+        #expect(await run.value == .reconnected)
+        let second = Reconnector(clock: clock, memory: memory, attempt: script.next)
+        var states = second.states.makeAsyncIterator()
+        let next = Task { await second.run(after: .connectionLost) }
+        #expect(
+            await follow(&states, count: 2) == [
+                .waiting(attempt: 2, delay: .seconds(2)), .trying(attempt: 2),
+            ])
+        #expect(await next.value == .reconnected)
+    }
+
+    /// A try that streams as the person connects elsewhere (forgetting the count) leaves no count.
+    @Test func aForgetDuringATryWins() async {
+        let memory = ReconnectMemory(clock: clock)
+        let reconnector = Reconnector(clock: clock, memory: memory) {
+            memory.forget()
+            return .streaming
+        }
+        var states = reconnector.states.makeAsyncIterator()
+        let first = Task { await reconnector.run(after: .connectionLost) }
+        _ = await follow(&states, count: 2)
+        #expect(await first.value == .reconnected)
+        let second = Task { await reconnector.run(after: .connectionLost) }
+        #expect(
+            await follow(&states, count: 2) == [
+                .waiting(attempt: 1, delay: .seconds(1)), .trying(attempt: 1),
+            ])
+        #expect(await second.value == .reconnected)
+    }
+
+    /// A connection the person makes forgets the count.
+    @Test func forgettingStartsTheCountAgain() async {
+        let memory = ReconnectMemory(clock: clock)
+        let script = Script([.outcome(.streaming), .outcome(.streaming)])
+        let reconnector = Reconnector(clock: clock, memory: memory, attempt: script.next)
+        var states = reconnector.states.makeAsyncIterator()
+        let first = Task { await reconnector.run(after: .connectionLost) }
+        _ = await follow(&states, count: 2)
+        #expect(await first.value == .reconnected)
+        memory.forget()
+        let second = Task { await reconnector.run(after: .connectionLost) }
+        #expect(
+            await follow(&states, count: 2) == [
+                .waiting(attempt: 1, delay: .seconds(1)), .trying(attempt: 1),
+            ])
         #expect(await second.value == .reconnected)
     }
 

@@ -31,6 +31,7 @@ public actor Reconnector {
     public nonisolated let states: AsyncStream<ReconnectState>
     private let statesContinuation: AsyncStream<ReconnectState>.Continuation
     private let clock: any Clock<Duration>
+    private let memory: ReconnectMemory
     private let attempt: @Sendable () async -> ReconnectAttempt
     private var online = true
     private var isRunning = false
@@ -46,12 +47,15 @@ public actor Reconnector {
 
     /// `attempt` starts a session and returns once it streams or ends; it runs in the task
     /// that called `run(after:)`, so a Disconnect cancels it too.
+    /// `memory` carries the count from one run to the next, across reconnectors; by default
+    /// this one's own.
     public init(
-        clock: any Clock<Duration> = SuspendingClock(),
+        clock: any Clock<Duration> = SuspendingClock(), memory: ReconnectMemory? = nil,
         attempt: @escaping @Sendable () async -> ReconnectAttempt
     ) {
         (states, statesContinuation) = AsyncStream.makeStream()
         self.clock = clock
+        self.memory = memory ?? ReconnectMemory(clock: clock)
         self.attempt = attempt
     }
 
@@ -68,10 +72,9 @@ public actor Reconnector {
         isRunning = true
         defer { isRunning = false }
         var end = end
-        // Each run counts its own tries.
-        var policy = ReconnectPolicy()
-        while let delay = policy.next(after: end) {
-            let number = policy.failures
+        var count = memory.take()
+        while let delay = count.policy.next(after: end) {
+            let number = count.policy.failures
             // A Reconnect Now pressed during the last try doesn't skip this wait.
             skipWait = false
             // A cancel can land after the wait ended and before this resumes.
@@ -79,6 +82,7 @@ public actor Reconnector {
             statesContinuation.yield(.trying(attempt: number))
             switch await attempt() {
             case .streaming:
+                memory.reconnected(with: count)
                 return .reconnected
             case .ended(let ended):
                 if Task.isCancelled { return .cancelled }

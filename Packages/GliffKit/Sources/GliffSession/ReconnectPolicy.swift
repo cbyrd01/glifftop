@@ -1,7 +1,8 @@
 import GliffTransport
 
 /// When a session that ended is tried again, and how soon: after 1, 2, 4, 8 and 16 s, then
-/// never. Each reconnect starts from a new policy; giving up starts the count over.
+/// never. Giving up starts the count over; `Reconnector` starts a new policy once a
+/// reconnected session has streamed for `ReconnectMemory.steadyTime`.
 ///
 /// What is tried again: an end that may reconnect (`SessionEnd.mayReconnect`), and, once trying
 /// again, a host not found or a connection refused, which pass while a network or the host comes

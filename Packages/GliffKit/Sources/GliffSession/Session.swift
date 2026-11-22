@@ -49,6 +49,8 @@ public actor Session {
     private var config: Frame?
     /// The window's latest size and scale, from any thread (latest wins).
     private nonisolated let viewTarget = Mutex<ViewTarget?>(nil)
+    /// Numbers each `probe()` and `withdrawProbe()` as it's called, for `Liveness` to order.
+    nonisolated let probeCalls = Mutex<UInt64>(0)
     /// Sends a Resize once the latest target has settled.
     private var resizeWake: Task<Void, Never>?
     /// The session's clipboard, when the app shares it (`Session+Clipboard.swift`).

@@ -21,7 +21,8 @@ final class ReconnectRun {
 /// Trying a lost session again, with backoff (`Reconnector`): a session that streamed and ended
 /// with a reason a retry may fix, its machine's Reconnect automatically on. Each try is a new
 /// session to the same destination and options, in the same window, its size and full screen
-/// kept, the last picture dimmed under `ReconnectingView` meanwhile. Disconnect, closing the
+/// kept, the last picture dimmed under `ReconnectingView` meanwhile. A session that drops within
+/// `ReconnectMemory.steadyTime` of coming back goes on from its count. Disconnect, closing the
 /// window, quitting or another connection cancels it. A wake probes the link and cuts the
 /// countdown short; the network's state stops and restarts it.
 extension SessionModel {
@@ -44,6 +45,8 @@ extension SessionModel {
         } else if phase == .ended {
             tryAgain()
         } else if phase == .streaming, !quitting {
+            // Asked for: it counts afresh.
+            reconnectMemory.forget()
             endSession()
             beginReconnect(after: .connectionLost, now: true)
         }
@@ -81,8 +84,10 @@ extension SessionModel {
         }
     }
 
-    /// Stops a reconnect under way, its try's session included (the caller ends that).
+    /// Stops a reconnect under way, its try's session included (the caller ends that). Any
+    /// connection the person makes, or Disconnect, comes here: the next reconnect counts afresh.
     func cancelReconnect() {
+        reconnectMemory.forget()
         guard let run = reconnectRun else { return }
         reconnectRun = nil
         run.task?.cancel()
@@ -102,12 +107,13 @@ extension SessionModel {
         if let run = reconnectRun { Task { await run.reconnector?.reconnectNow() } }
     }
 
-    /// The network path changed: a countdown stops while it's unusable; a usable one probes the
-    /// link again (Wi-Fi can take longer than a probe to come back after a wake).
+    /// The network path changed: a countdown stops while it's unusable, and a probe waiting
+    /// is withdrawn (the path can turn unusable just after a wake's probe, as Wi-Fi rejoins); a
+    /// usable one probes the link again, and that probe decides.
     func networkChanged(_ usable: Bool) {
         networkUsable = usable
         reconnectRun?.networkChanges.yield(usable)
-        if usable { probe() }
+        if usable { probe() } else { session?.withdrawProbe() }
     }
 
     /// Reconnect automatically turned off: a reconnect under way stops, with the try's session,
@@ -124,7 +130,7 @@ extension SessionModel {
         (reconnectEnd, gaveUp) = (end, false)
         let run = ReconnectRun()
         // A window gone, or a run since replaced, ends with a reason that is never retried.
-        let reconnector = Reconnector { [weak self, weak run] in
+        let reconnector = Reconnector(memory: reconnectMemory) { [weak self, weak run] in
             guard let run else { return .ended(.disconnected) }
             return await self?.attempt(for: run) ?? .ended(.disconnected)
         }

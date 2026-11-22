@@ -133,9 +133,10 @@ import os
     /// Whether this session has streamed (and been recorded on its machine).
     private(set) var recorded = false
 
-    // Reconnect (`SessionModel+Reconnect.swift`).
+    // Reconnect (`SessionModel+Reconnect.swift`); `reconnectMemory` carries the count on.
     /// The reconnect under way, while a lost session is tried again.
     var reconnectRun: ReconnectRun?
+    @ObservationIgnored let reconnectMemory = ReconnectMemory()
     /// Where the reconnect is, when its countdown ends, and why the session was lost.
     var reconnectState: ReconnectState?
     var reconnectDeadline: Date?

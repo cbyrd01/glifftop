@@ -23,7 +23,8 @@ the feature seam.
   at the next bytes. `probe()` (after a wake or a network change, while streaming) sends a
   Ping at once and ends the session as `.connectionLost` unless that Ping's Pong, or any
   bytes 1 s or more after it, arrive within 3 s; bytes sooner may predate the sleep, so they
-  don't answer it. The handshake isn't probed. Closing waits up to 1 s for queued frames (Bye), then closes the
+  don't answer it. `withdrawProbe()` (the network went away) drops a probe waiting; the
+  next probe decides. The handshake isn't probed. Closing waits up to 1 s for queued frames (Bye), then closes the
   connection. Cancelling `run()` is a disconnect. A run of decode failures logs each
   reason once; the next picture ends the run.
 - **Input:** `Session.send(_:)` queues an `InputMessage` from any thread (`InputQueue`, in
@@ -70,7 +71,9 @@ the feature seam.
   `Reconnector` runs it: a countdown before each try (`ReconnectState`, for the window), cut
   short by `reconnectNow()`, stopped while `networkAvailable(false)` without spending a try
   and started again once the network is back, and ended by cancelling its task (Disconnect).
-  Each run counts from the first try. Its clock (by default one that stops in sleep) is
+  A run counts from the first try, unless the last run's session ended within `ReconnectMemory.steadyTime`
+  (30 s) of streaming: then it goes on from that count (`ReconnectMemory`, shared by a
+  window's reconnectors), so a host that streams, then drops, runs out of tries. Its clock (by default one that stops in sleep) is
   injected; tests use `ManualClock`.
 - **Features:** `SessionFeature` is an optional protocol feature as a plug-in unit: offered
   in Hello by name, active once HelloAck echoes it, then handed the unknown server variants
