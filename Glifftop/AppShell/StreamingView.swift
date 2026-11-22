@@ -3,37 +3,35 @@ import GliffSession
 import GliffVideo
 import SwiftUI
 
-/// The remote picture filling the window, with the stats and Disconnect overlaid at the top
-/// trailing corner, the input hint at the bottom for a few seconds after capture, the host's
-/// read of the Mac clipboard at the bottom leading corner, and the interruption panel over all
-/// of it while the server is quiet.
-/// Liquid Glass on the overlays only, never the video.
+/// The remote picture filling the window (below the toolbar, never under it), the input hint
+/// at the bottom for a few seconds after capture, the interruption panel over it while the
+/// server is quiet, and under it the status bar when View ▸ Show Status Bar is on. Liquid
+/// Glass on the overlays only, never the video.
 struct StreamingView: View {
-    let model: SessionModel
+    @Bindable var model: SessionModel
     let stream: StreamInfo
     let renderer: PictureRenderer
+    @AppStorage(AppSettings.showsStatusBarKey) private var showsStatusBar = false
 
     var body: some View {
+        VStack(spacing: 0) {
+            picture
+            if showsStatusBar {
+                StatusBar(model: model, stream: stream)
+            }
+        }
+    }
+
+    private var picture: some View {
         VideoView(
             slot: model.slot, renderer: renderer,
-            sizing: model.windowSizing,
+            sizing: model.windowSizing, extraHeight: showsStatusBar ? StatusBar.height : 0,
             fitRequest: model.actualSizeRequests, scaleToFit: model.scaleToFit,
             onTarget: model.viewTargetChanged, onPointer: model.capture.pointer, cursor: model.viewCursor,
             captured: model.capture.isCaptured, headless: model.snapshot.session?.headless ?? false
         )
         // A new session's slot gets a new video view: the old one would keep drawing the old slot.
         .id(ObjectIdentifier(model.slot))
-        .overlay(alignment: .topTrailing) {
-            VStack(alignment: .trailing, spacing: 10) {
-                if model.showsStatistics {
-                    StatsView(host: model.host, stream: stream, stats: model.snapshot.stats)
-                }
-                Button("Disconnect", action: model.disconnect)
-            }
-            .padding(12)
-            .glassEffect(in: .rect(cornerRadius: 12))
-            .padding(12)
-        }
         .overlay(alignment: .bottom) {
             // Its own container, so the fade animates only the hint; clicks go through to
             // the picture under it.
@@ -47,11 +45,16 @@ struct StreamingView: View {
             .animation(.easeInOut(duration: 0.2), value: model.capture.showsHint)
             .allowsHitTesting(false)
         }
-        .overlay(alignment: .bottomLeading) {
-            ClipboardActivityView(
-                activity: model.snapshot.clipboard, host: model.host, cancel: model.cancelClipboardServing)
+        // Connection Info (⌘I, the toolbar's ⓘ) from the picture's top trailing corner, under
+        // the ⓘ: the toolbar may be hidden (full screen) or the item in its overflow.
+        .overlay(alignment: .topTrailing) {
+            Color.clear
+                .frame(width: 1, height: 1)
+                .popover(isPresented: $model.showsConnectionInfo, arrowEdge: .top) {
+                    ConnectionInfoView(model: model)
+                }
         }
-        // Over everything, stats included: while the server is quiet nothing below is live.
+        // While the server is quiet nothing below is live.
         .overlay {
             if model.snapshot.isInterrupted {
                 InterruptionView(host: model.host, disconnect: model.disconnect)

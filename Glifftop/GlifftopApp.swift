@@ -12,6 +12,7 @@ struct GlifftopApp: App {
         }
         .windowResizability(.contentSize)
         .commands {
+            ConnectionCommands(model: model)
             ViewCommands(model: model)
             InputCommands(model: model)
             #if DEBUG

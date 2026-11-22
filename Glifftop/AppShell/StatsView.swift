@@ -1,7 +1,7 @@
 import GliffSession
 import SwiftUI
 
-/// The live numbers for a streaming session, overlaid on the picture.
+/// The live numbers for a streaming session and its stream, for Connection Info.
 struct StatsView: View {
     let host: String
     let stream: StreamInfo
@@ -19,10 +19,12 @@ struct StatsView: View {
                 row("Chroma", stream.chroma.displayName)
                 row("Encoder", stream.pipeline?.displayName)
                 row("Stream", "\(stream.width) × \(stream.height)")
-                row("View", "\(stream.viewWidth) × \(stream.viewHeight)")
             }
             .font(.callout)
             .monospacedDigit()
+            Text("The host draws \(stream.viewWidth) × \(stream.viewHeight)")
+                .font(.callout)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -34,7 +36,7 @@ struct StatsView: View {
         }
     }
 
-    private static func number(_ value: Double, digits: Int) -> String {
+    static func number(_ value: Double, digits: Int) -> String {
         value.formatted(.number.precision(.fractionLength(digits)))
     }
 }

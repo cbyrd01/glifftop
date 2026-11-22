@@ -16,6 +16,8 @@ enum AppSettings {
     /// "Include passwords": a password manager's copies are offered too. Off until turned on,
     /// which asks first.
     static let includePasswordsKey = "includePasswords"
+    /// View ▸ Show Status Bar, app-wide; off by default.
+    static let showsStatusBarKey = "showsStatusBar"
 
     static var connectScreen: ScreenChoice {
         UserDefaults.standard.string(forKey: connectScreenKey) == "virtual" ? .virtual : .focused
@@ -49,21 +51,14 @@ struct SettingsView: View {
                 ForEach(TextSize.allCases) { Text($0.label()).tag($0) }
             }
             Toggle("Scale smaller screens to fit", isOn: $scaleToFit)
-            Toggle("Share the clipboard", isOn: askingFirst($shareClipboard, confirming: $confirmingShare))
+            Toggle("Share the clipboard", isOn: .askingFirst($shareClipboard, confirming: $confirmingShare))
             Toggle(
-                "Include passwords", isOn: askingFirst($includePasswords, confirming: $confirmingPasswords)
+                "Include passwords", isOn: .askingFirst($includePasswords, confirming: $confirmingPasswords)
             )
             .disabled(!shareClipboard)
         }
         .formStyle(.grouped)
-        .alert("Share the clipboard with the remote computer?", isPresented: $confirmingShare) {
-            Button("Cancel", role: .cancel) {}
-            Button("Share") { shareClipboard = true }
-        } message: {
-            Text(
-                "While Glifftop is in front, anything you copy on this Mac is sent to the remote computer, where its apps can read it and its clipboard tools may keep it. Copies made on the remote computer come to this Mac. Passwords are sent only with Include passwords on."
-            )
-        }
+        .shareClipboardConfirmation(isPresented: $confirmingShare) { shareClipboard = true }
         .alert("Include passwords?", isPresented: $confirmingPasswords) {
             Button("Cancel", role: .cancel) {}
             Button("Include") { includePasswords = true }
@@ -72,16 +67,6 @@ struct SettingsView: View {
         }
         .frame(width: 420)
         .fixedSize()
-    }
-
-    /// A switch that asks first when turned on (`confirming` shows the alert, whose button
-    /// sets it) and turns off at once.
-    private func askingFirst(_ value: Binding<Bool>, confirming: Binding<Bool>) -> Binding<Bool> {
-        Binding(
-            get: { value.wrappedValue },
-            set: { on in
-                if on { confirming.wrappedValue = true } else { value.wrappedValue = false }
-            })
     }
 
     private var textSize: Binding<TextSize> {

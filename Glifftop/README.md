@@ -28,11 +28,19 @@ line with its `ictool` (into `.build/`, which git ignores):
 
 The SwiftUI side of the app: the window, the connect form (the host, and a Screen picker:
 Focused Monitor, Virtual Screen, then the host's monitors once Get Screens has listed them;
-editing the host forgets the list), the session view, the streaming view (the picture with
-the stats and Disconnect overlaid, and `InterruptionView`, a dimmed picture under a glass
-panel, while the server is quiet, and the "Shift+Esc releases input" hint for a few seconds
-after capture), the View menu (Actual Size ⌘0, disabled on a virtual screen; Scale to Fit
-⌥⌘0; Show Statistics; `ScreenMenus.swift`: Text Size, a virtual screen only, its steps
+editing the host forgets the list), the session view, the streaming view (the picture below
+the toolbar, never under it; `InterruptionView`, a dimmed picture under a glass panel, while
+the server is quiet; the "Shift+Esc releases input" hint for a few seconds after capture; and
+under the picture, with View ▸ Show Status Bar, `StatusBar`: the state, fps, Mbit/s, round
+trip, chroma · encoder and the clipboard read, on the bar material, its height counted when
+a mirror's window is fitted), the window's title (the host) and subtitle ("Virtual Screen ·
+Connected", `SessionModel+Chrome.swift`), the toolbar (`SessionToolbar`, while a session is
+shown, shown on hover in full screen: Screen and, on a virtual screen, Text Size; Share the
+clipboard (`ClipboardToolbarItem`, asking first as Settings does, with the clipboard read
+beside it); Connection Info, a popover of `StatsView`'s numbers and "The host draws W × H",
+and Disconnect), the Connection menu (`ConnectionCommands`: Disconnect ⇧⌘D, Reconnect ⇧⌘R,
+Connection Info ⌘I, Edit Machine… ⌘E), the View menu (Actual Size ⌘0, disabled on a virtual
+screen; Scale to Fit ⌥⌘0; Show Status Bar ⌘/, app-wide, off by default; `ScreenMenus.swift`: Text Size, a virtual screen only, its steps
 showing the remote scale on the window's display and the ones that change nothing off; and
 Screen, the choice in use checked, "Focused Monitor (DP-2)" once the session names its
 output, the listed monitors labelled as the form labels them (at most 60 characters), and
@@ -58,10 +66,10 @@ and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes
   new one arrives; the list belongs to its host and is forgotten when the field names
   another, and a monitor is chosen only from its own host's list), the
   views, and the app's display text for GliffKit values, text sizes included
-  (`DisplayNames.swift`; GliffKit carries no UI text). Among the views, `ClipboardActivityView` shows the host's read of the
-  Mac clipboard over the picture's bottom leading corner: while it runs (reported
-  after a second) with the bytes sent and Cancel (`SessionModel.cancelClipboardServing`), and
-  for 3 s after a failure with why; temporary chrome, as the stats are.
+  (`DisplayNames.swift`; GliffKit carries no UI text). Among the views, `ClipboardReadView`
+  shows the host's read of the Mac clipboard in the toolbar and the status bar: while it runs
+  (reported after a second) with the bytes sent and Cancel
+  (`SessionModel.cancelClipboardServing`), and for 3 s after a failure with why.
 - **Imports:** SwiftUI, Observation, Foundation, UniformTypeIdentifiers, Metal (the system
   GPU for the renderer), `os` and the GliffKit modules. Must not import AppKit: anything
   AppKit goes through `MacPlatform`.

@@ -1,11 +1,12 @@
 import GliffSession
 import SwiftUI
 
-/// View ▸ Actual Size (⌘0, a mirror only), Scale to Fit (⌥⌘0), Show Statistics, Text Size
+/// View ▸ Actual Size (⌘0, a mirror only), Scale to Fit (⌥⌘0), Show Status Bar (⌘/), Text Size
 /// (a virtual screen only) and Screen. Everything they read changes only when its value does,
 /// never with the stats each second: a View menu rebuilt every second loses Enter Full Screen.
 struct ViewCommands: Commands {
     @Bindable var model: SessionModel
+    @AppStorage(AppSettings.showsStatusBarKey) private var showsStatusBar = false
 
     var body: some Commands {
         CommandGroup(before: .toolbar) {
@@ -16,7 +17,8 @@ struct ViewCommands: Commands {
             Toggle("Scale to Fit", isOn: $model.scaleToFit)
                 .keyboardShortcut("0", modifiers: [.command, .option])
                 .disabled(!model.hasPicture)
-            Toggle("Show Statistics", isOn: $model.showsStatistics)
+            Toggle("Show Status Bar", isOn: $showsStatusBar)
+                .keyboardShortcut("/")
             Divider()
             TextSizeMenu(model: model)
             ScreenMenu(model: model)

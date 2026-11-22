@@ -16,6 +16,8 @@ import os
             if stream != shownStream { shownStream = stream }
             if hasPicture != (picture != nil) { hasPicture = picture != nil }
             if snapshot.isInterrupted != isInterrupted { isInterrupted = snapshot.isInterrupted }
+            if snapshot.phase != phase { phase = snapshot.phase }
+            if snapshot.clipboard != clipboardActivity { clipboardActivity = snapshot.clipboard }
             let active = snapshot.phase != .idle
             if active != isActive { isActive = active }
             if windowSizing == nil, let sizing = Self.windowSizing(for: snapshot) { windowSizing = sizing }
@@ -56,6 +58,10 @@ import os
     @ObservationIgnored private var viewPixels: PixelSize?
     /// Whether the link is interrupted, set only when it changes (as `shownStream` is).
     private(set) var isInterrupted = false
+    /// The session's phase, set only when it changes: the title, the toolbar and the menus read it.
+    private(set) var phase = SessionSnapshot.Phase.idle
+    /// The host's read of the Mac clipboard, set only when it changes: the toolbar shows it.
+    private(set) var clipboardActivity: ClipboardActivity?
     /// Input capture (keys and pointer) for this window's session.
     let capture = CaptureController()
     /// The shared clipboard for this window's session: "Share the clipboard" from Settings.
@@ -96,8 +102,14 @@ import os
     }
     /// Draws pictures into the video view: made on the first connect, then kept.
     private(set) var renderer: PictureRenderer?
-    /// View ▸ Show Statistics.
-    var showsStatistics = true
+    /// Connection Info's popover (⌘I, the toolbar's ⓘ); closed at each session's start and at
+    /// Back.
+    var showsConnectionInfo = false
+    /// The toolbar's Share the clipboard is asking first (the alert is the window's).
+    var confirmingShare = false
+    /// The clipboard read whose failure was already shown its 3 s (`ClipboardReadView`), shared
+    /// by the toolbar and the status bar; a new session's runs count again.
+    var dismissedClipboardRun: Int?
     /// Counts View ▸ Actual Size: each one fits the window to the remote view again.
     private(set) var actualSizeRequests = 0
 
@@ -139,6 +151,7 @@ import os
         // A listing still running would ask for a second ssh approval beside the session's.
         screenList.stop()
         disconnect()
+        (showsConnectionInfo, dismissedClipboardRun) = (false, nil)
         self.destination = destination
         screenChoice = screen
         host = destination.value
@@ -252,6 +265,7 @@ import os
         session = nil
         destination = nil
         isSwitching = false
+        (showsConnectionInfo, dismissedClipboardRun) = (false, nil)
         host = ""
         // The old pool's textures go with the old slot and session.
         slot = PictureSlot()

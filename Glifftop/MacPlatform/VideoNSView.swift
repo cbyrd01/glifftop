@@ -30,6 +30,18 @@ final class VideoNSView: NSView {
         didSet { if fit != oldValue { fitWindow() } }
     }
 
+    /// Points under the picture in the window's content (the status bar). Counted when the
+    /// window is fitted; once fitted, a change grows or shrinks a mirror's window by as much,
+    /// and leaves a virtual screen's (the remote follows the picture).
+    var extraHeight: CGFloat = 0 {
+        didSet {
+            guard extraHeight != oldValue, fitted, let window, case .monitor = fit?.sizing else { return }
+            let delta = extraHeight - oldValue
+            // Not inside SwiftUI's update pass, as `fitWindow`.
+            Task { WindowSizer.grow(window, by: delta) }
+        }
+    }
+
     /// View ▸ Scale to Fit: a picture smaller than the view is scaled up to fill it.
     var scaleToFit = false
 
@@ -321,7 +333,7 @@ final class VideoNSView: NSView {
         // Not inside SwiftUI's update pass: resizing the window there re-enters its layout.
         Task {
             switch fit.sizing {
-            case .monitor(let size): WindowSizer.fit(window, view: size)
+            case .monitor(let size): WindowSizer.fit(window, view: size, extraHeight: extraHeight)
             case .fillScreen: WindowSizer.fill(window)
             }
             // Laid out now, so the next tick's drawable is the fitted one, not the connect form's.

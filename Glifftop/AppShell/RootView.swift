@@ -2,10 +2,12 @@ import GliffSession
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// The connect form, or the session once one has started.
+/// The connect form, or the session once one has started, titled for it (the host, its screen
+/// and state), with the session's controls in the toolbar (shown on hover in full screen).
 struct RootView: View {
     @Bindable var model: SessionModel
     @State private var isFullScreen = false
+    @AppStorage(AppSettings.shareClipboardKey) private var shareClipboard = false
 
     var body: some View {
         Group {
@@ -26,6 +28,11 @@ struct RootView: View {
         // One view tree either way: a SessionView swapped for another would disappear, which
         // disconnects.
         .fixedSize(horizontal: isCompact, vertical: isCompact)
+        .navigationTitle(model.title)
+        .navigationSubtitle(model.subtitle)
+        .toolbar { SessionToolbar(model: model) }
+        .windowToolbarFullScreenVisibility(.onHover)
+        .shareClipboardConfirmation(isPresented: $model.confirmingShare) { shareClipboard = true }
         // Kept while View ▸ Screen reconnects: the new screen opens in full screen too.
         .background {
             FullScreenTracker(isFullScreen: $isFullScreen, wanted: model.picture != nil || model.isSwitching)
