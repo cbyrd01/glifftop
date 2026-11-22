@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 log=$(mktemp)
-trap 'rm -f "$log"' EXIT
+trap 'rm -f "$log" "$log.tests"' EXIT
 
 source scripts/gate-step.sh
 
@@ -50,6 +50,24 @@ encode_fixtures() {
     swift test --package-path tools/encode-fixtures
 }
 
+# gliffkit_tests — build GliffKit and its tests, then run them against the built fake server.
+# A run still going after 10 minutes, about four times its usual length, is ended, and the
+# tests still running are named from --verbose's start lines. `script` gives the tests a
+# terminal, so their output is line-buffered and an ended run loses none of it; Swift
+# Testing's SF Symbols markers stay off, as the names are read from its plain ones.
+# No -q: in SwiftPM 6.4 it hides the compiler's diagnostics.
+gliffkit_tests() {
+    local out rc=0
+    swift build --build-tests --package-path Packages/GliffKit || return 1
+    out="$log.tests"
+    GLIFFTOP_FAKE_SERVER="$PWD/tools/fake-server/target/debug/glifftop-fake-server" \
+        SWT_SF_SYMBOLS_ENABLED=0 scripts/time-limit.sh 600 script -q /dev/null \
+        swift test --skip-build --verbose --package-path Packages/GliffKit </dev/null >"$out" 2>&1 || rc=$?
+    sed '1s/^\^D\x08\x08//; s/\r$//' "$out"
+    [ "$rc" -ne 124 ] || scripts/unfinished-tests.sh <"$out"
+    return "$rc"
+}
+
 step secrets gitleaks git --redact --no-banner
 step format swift format lint --strict --parallel --recursive Glifftop \
     Packages/GliffKit/Package.swift Packages/GliffKit/Sources Packages/GliffKit/Tests \
@@ -60,9 +78,7 @@ step script-tests script_tests
 step fake-server fake_server
 step fixture-drift fixture_drift
 step encode-fixtures encode_fixtures
-# No -q: in SwiftPM 6.4 it hides the compiler's diagnostics.
-step gliffkit-tests env GLIFFTOP_FAKE_SERVER="$PWD/tools/fake-server/target/debug/glifftop-fake-server" \
-    swift test --package-path Packages/GliffKit
+step gliffkit-tests gliffkit_tests
 step app-build scripts/app-build.sh
 step ios-check scripts/ios-check.sh
 echo "gate passed"
