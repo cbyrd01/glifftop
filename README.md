@@ -6,6 +6,8 @@ remote desktop for Hyprland and Omarchy. Not affiliated with the Gliff project.
 Glifftop connects over ssh to a machine running the stock `gliff-server` and shows its
 desktop in a native macOS window.
 
+![Glifftop showing an Omarchy virtual screen: omarchy.org, LazyVim and btop side by side](docs/media/virtual-screen.png)
+
 The name combines *gliff*, the Scots word for a glimpse, with *desktop* and *clifftop*.
 
 ## Status: preview
@@ -18,6 +20,8 @@ The name combines *gliff*, the Scots word for a glimpse, with *desktop* and *cli
 - Choosing the screen: one of the host's monitors, the focused one, or a virtual screen that
   follows the window's size.
 - A shared clipboard (text, HTML and images, both ways), off until you turn it on.
+
+<img src="docs/media/screensaver.png" width="480" alt="Omarchy's screensaver in Glifftop: the logo's colour gradient, sharp at full chroma">
 
 **Not yet:**
 
@@ -42,7 +46,10 @@ encode).
 ## Using it
 
 1. Type the ssh destination, as you would after `ssh` (for example `omarchy`, a `Host` in
-   your `~/.ssh/config`), pick the screen, and connect.
+   your `~/.ssh/config`), pick the screen, and connect. **Get Screens** lists the host's
+   monitors.
+
+   <img src="docs/media/screen-choice.png" width="460" alt="The connect window: the host omarchy, and the screen menu with Focused Monitor, Virtual Screen and two monitors">
 2. While the window is in front, the keyboard and pointer go to the remote computer;
    **Input ▸ Release Input** (⇧Esc) gives them back to the Mac.
 3. **View ▸ Actual Size** (⌘0) shows the remote 1:1; **View ▸ Scale to Fit** (⌥⌘0) scales a
