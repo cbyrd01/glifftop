@@ -26,6 +26,31 @@ struct TextSizeMenu: View {
     }
 }
 
+/// View ▸ Resolution: a virtual screen's, the one in use checked; Standard is off on a display
+/// under 2×, where it would change nothing.
+struct ResolutionMenu: View {
+    @Bindable var model: SessionModel
+
+    var body: some View {
+        Menu("Resolution") {
+            Picker("Resolution", selection: $model.resolution) {
+                ForEach(VirtualResolution.allCases, id: \.self) { resolution in
+                    Text(resolution.label)
+                        .tag(resolution)
+                        // The one in use stays enabled, so it never shows checked but off.
+                        .disabled(
+                            resolution == .standard && model.resolution != .standard
+                                && (model.backingScale ?? 2) < 2)
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        }
+        // A mirror's pixels are the monitor's own.
+        .disabled(!model.isVirtual)
+    }
+}
+
 /// View ▸ Screen: what the session shows, the one in use checked; another starts a
 /// new session to the same host. The host's monitors appear once listed.
 struct ScreenMenu: View {

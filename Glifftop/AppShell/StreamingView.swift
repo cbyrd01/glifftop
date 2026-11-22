@@ -26,7 +26,7 @@ struct StreamingView: View {
         VideoView(
             slot: model.slot, renderer: renderer,
             sizing: model.windowSizing, extraHeight: showsStatusBar ? StatusBar.height : 0,
-            fitRequest: model.actualSizeRequests, scaleToFit: model.scaleToFit,
+            fitRequest: model.actualSizeRequests, scaleToFit: model.drawsScaled,
             onTarget: model.viewTargetChanged, onPointer: model.capture.pointer, cursor: model.viewCursor,
             captured: model.capture.isCaptured, headless: model.snapshot.session?.headless ?? false
         )

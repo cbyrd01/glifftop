@@ -25,6 +25,15 @@ public struct ViewTarget: Equatable, Sendable {
     public static func virtualScale(backingScale: Double, textFactor: Double) -> Double {
         min(max(backingScale * textFactor, 1), 4)
     }
+
+    /// Whether a virtual screen's picture of `screenScale` is Standard's (r = ½): under ¾ of
+    /// the scale the window asks at Retina. The picture in hand decides, not the choice: after
+    /// a change, the old picture shows until the server answers.
+    public static func isStandardPicture(screenScale: Double, backingScale: Double, textFactor: Double)
+        -> Bool
+    {
+        screenScale < virtualScale(backingScale: backingScale, textFactor: textFactor) * 0.75
+    }
 }
 
 /// When a `ViewTarget` goes to the server as a Resize (upstream `request_resize`, plus a

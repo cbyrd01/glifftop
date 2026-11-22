@@ -48,7 +48,10 @@ beside it); Connection Info, a popover of `StatsView`'s numbers and "The host dr
 and Disconnect), the Connection menu (`ConnectionCommands`: Disconnect ⇧⌘D, Reconnect ⇧⌘R,
 Connection Info ⌘I, Edit Machine… ⌘E), the View menu (Actual Size ⌘0, disabled on a virtual
 screen; Scale to Fit ⌥⌘0; Show Status Bar ⌘/, app-wide, off by default; `ScreenMenus.swift`: Text Size, a virtual screen only, its steps
-showing the remote scale on the window's display and the ones that change nothing off; and
+showing the remote scale on the window's display and the ones that change nothing off;
+Resolution, a virtual screen only: Automatic, Retina and Standard, Standard off on a display
+under 2×, a Standard picture drawn scaled to the window (`drawsScaled`, from the stream in
+hand); and
 Screen, the choice in use checked, "Focused Monitor (DP-2)" once the session names its
 output, the listed monitors labelled as the form labels them (at most 60 characters), and
 Refresh Screen List, while streaming, its error shown under it; the same screen again only

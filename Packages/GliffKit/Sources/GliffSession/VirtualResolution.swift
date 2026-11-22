@@ -9,19 +9,25 @@ public import GliffProtocol
 public enum VirtualResolution: String, CaseIterable, Codable, Sendable {
     case automatic, retina, standard
 
+    /// Whether Standard's picture is asked for, display and window aside: Standard, or
+    /// Automatic on a CPU pipeline.
+    public func isStandard(pipeline: VideoPipeline?) -> Bool {
+        switch self {
+        case .retina: false
+        case .standard: true
+        case .automatic: pipeline == .cpu
+        }
+    }
+
     /// r, what a Resize's size and scale are multiplied by: ½ for Standard (or Automatic on a
     /// CPU pipeline) on a display of backing scale ≥ 2 whose window at ½ still fits the
     /// server's smallest screen (320×240); else 1.
     public func factor(pipeline: VideoPipeline?, backingScale: Double, width: UInt32, height: UInt32)
         -> Double
     {
-        let standard =
-            switch self {
-            case .retina: false
-            case .standard: true
-            case .automatic: pipeline == .cpu
-            }
-        guard standard, backingScale >= 2, width / 2 >= 320, height / 2 >= 240 else { return 1 }
+        guard isStandard(pipeline: pipeline), backingScale >= 2, width / 2 >= 320, height / 2 >= 240 else {
+            return 1
+        }
         return 0.5
     }
 }

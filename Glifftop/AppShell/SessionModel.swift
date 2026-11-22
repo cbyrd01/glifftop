@@ -51,9 +51,23 @@ import os
             updateMachine { $0.textSize = textSize }
         }
     }
-    /// A virtual screen's resolution, for this window, as Scale to Fit is.
+    /// View ▸ Resolution, a virtual screen's, for this window, as Text Size is: a change sends
+    /// the window's size again at the new resolution.
     var resolution = VirtualResolution.automatic {
-        didSet { if resolution != oldValue { updateMachine { $0.resolution = resolution } } }
+        didSet {
+            guard resolution != oldValue else { return }
+            sendViewTarget()
+            updateMachine { $0.resolution = resolution }
+        }
+    }
+    /// Whether the picture is drawn scaled to the window: Scale to Fit, or a virtual screen's
+    /// picture at Standard (half the window's pixels a side), as the stream in hand shows it, so
+    /// a change draws right until the server answers.
+    var drawsScaled: Bool {
+        guard !scaleToFit else { return true }
+        guard isVirtual, let backingScale, let shownStream else { return false }
+        return ViewTarget.isStandardPicture(
+            screenScale: shownStream.screenScale, backingScale: backingScale, textFactor: textSize.factor)
     }
     /// Whether a lost link is tried again, for this window, from the machine's option.
     var reconnects = true
@@ -246,7 +260,7 @@ import os
         session.setViewTarget(
             ViewTarget(
                 width: UInt32(clamping: viewPixels.width), height: UInt32(clamping: viewPixels.height),
-                backingScale: backingScale, textFactor: textSize.factor))
+                backingScale: backingScale, textFactor: textSize.factor, resolution: resolution))
     }
 
     /// A virtual screen fills the screen; a mirror is sized for its first view within its

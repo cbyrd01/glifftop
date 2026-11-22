@@ -4,8 +4,8 @@ import GliffSession
 import GliffTransport
 
 /// The session's machine: connecting with a machine's options, recording it when a session
-/// streams, and keeping the options changed during a session (View ▸ Text Size, Scale to Fit,
-/// Screen) on it.
+/// streams, and keeping the options changed during a session (View ▸ Text Size, Resolution,
+/// Scale to Fit, Screen) on it.
 extension SessionModel {
     /// The session's saved machine: the one kept for its destination, whatever the sheet
     /// changed since. Nil without a session, and for a host that hasn't streamed yet.

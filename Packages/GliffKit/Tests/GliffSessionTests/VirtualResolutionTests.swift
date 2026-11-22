@@ -39,4 +39,31 @@ import Testing
         #expect(factor(.standard, backing: 2, 640, 479) == 1)
         #expect(factor(.standard, backing: 2, 640, 480) == 0.5)
     }
+
+    /// Whether Standard's half-size picture is asked for, display and window aside.
+    @Test func isStandardNamesTheChoiceInForce() {
+        #expect(!VirtualResolution.retina.isStandard(pipeline: .cpu))
+        #expect(VirtualResolution.standard.isStandard(pipeline: .gpu))
+        #expect(VirtualResolution.automatic.isStandard(pipeline: .cpu))
+        #expect(!VirtualResolution.automatic.isStandard(pipeline: .gpu))
+        #expect(!VirtualResolution.automatic.isStandard(pipeline: nil))
+    }
+
+    /// A virtual screen's picture is Standard's when its scale is about half what the window
+    /// asks at Retina: drawn scaled until the server answers a change.
+    @Test func aHalfScalePictureIsStandards() {
+        func half(_ scale: Double, backing: Double = 2, text: Double = 1) -> Bool {
+            ViewTarget.isStandardPicture(screenScale: scale, backingScale: backing, textFactor: text)
+        }
+        #expect(half(1))
+        #expect(!half(2))
+        #expect(half(0.75, text: 0.75))
+        #expect(!half(1.5, text: 0.75))
+        // Under 1: Standard at the smallest text size.
+        #expect(half(0.5, text: 0.5))
+        // Text size changed, the old picture still showing.
+        #expect(!half(2, text: 0.75))
+        #expect(!half(1.5, text: 1))
+        #expect(!half(1, backing: 1))
+    }
 }
