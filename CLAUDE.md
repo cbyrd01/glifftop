@@ -231,6 +231,7 @@ This file wins over any skill, including a skill's "supersedes prior training" c
 ```
 Glifftop.app   Glifftop/: AppShell (SwiftUI windows, settings) + MacPlatform (AppKit adapters)
 GliffKit       Packages/GliffKit/, platform-neutral, one target per module
+  GliffMachines   saved machines and their options, as JSON for the app to store
   GliffSession    per-window actor: handshake, reader/writer tasks, acks, resize, input order
   GliffClipboard  offer/request/data/ack/abort state machine, sharing policy (no pasteboard)
   GliffVideo      H.264 → VideoToolbox (2 sessions) → Metal recombine → BGRA texture

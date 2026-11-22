@@ -14,3 +14,28 @@ public enum ScreenChoice: Hashable, Sendable {
         }
     }
 }
+
+/// Stored with a machine. A name read back becomes a server argument, so it must be one Get
+/// Screens could offer (`ScreenListParser.isValidName`, and no session's virtual screen); else
+/// decoding fails. Encoding is
+/// Swift's own, which `Stored` mirrors case for case.
+extension ScreenChoice: Codable {
+    private enum Stored: Codable {
+        case focused
+        case named(String)
+        case virtual
+    }
+
+    public init(from decoder: any Decoder) throws {
+        switch try Stored(from: decoder) {
+        case .focused: self = .focused
+        case .virtual: self = .virtual
+        case .named(let name):
+            guard ScreenListParser.isValidName(name), !ScreenListParser.isVirtualScreen(name) else {
+                throw DecodingError.dataCorrupted(
+                    .init(codingPath: decoder.codingPath, debugDescription: "screen name"))
+            }
+            self = .named(name)
+        }
+    }
+}
