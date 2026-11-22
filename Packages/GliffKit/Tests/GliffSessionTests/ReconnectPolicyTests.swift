@@ -29,15 +29,6 @@ struct ReconnectPolicyTests {
         #expect(policy.next(after: end) == .seconds(1))
     }
 
-    @Test func aSuccessResets() {
-        var policy = ReconnectPolicy()
-        _ = policy.next(after: .connectionLost)
-        _ = policy.next(after: .connectionLost)
-        policy.succeeded()
-        #expect(policy.failures == 0)
-        #expect(policy.next(after: .connectionLost) == .seconds(1))
-    }
-
     /// After a wake or a network change, DNS or the host's sshd may still be coming back.
     @Test(arguments: [ConnectFailure.hostNotFound, .connectionRefused])
     func aPassingConnectFailureRetriesOnARetry(_ failure: ConnectFailure) {

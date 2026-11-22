@@ -62,6 +62,11 @@ the feature seam.
 - **Reconnect:** `ReconnectPolicy` says whether an end is tried again and after how long: an
   end that may reconnect, and, once retrying, a host not found or a connection refused (a
   network or host coming back after a wake); after 1, 2, 4, 8 and 16 s, then it gives up.
+  `Reconnector` runs it: a countdown before each try (`ReconnectState`, for the window), cut
+  short by `reconnectNow()`, stopped while `networkAvailable(false)` without spending a try
+  and started again once the network is back, and ended by cancelling its task (Disconnect).
+  Each run counts from the first try. Its clock (by default one that stops in sleep) is
+  injected; tests use `ManualClock`.
 - **Features:** `SessionFeature` is an optional protocol feature as a plug-in unit: offered
   in Hello by name, active once HelloAck echoes it, then handed the unknown server variants
   it claims. `FeatureContext` lets it send its own client messages.

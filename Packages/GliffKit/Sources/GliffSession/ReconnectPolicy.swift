@@ -1,7 +1,7 @@
 import GliffTransport
 
 /// When a session that ended is tried again, and how soon: after 1, 2, 4, 8 and 16 s, then
-/// never. A session that streams again, or giving up, starts the count over.
+/// never. Each reconnect starts from a new policy; giving up starts the count over.
 ///
 /// What is tried again: an end that may reconnect (`SessionEnd.mayReconnect`), and, once trying
 /// again, a host not found or a connection refused, which pass while a network or the host comes
@@ -10,7 +10,7 @@ public struct ReconnectPolicy: Equatable, Sendable {
     /// The wait before each try, in order.
     public static let delays: [Duration] = [.seconds(1), .seconds(2), .seconds(4), .seconds(8), .seconds(16)]
 
-    /// The tries handed out since the last success, or since giving up.
+    /// The tries handed out since the start, or since giving up.
     public private(set) var failures = 0
 
     public init() {}
@@ -23,11 +23,6 @@ public struct ReconnectPolicy: Equatable, Sendable {
         }
         defer { failures += 1 }
         return Self.delays[failures]
-    }
-
-    /// A try streamed: the next end starts from the first delay.
-    public mutating func succeeded() {
-        failures = 0
     }
 
     private func retries(_ end: SessionEnd) -> Bool {

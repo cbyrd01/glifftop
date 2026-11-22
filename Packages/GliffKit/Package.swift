@@ -66,7 +66,7 @@ let package = Package(
             name: "GliffSessionTests",
             dependencies: [
                 "GliffSession", "GliffProtocol", "GliffTransport", "GliffVideo", "GliffInput",
-                "GliffClipboard",
+                "GliffClipboard", "GliffTestSupport",
             ],
             swiftSettings: strictSettings),
         // Test doubles shared by the test targets (a clock tests move by hand); not in the product.
