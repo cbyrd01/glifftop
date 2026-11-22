@@ -69,6 +69,9 @@ final class Stall: Sendable {
 
     func release() { released.withLock { $0 = true } }
 
+    /// Stalls every wait again, one already waiting included, until the next release.
+    func rearm() { released.withLock { $0 = false } }
+
     func wait() async {
         calls.withLock { $0 += 1 }
         while !released.withLock({ $0 }) {

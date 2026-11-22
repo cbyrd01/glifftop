@@ -4,7 +4,8 @@ import Testing
 
 @testable import GliffClipboard
 
-@Suite struct ClipboardBridgeTests {
+// A hang names its test within a minute instead of holding the run.
+@Suite(.timeLimit(.minutes(1))) struct ClipboardBridgeTests {
     private let text = ClipboardMimes.text
     private func textOffer(token: Int = 1) -> LocalClipboardOffer {
         LocalClipboardOffer(mimeTypes: ClipboardMimes.textFlavours, token: token)
@@ -181,50 +182,79 @@ import Testing
         #expect(wire.messages.count == 1)
     }
 
+    /// A read still running when the clock reaches the delay is reported, then how it ended.
     @Test func activityIsReportedForALongRead() async throws {
-        let source = FakeLocalSource(bytes: [1, 2, 3], delay: .milliseconds(300))
-        let (bridge, wire) = recordedBridge(source)
+        let clock = ManualClock()
+        let source = FakeLocalSource(bytes: [1, 2, 3], stalls: true)
+        defer { source.stall?.release() }
+        let (bridge, wire) = recordedBridge(source, clock: clock)
         await bridge.offer(textOffer())
         let serial = try #require(wire.lastOfferSerial)
+        var events = bridge.events.makeAsyncIterator()
         await bridge.receive(.request(id: 2, serial: serial, item: .mime(text)), payload: [])
-        var states: [ClipboardActivity] = []
-        for await case .activity(let activity) in bridge.events {
-            states.append(activity)
-            if activity.state != .running { break }
-        }
-        let run = try #require(states.first?.run)
-        #expect(states.first == ClipboardActivity(run: run, label: "text", done: 0, state: .running))
-        #expect(states.last == ClipboardActivity(run: run, label: "text", done: 3, state: .done))
+        try #require(await clock.waitForSleepers(1))
+        clock.advance(by: .milliseconds(100))
+        let running = try #require(await nextActivity(&events))
+        #expect(running == ClipboardActivity(run: running.run, label: "text", done: 0, state: .running))
+        source.stall?.release()
+        let end = try #require(await nextActivity(&events))
+        #expect(end == ClipboardActivity(run: running.run, label: "text", done: 3, state: .done))
+    }
+
+    /// The app's bridge reports a long read on the real clock, never before a second has passed.
+    @Test func theAppsBridgeReportsALongReadAfterASecond() async throws {
+        let (engine, wire) = recordedClient()
+        let source = FakeLocalSource(bytes: [1, 2, 3], stalls: true)
+        defer { source.stall?.release() }
+        let bridge = ClipboardBridge(transfers: engine, source: source)
+        await bridge.offer(textOffer())
+        let serial = try #require(wire.lastOfferSerial)
+        var events = bridge.events.makeAsyncIterator()
+        let start = ContinuousClock.now
+        await bridge.receive(.request(id: 2, serial: serial, item: .mime(text)), payload: [])
+        #expect(await nextActivity(&events)?.state == .running)
+        #expect(ContinuousClock.now - start >= .seconds(1))
+        await bridge.close()
     }
 
     /// Two reads of one offer that end alike are two activities: the view shows the second.
     @Test func eachReadIsItsOwnActivity() async throws {
-        let source = FakeLocalSource(bytes: [1, 2, 3], delay: .milliseconds(300))
-        let (bridge, wire) = recordedBridge(source)
+        let clock = ManualClock()
+        let source = FakeLocalSource(bytes: [1, 2, 3], stalls: true)
+        defer { source.stall?.release() }
+        let (bridge, wire) = recordedBridge(source, clock: clock)
         await bridge.offer(textOffer())
         let serial = try #require(wire.lastOfferSerial)
         var events = bridge.events.makeAsyncIterator()
         var ends: [ClipboardActivity] = []
         for id: UInt32 in [2, 4] {
+            source.stall?.rearm()
             await bridge.receive(.request(id: id, serial: serial, item: .mime(text)), payload: [])
-            while case .activity(let activity)? = await events.next() {
-                if activity.state != .running {
-                    ends.append(activity)
-                    break
-                }
-            }
+            try #require(await clock.waitForSleepers(1))
+            clock.advance(by: .milliseconds(100))
+            try #require(await nextActivity(&events)?.state == .running)
+            source.stall?.release()
+            ends.append(try #require(await nextActivity(&events)))
         }
-        #expect(ends.count == 2)
+        #expect(ends.map(\.state) == [.done, .done])
         #expect(ends.first?.run != ends.last?.run)
     }
 
+    /// A read that ends before the clock reaches the delay is never reported: its end stops the
+    /// timer.
     @Test func aQuickReadIsNeverReported() async throws {
-        let (bridge, wire) = recordedBridge(FakeLocalSource(bytes: [1, 2, 3]))
+        let clock = ManualClock()
+        let source = FakeLocalSource(bytes: [1, 2, 3], stalls: true)
+        defer { source.stall?.release() }
+        let (bridge, wire) = recordedBridge(source, clock: clock)
         await bridge.offer(textOffer())
         let serial = try #require(wire.lastOfferSerial)
         await bridge.receive(.request(id: 2, serial: serial, item: .mime(text)), payload: [])
+        try #require(await clock.waitForSleepers(1))
+        source.stall?.release()
         await wire.wait { $0.dataCount == 2 }
-        try await Task.sleep(for: .milliseconds(200))
+        try #require(wire.dataCount == 2, "the read didn't finish")
+        try #require(await clock.waitForSleepers(0), "the read's end didn't stop its activity timer")
         await bridge.close()
         var events: [ClipboardBridgeEvent] = []
         for await event in bridge.events { events.append(event) }
@@ -276,4 +306,14 @@ import Testing
         #expect(ClipboardActivity.label(mime: ClipboardMimes.html) == "HTML")
         #expect(ClipboardActivity.label(mime: "UTF8_STRING") == "text")
     }
+}
+
+/// The next activity the bridge reports, skipping its other events; nil once it closes.
+private func nextActivity(
+    _ events: inout AsyncStream<ClipboardBridgeEvent>.Iterator
+) async -> ClipboardActivity? {
+    while let event = await events.next(isolation: #isolation) {
+        if case .activity(let activity) = event { return activity }
+    }
+    return nil
 }
