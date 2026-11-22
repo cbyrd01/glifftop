@@ -1,6 +1,28 @@
 # Glifftop (the app)
 
-Two modules, as folders of this synchronized group.
+Two modules, as folders of this synchronized group, and the app's resources.
+
+## The app icon
+
+`AppIcon.icon` is an Icon Composer document (the target's App Icon, `AppIcon`), from which
+Xcode builds every platform's icon and appearance. It is a lowercase g whose bowl frames a
+tiled desktop:
+
+- the background, a gradient set in `icon.json`, not an image;
+- two groups of flat SVG layers on the full 1024 × 1024 canvas, numbered back to front: the
+  g (`1-g.svg`), then the three tiles. Each layer is one shape in one colour, with its Dark
+  colour in `icon.json`.
+
+The SVGs carry no mask, shadow, gloss or blur: the system adds the shape and Liquid Glass,
+with each group's shadow and translucency set in `icon.json`. Clear and Tinted are generated.
+Edit the icon in Icon Composer (`open Glifftop/AppIcon.icon`), or preview it from the command
+line with its `ictool` (into `.build/`, which git ignores):
+
+```
+"/Applications/Xcode.app/Contents/Applications/Icon Composer.app/Contents/Executables/ictool" \
+  Glifftop/AppIcon.icon --export-image --output-file .build/icon.png --platform macOS \
+  --rendition Default --width 512 --height 512 --scale 1
+```
 
 ## AppShell
 
