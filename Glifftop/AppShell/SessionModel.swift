@@ -13,9 +13,11 @@ import os
 @Observable final class SessionModel {
     private(set) var snapshot = SessionSnapshot() {
         didSet {
+            let phaseChanged = snapshot.phase != phase
             let stream = snapshot.phase == .streaming ? snapshot.stream : nil
             if stream != shownStream { shownStream = stream }
-            if hasPicture != (picture != nil) { hasPicture = picture != nil }
+            if let stream { lastStream = stream }
+            refreshHasPicture()
             if snapshot.isInterrupted != isInterrupted { isInterrupted = snapshot.isInterrupted }
             if snapshot.phase != phase { phase = snapshot.phase }
             if snapshot.clipboard != clipboardActivity { clipboardActivity = snapshot.clipboard }
@@ -29,6 +31,7 @@ import os
                 recorded = true
                 recordConnection()
             }
+            if phaseChanged { sessionPhaseChanged() }
         }
     }
     /// How this session's window is sized, set once per session: a later view from
@@ -70,7 +73,9 @@ import os
             screenScale: shownStream.screenScale, backingScale: backingScale, textFactor: textSize.factor)
     }
     /// Whether a lost link is tried again, for this window, from the machine's option.
-    var reconnects = true
+    var reconnects = true {
+        didSet { reconnectsChanged() }
+    }
     /// The saved machines, kept in `UserDefaults`.
     let machines = MachineStore()
     /// Set while a connection sets the window's options from a machine's: not changes to keep.
@@ -112,14 +117,45 @@ import os
     private(set) var host = ""
     /// The session's destination, for View ▸ Screen's new session to the same host.
     private(set) var destination: SSHTarget?
-    private var session: Session?
+    private(set) var session: Session?
     /// Done once this session's and every earlier one's `run()` has returned (ssh reaped) and
     /// their statuses are folded: each new one also awaits the one it replaced.
     private var running: Task<Void, Never>?
     /// Set by `shutdown()`: no new session may start while the app quits.
     private(set) var quitting = false
-    /// Whether this session's streaming has been recorded on its machine.
-    @ObservationIgnored private var recorded = false
+    /// Whether this session has streamed (and been recorded on its machine).
+    @ObservationIgnored private(set) var recorded = false
+
+    // Reconnect (`SessionModel+Reconnect.swift`).
+    /// The reconnect under way, while a lost session is tried again.
+    var reconnectRun: ReconnectRun?
+    /// Where the reconnect is, when its countdown ends, and why the session was lost.
+    var reconnectState: ReconnectState?
+    var reconnectDeadline: Date?
+    var reconnectEnd: SessionEnd?
+    /// The tries ran out: the ended screen says so.
+    var gaveUp = false
+    /// Shown for a few seconds after a virtual screen comes back as a new one.
+    var showsVirtualNotice = false
+    /// The last picture's slot and stream, shown while reconnecting.
+    var heldPicture: (slot: PictureSlot, stream: StreamInfo)?
+    /// The session is a reconnect's try: the window keeps its size.
+    private(set) var keepsWindow = false
+    @ObservationIgnored var lastStream: StreamInfo?
+    @ObservationIgnored var networkUsable = true
+    /// Wake and network changes, for the probe and the reconnect.
+    private let wake = WakeObserver()
+
+    init() {
+        wake.onWake = { [weak self] in self?.woke() }
+        wake.onNetwork = { [weak self] in self?.networkChanged($0) }
+    }
+
+    /// A reconnect outliving its window would wait on a network nobody reports any more.
+    isolated deinit {
+        reconnectRun?.task?.cancel()
+        reconnectRun?.networkChanges.finish()
+    }
 
     /// The current session's latest picture, which the video view draws. A new one per
     /// session, so a new session never shows the last one's picture.
@@ -166,27 +202,39 @@ import os
     /// What the picture is drawn from, while it is shown: streaming, with a stream and a
     /// renderer. The one test for the picture, and for the freely resizable window.
     var picture: (stream: StreamInfo, renderer: PictureRenderer)? {
-        guard let shownStream, let renderer else { return nil }
-        return (shownStream, renderer)
+        guard let renderer else { return nil }
+        if let shownStream { return (shownStream, renderer) }
+        if let heldPicture { return (heldPicture.stream, renderer) }
+        return nil
     }
 
-    /// Ends any session, then starts one with `destination` showing `screen`.
-    func start(_ destination: SSHTarget, screen: ScreenChoice) {
+    /// Sets `hasPicture` when `picture` comes or goes.
+    func refreshHasPicture() {
+        if hasPicture != (picture != nil) { hasPicture = picture != nil }
+    }
+
+    /// Ends any session, then starts one with `destination` showing `screen`; a reconnect's
+    /// try keeps the window's size.
+    func start(_ destination: SSHTarget, screen: ScreenChoice, reconnecting: Bool = false) {
         guard !quitting else {
             isSwitching = false
             return
         }
         // A listing still running would ask for a second ssh approval beside the session's.
         screenList.stop()
-        disconnect()
-        (showsConnectionInfo, dismissedClipboardRun) = (false, nil)
+        if !reconnecting {
+            cancelReconnect()
+            gaveUp = false
+        }
+        endSession()
+        (showsConnectionInfo, dismissedClipboardRun, keepsWindow) = (false, nil, reconnecting)
         recorded = false
         self.destination = destination
         screenChoice = screen
         host = destination.value
         slot = PictureSlot()
         cursor = CursorSlot()
-        windowSizing = nil
+        if !reconnecting { windowSizing = nil }
         viewPixels = nil
         let decoder: VideoToolboxDecoder
         do throws(VideoError) {
@@ -271,9 +319,15 @@ import os
         return .monitor(size)
     }
 
-    /// Says Bye and ends the session (no-op once it has ended). Keys the remote holds are let
-    /// go first: their releases are queued ahead of the Bye.
+    /// Disconnect: stops any reconnect, then ends the session (`endSession`).
     func disconnect() {
+        cancelReconnect()
+        endSession()
+    }
+
+    /// Says Bye and ends the session (no-op once it has ended), leaving a reconnect be. Keys the
+    /// remote holds are let go first: their releases are queued ahead of the Bye.
+    func endSession() {
         capture.detach()
         clipboard.detach()
         guard let session else { return }
@@ -294,7 +348,7 @@ import os
         session = nil
         destination = nil
         isSwitching = false
-        (showsConnectionInfo, dismissedClipboardRun) = (false, nil)
+        (showsConnectionInfo, dismissedClipboardRun, gaveUp) = (false, nil, false)
         host = ""
         // The old pool's textures go with the old slot and session.
         slot = PictureSlot()

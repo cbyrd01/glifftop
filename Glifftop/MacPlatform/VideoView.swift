@@ -11,6 +11,8 @@ struct VideoView: NSViewRepresentable {
     let slot: PictureSlot
     let renderer: PictureRenderer
     let sizing: WindowSizing?
+    /// False for a reconnect's session: the window keeps the size it has.
+    let fitsWindow: Bool
     /// Points under the picture in the window's content (the status bar): a mirror's window
     /// counts them.
     let extraHeight: CGFloat
@@ -31,6 +33,7 @@ struct VideoView: NSViewRepresentable {
     func updateNSView(_ nsView: VideoNSView, context: Context) {
         // Before `fit`: a first fit counts it.
         nsView.extraHeight = extraHeight
+        nsView.fitsWindow = fitsWindow
         nsView.fit = sizing.map { VideoNSView.Fit(sizing: $0, request: fitRequest) }
         nsView.scaleToFit = scaleToFit
         nsView.onTarget = onTarget

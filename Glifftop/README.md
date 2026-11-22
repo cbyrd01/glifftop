@@ -37,7 +37,9 @@ a menu of Connect, Edit…, Favourite and Remove, which asks), the machine sheet
 (`EditMachineView`: Name, Host and the options; New Machine… ⌘N and the + button add one and
 can Connect, Connection ▸ Edit Machine… ⌘E edits the session's), the session view, the streaming view (the picture below
 the toolbar, never under it; `InterruptionView`, a dimmed picture under a glass panel, while
-the server is quiet; the "Shift+Esc releases input" hint for a few seconds after capture; and
+the server is quiet, with Disconnect and Reconnect Now; `ReconnectingView`, the last picture
+dimmed under a glass panel while a lost session is tried again: why it ended, the countdown
+and the try, Reconnect Now and Disconnect; the "Shift+Esc releases input" hint for a few seconds after capture; and
 under the picture, with View ▸ Show Status Bar, `StatusBar`: the state, fps, Mbit/s, round
 trip, chroma · encoder and the clipboard read, on the bar material, its height counted when
 a mirror's window is fitted), the window's title (the machine's name, else the host) and subtitle ("Virtual Screen ·
@@ -75,7 +77,12 @@ and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes
   options at each connection and kept when the screen is switched; the video view's drawable and
   backing scale passed on as the session's `ViewTarget`; switching the session to another
   screen, a new session to the same host, in `SessionModel+Screens.swift`, the window staying
-  in full screen meanwhile (`isSwitching`)), `ScreenList`
+  in full screen meanwhile (`isSwitching`); a lost session tried again with backoff
+  (`SessionModel+Reconnect.swift`, GliffSession's `Reconnector`): a session that streamed and
+  ended with a reason a retry may fix, Reconnect automatically on, each try a new session in
+  the same window, its size and full screen kept; Disconnect, closing the window, quitting,
+  another connection or Reconnect automatically turned off stops it; `SessionEndedView` after
+  an end, with Try Again, Edit Machine… and Close), `ScreenList`
   (the host's monitors, listed through a lister closure, ssh by default, and never saved:
   one listing at a time, stopped (its error dismissed) when a session starts; a refresh keeps the list until the
   new one arrives; the list belongs to its host and is forgotten when the field names
@@ -106,10 +113,12 @@ AppKit adapters for what SwiftUI can't do:
   session it reports its drawable size and backing scale (`onTarget`) on every change, from
   the display link, never from the machines window. Its cursor handling is in
   `VideoNSView+Cursor.swift`;
+- `WakeObserver`: the Mac waking (`NSWorkspace.didWakeNotification`) and whether the network
+  path is usable (`NWPathMonitor`), for the session's probe and its reconnect;
 - `FullScreenTracker`: the window's full-screen state for `RootView`, which keeps its content
   resizable while full screen (fixed-size content makes the window ignore
   `toggleFullScreen`), and leaving full screen when the picture goes (not while View ▸ Screen
-  reconnects), so the compact end screen isn't a box on black;
+  or a lost session reconnects), so the compact end screen isn't a box on black;
 - `WindowSizer`: for a mirror (`WindowSizing.monitor`), the window at 1:1 for the monitor
   when that fits the screen, else the largest fitting size (`VideoFit.contentSize`), when
   streaming starts and on View ▸ Actual Size, never for a later view (the server shrinks a

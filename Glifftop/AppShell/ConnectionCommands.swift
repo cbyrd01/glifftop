@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The Connection menu: Disconnect (⇧⌘D), Reconnect (⇧⌘R, disabled), Connection Info (⌘I) and
+/// The Connection menu: Disconnect (⇧⌘D), Reconnect (⇧⌘R: Reconnect Now, or Try Again), Connection Info (⌘I) and
 /// Edit Machine… (⌘E, the session's machine once it has one); and File ▸ New Machine… (⌘N).
 /// Everything it reads changes only with its value (`SessionModel+Chrome`), never with the
 /// stats each second.
@@ -12,9 +12,9 @@ struct ConnectionCommands: Commands {
             Button("Disconnect", action: model.disconnect)
                 .keyboardShortcut("d", modifiers: [.command, .shift])
                 .disabled(!model.canDisconnect)
-            Button("Reconnect") {}
+            Button("Reconnect", action: model.reconnectNow)
                 .keyboardShortcut("r", modifiers: [.command, .shift])
-                .disabled(true)
+                .disabled(!model.canReconnect)
             Divider()
             Button("Connection Info") { model.showsConnectionInfo.toggle() }
                 .keyboardShortcut("i")

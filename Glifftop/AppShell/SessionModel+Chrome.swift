@@ -11,9 +11,10 @@ extension SessionModel {
     /// "Virtual Screen · Connected": the screen and the state, while a session is shown.
     var subtitle: String { isActive ? "\(screenChoice.label) · \(stateWord)" : "" }
 
-    /// Connecting, Connected, Interrupted or Disconnected.
+    /// Connecting, Connected, Interrupted, Reconnecting or Disconnected.
     var stateWord: String {
-        switch phase {
+        if isReconnecting { return "Reconnecting" }
+        return switch phase {
         case .idle, .connecting, .handshaking, .waitingForVideo: "Connecting"
         case .streaming: isInterrupted ? "Interrupted" : "Connected"
         case .ended: "Disconnected"
@@ -21,5 +22,5 @@ extension SessionModel {
     }
 
     /// Whether Disconnect has a session to end.
-    var canDisconnect: Bool { isActive && phase != .ended }
+    var canDisconnect: Bool { isActive && (phase != .ended || isReconnecting) }
 }

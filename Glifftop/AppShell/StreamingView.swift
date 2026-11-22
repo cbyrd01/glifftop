@@ -24,14 +24,15 @@ struct StreamingView: View {
 
     private var picture: some View {
         VideoView(
-            slot: model.slot, renderer: renderer,
-            sizing: model.windowSizing, extraHeight: showsStatusBar ? StatusBar.height : 0,
+            slot: model.shownSlot, renderer: renderer,
+            sizing: model.windowSizing, fitsWindow: !model.keepsWindow,
+            extraHeight: showsStatusBar ? StatusBar.height : 0,
             fitRequest: model.actualSizeRequests, scaleToFit: model.drawsScaled,
             onTarget: model.viewTargetChanged, onPointer: model.capture.pointer, cursor: model.viewCursor,
             captured: model.capture.isCaptured, headless: model.snapshot.session?.headless ?? false
         )
         // A new session's slot gets a new video view: the old one would keep drawing the old slot.
-        .id(ObjectIdentifier(model.slot))
+        .id(ObjectIdentifier(model.shownSlot))
         .overlay(alignment: .bottom) {
             // Its own container, so the fade animates only the hint; clicks go through to
             // the picture under it.
@@ -54,13 +55,30 @@ struct StreamingView: View {
                     ConnectionInfoView(model: model)
                 }
         }
-        // While the server is quiet nothing below is live.
+        // While the server is quiet, or the session is being tried again, nothing below is live.
         .overlay {
-            if model.snapshot.isInterrupted {
-                InterruptionView(host: model.host, disconnect: model.disconnect)
+            if model.isReconnecting {
+                ReconnectingView(model: model)
                     .transition(.opacity)
+            } else if model.snapshot.isInterrupted {
+                InterruptionView(
+                    host: model.host, disconnect: model.disconnect, reconnectNow: model.reconnectNow
+                )
+                .transition(.opacity)
+            }
+        }
+        .overlay(alignment: .top) {
+            if model.showsVirtualNotice {
+                Text("Windows from the old virtual screen are on the host's other monitor")
+                    .padding(12)
+                    .glassEffect(in: .capsule)
+                    .padding(16)
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
             }
         }
         .animation(.easeInOut(duration: 0.2), value: model.snapshot.isInterrupted)
+        .animation(.easeInOut(duration: 0.2), value: model.isReconnecting)
+        .animation(.easeInOut(duration: 0.2), value: model.showsVirtualNotice)
     }
 }

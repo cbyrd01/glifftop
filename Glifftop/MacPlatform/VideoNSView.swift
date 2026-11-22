@@ -42,6 +42,10 @@ final class VideoNSView: NSView {
         }
     }
 
+    /// False for a reconnect's session: its first fit leaves the window at the size it has
+    /// (a later one, Actual Size say, fits as usual).
+    var fitsWindow = true
+
     /// View ▸ Scale to Fit: a picture smaller than the view is scaled up to fill it.
     var scaleToFit = false
 
@@ -330,6 +334,10 @@ final class VideoNSView: NSView {
 
     private func fitWindow() {
         guard let window, let fit else { return }
+        guard fitsWindow || fitted else {
+            fitted = true
+            return
+        }
         // Not inside SwiftUI's update pass: resizing the window there re-enters its layout.
         Task {
             switch fit.sizing {

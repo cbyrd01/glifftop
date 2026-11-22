@@ -38,11 +38,14 @@ struct RootView: View {
         }
         // Kept while View ▸ Screen reconnects: the new screen opens in full screen too.
         .background {
-            FullScreenTracker(isFullScreen: $isFullScreen, wanted: model.picture != nil || model.isSwitching)
+            FullScreenTracker(
+                isFullScreen: $isFullScreen,
+                wanted: model.picture != nil || model.isSwitching || model.isReconnecting)
         }
         .background {
             CaptureTracker(
-                controller: model.capture, picture: model.picture != nil, interrupted: model.isInterrupted)
+                controller: model.capture, picture: model.picture != nil && !model.isReconnecting,
+                interrupted: model.isInterrupted)
         }
         .background { ClipboardTracker(controller: model.clipboard) }
         #if DEBUG

@@ -24,6 +24,7 @@ extension SessionModel {
     func connect(to target: String, options: MachineOptions) throws(SSHTargetError) {
         let destination = try SSHTarget(target)
         guard !quitting else { return }
+        cancelReconnect()
         apply(options)
         start(destination, screen: options.screen)
     }
