@@ -8,12 +8,11 @@ final class FakeLocalSource: LocalClipboardSource {
     private let calls = Mutex(0)
     private let bytes: [UInt8]
     private let error: TransferError?
-    private let delay: Duration?
     /// When set, `source(for:)` itself stalls until released, ignoring cancellation.
     let stall: Stall?
 
-    init(bytes: [UInt8] = [], error: TransferError? = nil, delay: Duration? = nil, stalls: Bool = false) {
-        (self.bytes, self.error, self.delay) = (bytes, error, delay)
+    init(bytes: [UInt8] = [], error: TransferError? = nil, stalls: Bool = false) {
+        (self.bytes, self.error) = (bytes, error)
         stall = stalls ? Stall() : nil
     }
 
@@ -23,35 +22,19 @@ final class FakeLocalSource: LocalClipboardSource {
         calls.withLock { $0 += 1 }
         await stall?.wait()
         if let error { throw error }
-        guard let delay else { return MemorySource(bytes) }
-        return SlowSource(bytes, delay: delay)
-    }
-}
-
-/// Hands over its bytes in one read, after a delay; then the end.
-final class SlowSource: ChunkSource {
-    private let bytes: Mutex<[UInt8]?>
-    private let delay: Duration
-
-    init(_ bytes: [UInt8], delay: Duration) {
-        self.bytes = Mutex(bytes)
-        self.delay = delay
-    }
-
-    func read(upTo count: Int) async throws -> [UInt8] {
-        guard let bytes = bytes.withLock({ $0.take() }) else { return [] }
-        try await Task.sleep(for: delay)
-        return bytes
+        return MemorySource(bytes)
     }
 }
 
 /// A bridge on a client engine whose messages go to a `Wire`.
 func recordedBridge(
-    _ source: FakeLocalSource = FakeLocalSource(), idleTimeout: Duration = ClipboardLimits.idleTimeout
+    _ source: FakeLocalSource = FakeLocalSource(), idleTimeout: Duration = ClipboardLimits.idleTimeout,
+    clock: ManualClock = ManualClock()
 ) -> (ClipboardBridge, Wire) {
     let (engine, wire) = recordedClient(idleTimeout: idleTimeout)
     let bridge = ClipboardBridge(
-        transfers: engine, source: source, activityDelay: .milliseconds(100), activityEvery: .milliseconds(50)
+        transfers: engine, source: source, clock: clock, activityDelay: .milliseconds(100),
+        activityEvery: .milliseconds(50)
     )
     return (bridge, wire)
 }
@@ -94,7 +77,7 @@ final class RemotePeer: Sendable {
             await bridge.receive(message, payload: payload)
         }
         bridge = ClipboardBridge(
-            transfers: client, source: FakeLocalSource(), activityDelay: .seconds(1),
+            transfers: client, source: FakeLocalSource(), clock: ManualClock(), activityDelay: .seconds(1),
             activityEvery: .milliseconds(250))
         peers.withLock { $0 = (server, bridge) }
     }
