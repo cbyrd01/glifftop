@@ -37,6 +37,10 @@ struct EditMachineView: View {
                     .autocorrectionDisabled()
                     .writingToolsBehavior(.disabled)
                     .focused($focus, equals: .host)
+                    // The running session's machine keeps its host: its reconnects and its
+                    // record follow it.
+                    .disabled(isSessionMachine)
+                    .help(isSessionMachine ? "Disconnect to change the host" : "")
                     .onChange(of: machine.destination) { screenList.forget(unless: machine.destination) }
                 if let refused, refused.host == machine.destination {
                     Text(refused.message)
@@ -66,6 +70,9 @@ struct EditMachineView: View {
         .frame(width: 460)
         .onDisappear { screenList.stop() }
     }
+
+    /// Whether it's the machine of the window's session.
+    private var isSessionMachine: Bool { !isNew && model.machine?.id == machine.id }
 
     /// Another machine with the host typed: saving this one replaces it.
     private var other: Machine? {
@@ -98,7 +105,7 @@ struct EditMachineView: View {
         }
         saved.name = saved.name.trimmingCharacters(in: .whitespacesAndNewlines)
         if saved.name.isEmpty { saved.name = saved.destination }
-        model.machines.save(saved)
+        model.machines.saveEdit(saved)
         model.machineSaved(saved)
         dismiss()
         return saved

@@ -65,6 +65,26 @@ import Testing
         #expect(list.machines.map(\.destination) == ["user@omarchy"])
     }
 
+    /// The sheet's copy was taken when it opened: what it doesn't show (the favourite, the last
+    /// connection) is the stored machine's when it saves.
+    @Test func anEditKeepsWhatTheSheetDoesntShow() {
+        var list = MachineList(data: nil)
+        var opened = list.connected("omarchy", options: MachineOptions(), at: day)
+        var stored = opened
+        stored.isFavorite = true
+        list.save(stored)
+        let later = day.addingTimeInterval(60)
+        list.connected("omarchy", options: MachineOptions(), at: later)
+        opened.name = "Desk"
+        opened.options.textSize = .f75
+        list.saveEdit(opened)
+        let saved = list.machines.first
+        #expect(saved?.name == "Desk")
+        #expect(saved?.options.textSize == .f75)
+        #expect(saved?.isFavorite == true)
+        #expect(saved?.lastConnected == later)
+    }
+
     @Test func removeRemoves() {
         var list = MachineList(data: nil)
         let machine = list.connected("omarchy", options: MachineOptions(), at: day)

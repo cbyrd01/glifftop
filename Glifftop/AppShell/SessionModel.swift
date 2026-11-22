@@ -23,7 +23,11 @@ import os
             if snapshot.clipboard != clipboardActivity { clipboardActivity = snapshot.clipboard }
             let active = snapshot.phase != .idle
             if active != isActive { isActive = active }
-            if windowSizing == nil, let sizing = Self.windowSizing(for: snapshot) { windowSizing = sizing }
+            // A reconnect's may show another monitor: Actual Size fits the new one.
+            let resizes = windowSizing == nil || keepsWindow && phaseChanged && snapshot.phase == .streaming
+            if resizes, let sizing = Self.windowSizing(for: snapshot), sizing != windowSizing {
+                windowSizing = sizing
+            }
             let output = snapshot.session?.output
             if output != outputName { outputName = output }
             if isSwitching, snapshot.phase == .streaming || snapshot.phase == .ended { isSwitching = false }
@@ -64,13 +68,13 @@ import os
         }
     }
     /// Whether the picture is drawn scaled to the window: Scale to Fit, or a virtual screen's
-    /// picture at Standard (half the window's pixels a side), as the stream in hand shows it, so
-    /// a change draws right until the server answers.
+    /// picture at Standard (half the window's pixels a side), as the picture shown (a held one
+    /// while reconnecting) shows it, so a change draws right until the server answers.
     var drawsScaled: Bool {
         guard !scaleToFit else { return true }
-        guard isVirtual, let backingScale, let shownStream else { return false }
+        guard isVirtual, let backingScale, let stream = picture?.stream else { return false }
         return ViewTarget.isStandardPicture(
-            screenScale: shownStream.screenScale, backingScale: backingScale, textFactor: textSize.factor)
+            screenScale: stream.screenScale, backingScale: backingScale, textFactor: textSize.factor)
     }
     /// Whether a lost link is tried again, for this window, from the machine's option.
     var reconnects = true {
@@ -93,6 +97,9 @@ import os
     var isSwitching = false
     /// What the last session started showing, set at each start and kept after it ends.
     private(set) var screenChoice = ScreenChoice.focused
+    /// Another screen the sheet saved for the session's machine: Try Again shows it, a
+    /// reconnect's try the session's own. Cleared by any other start.
+    @ObservationIgnored var sheetScreen: ScreenChoice?
     /// The host's monitors, from Get Screens (or View ▸ Screen's Refresh Screen List).
     let screenList = ScreenList()
     /// The video view's drawable size in pixels, last reported (with `backingScale`). Changes
@@ -224,7 +231,7 @@ import os
         screenList.stop()
         if !reconnecting {
             cancelReconnect()
-            gaveUp = false
+            (gaveUp, sheetScreen) = (false, nil)
         }
         endSession()
         (showsConnectionInfo, dismissedClipboardRun, keepsWindow) = (false, nil, reconnecting)
@@ -364,34 +371,9 @@ import os
         Task { await bridge.cancelServing() }
     }
 
-    /// Records the raw stream for five seconds into `directory`, from the next keyframe.
-    func record(to directory: URL) {
-        guard let session else { return }
-        Task { await session.record(to: directory, for: .seconds(5)) }
-    }
-
     #if DEBUG
-        // MARK: Debug ▸ Record 5 Seconds
-
-        /// Set when a recording needs a folder chosen first; the window shows the folder picker.
+        /// Set when a recording needs a folder chosen first; the window shows the folder picker
+        /// (`SessionModel+Recording.swift`).
         var choosingRecordingsDirectory = false
-        private static let recordingsDirectoryKey = "recordingsDirectory"
-
-        func recordFiveSeconds() {
-            // A folder deleted since it was chosen asks again rather than failing silently.
-            if let directory = UserDefaults.standard.url(forKey: Self.recordingsDirectoryKey),
-                FileManager.default.fileExists(atPath: directory.path(percentEncoded: false))
-            {
-                record(to: directory)
-            } else {
-                choosingRecordingsDirectory = true
-            }
-        }
-
-        /// The folder picked for recordings: remembered, and recorded into now.
-        func useRecordingsDirectory(_ directory: URL) {
-            UserDefaults.standard.set(directory, forKey: Self.recordingsDirectoryKey)
-            record(to: directory)
-        }
     #endif
 }

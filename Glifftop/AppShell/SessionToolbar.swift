@@ -7,9 +7,10 @@ struct SessionToolbar: ToolbarContent {
     @Bindable var model: SessionModel
 
     var body: some ToolbarContent {
-        ToolbarItem { ScreenMenu(model: model) }
+        // The text menus get room either side, as the round buttons have.
+        ToolbarItem { ScreenMenu(model: model, labelPadding: 6) }
             .hidden(!model.isActive)
-        ToolbarItem { TextSizeMenu(model: model) }
+        ToolbarItem { TextSizeMenu(model: model, labelPadding: 6) }
             .hidden(!model.isActive || !model.isVirtual)
         ToolbarSpacer(.fixed)
             .hidden(!model.isActive)

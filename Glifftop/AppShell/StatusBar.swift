@@ -14,7 +14,7 @@ struct StatusBar: View {
         HStack(spacing: 16) {
             HStack(spacing: 6) {
                 Circle()
-                    .fill(model.isInterrupted ? Color.orange : Color.green)
+                    .fill(model.isInterrupted || model.isReconnecting ? Color.orange : Color.green)
                     .frame(width: 8, height: 8)
                 Text(model.stateWord)
             }

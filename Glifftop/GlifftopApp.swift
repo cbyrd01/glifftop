@@ -11,6 +11,8 @@ struct GlifftopApp: App {
                 .onAppear { appDelegate.beforeQuit = model.shutdown }
         }
         .windowResizability(.contentSize)
+        // A remote desktop's height is the picture's: the toolbar takes as little as it can.
+        .windowToolbarStyle(.unifiedCompact)
         .commands {
             ConnectionCommands(model: model)
             ViewCommands(model: model)

@@ -30,16 +30,20 @@ extension SessionModel {
     }
 
     /// The session streamed: its machine, added if new, now has the window's options and the
-    /// date.
+    /// date. A reconnect's try repeats the session's screen, and leaves the machine's be (the
+    /// sheet may have changed it).
     func recordConnection() {
-        machines.connected(host, options: currentOptions)
+        var options = currentOptions
+        if keepsWindow, let kept = machine { options.screen = kept.options.screen }
+        machines.connected(host, options: options)
     }
 
-    /// The sheet saved `saved`: if it's now this session's machine, its options apply, but for
-    /// the screen, which takes a new session (the next connection, or View ▸ Screen).
+    /// The sheet saved `saved`: if it's this session's machine, its options apply, but for the
+    /// screen, which takes a new session (the next connection, Try Again, or View ▸ Screen).
     func machineSaved(_ saved: Machine) {
         guard machine?.id == saved.id else { return }
         apply(saved.options)
+        sheetScreen = saved.options.screen == screenChoice ? nil : saved.options.screen
     }
 
     /// Connection ▸ Edit Machine…: the session's machine in the sheet.

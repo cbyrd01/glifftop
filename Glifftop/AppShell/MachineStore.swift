@@ -32,6 +32,12 @@ import Observation
         store()
     }
 
+    /// The machine sheet saved `machine` (`MachineList.saveEdit`).
+    func saveEdit(_ machine: Machine) {
+        list.saveEdit(machine)
+        store()
+    }
+
     func remove(id: UUID) {
         list.remove(id: id)
         store()

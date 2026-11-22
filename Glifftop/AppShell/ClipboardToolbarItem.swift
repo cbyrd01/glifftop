@@ -7,16 +7,19 @@ struct ClipboardToolbarItem: View {
     @AppStorage(AppSettings.shareClipboardKey) private var shareClipboard = false
 
     var body: some View {
-        HStack(spacing: 8) {
+        // No spacing of its own: with no read shown, the item's glass is the button's alone.
+        HStack(spacing: 0) {
             Toggle(
-                "Share the clipboard", systemImage: "doc.on.clipboard",
+                "Share the clipboard", systemImage: "clipboard",
                 isOn: .askingFirst($shareClipboard, confirming: $model.confirmingShare)
             )
             .toggleStyle(.button)
+            // One clipboard, filled while shared.
+            .symbolVariant(shareClipboard ? .fill : .none)
             .help(shareClipboard ? "Stop sharing the clipboard" : "Share the clipboard")
             ClipboardReadView(
                 activity: model.clipboardActivity, host: model.host, cancel: model.cancelClipboardServing,
-                dismissed: $model.dismissedClipboardRun)
+                dismissed: $model.dismissedClipboardRun, leading: 8)
         }
     }
 }

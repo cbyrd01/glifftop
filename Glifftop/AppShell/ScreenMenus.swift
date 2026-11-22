@@ -6,9 +6,11 @@ import SwiftUI
 /// checked; a step that gives the same remote scale as a larger one on this display is off.
 struct TextSizeMenu: View {
     @Bindable var model: SessionModel
+    /// Room either side of its title, inside the control (the toolbar's).
+    var labelPadding: CGFloat = 0
 
     var body: some View {
-        Menu("Text Size") {
+        Menu {
             Picker("Text Size", selection: $model.textSize) {
                 ForEach(TextSize.allCases) { size in
                     Text(size.label(backingScale: model.backingScale))
@@ -20,6 +22,8 @@ struct TextSizeMenu: View {
             }
             .pickerStyle(.inline)
             .labelsHidden()
+        } label: {
+            Text("Text Size").padding(.horizontal, labelPadding)
         }
         // A mirror's scale is the monitor's own.
         .disabled(!model.isVirtual)
@@ -55,9 +59,11 @@ struct ResolutionMenu: View {
 /// new session to the same host. The host's monitors appear once listed.
 struct ScreenMenu: View {
     let model: SessionModel
+    /// Room either side of its title, inside the control (the toolbar's).
+    var labelPadding: CGFloat = 0
 
     var body: some View {
-        Menu("Screen") {
+        Menu {
             Picker("Screen", selection: Binding(get: { model.screenChoice }, set: model.switchScreen)) {
                 Text(focusedLabel).tag(ScreenChoice.focused)
                 Text(ScreenChoice.virtual.label).tag(ScreenChoice.virtual)
@@ -76,6 +82,8 @@ struct ScreenMenu: View {
             if let error = model.screenList.error, model.screenList.isFor(model.host) {
                 Text(error)
             }
+        } label: {
+            Text("Screen").padding(.horizontal, labelPadding)
         }
         .disabled(model.destination == nil)
     }

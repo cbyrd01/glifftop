@@ -11,6 +11,8 @@ struct ClipboardReadView: View {
     /// The read whose failure was already shown for its 3 s, shared by every view of the
     /// session's reads.
     @Binding var dismissed: Int?
+    /// Space before it while shown (none while hidden).
+    var leading: CGFloat = 0
 
     var body: some View {
         ZStack {
@@ -26,6 +28,7 @@ struct ClipboardReadView: View {
                             .controlSize(.small)
                     }
                 }
+                .padding(.leading, leading)
                 .help("\(host) is pasting \(activity.label) from this Mac")
                 .transition(.opacity)
             }

@@ -25,9 +25,13 @@ final class VideoNSView: NSView {
 
     /// Fits the window when it changes (and once the view is in a window). Each session gets its
     /// own view: StreamingView exists only while streaming. The sizing is the session's, set
-    /// once, so a later view from the server never resizes the window.
+    /// once, so a later view from the server never resizes the window; a reconnect's (with
+    /// `fitsWindow` off) changes only what Actual Size fits.
     var fit: Fit? {
-        didSet { if fit != oldValue { fitWindow() } }
+        didSet {
+            guard fit != oldValue, fitsWindow || fit?.request != oldValue?.request else { return }
+            fitWindow()
+        }
     }
 
     /// Points under the picture in the window's content (the status bar). Counted when the

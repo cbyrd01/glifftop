@@ -2,10 +2,10 @@
 /// healthy until ssh's keepalive gives up, about a minute later: `Liveness` runs on a clock
 /// that stops during sleep. The probe asks at once instead.
 extension Session {
-    /// While streaming, sends a Ping now; unless its Pong arrives within `Liveness.probeLimit`,
-    /// the link counts as lost and the session ends as `.connectionLost`. A later probe
-    /// replaces it. From any thread, in no guaranteed order; before streaming (the handshake)
-    /// it does nothing.
+    /// While streaming, sends a Ping now; unless its Pong (or bytes `Liveness.probeGrace` after
+    /// it) arrives within `Liveness.probeLimit`, the link counts as lost and the session ends
+    /// as `.connectionLost`. A later probe replaces it. From any thread, in no guaranteed
+    /// order; before streaming (the handshake) it does nothing.
     public nonisolated func probe() {
         Task { await self.startProbe() }
     }

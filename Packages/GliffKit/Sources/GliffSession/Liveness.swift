@@ -6,8 +6,8 @@
 /// Times are milliseconds of a monotonic clock that stops while the Mac sleeps: a clock step
 /// or a wake doesn't look like silence. The session's wall clock is for the wire only.
 ///
-/// It also holds the probe after a wake (`probe(ping:at:)`), which, unanswered, ends the
-/// session: a link that died while the Mac slept would otherwise look live for a while.
+/// It also holds the probe after a wake or a network change (`probe(ping:at:)`), which,
+/// unanswered, ends the session: a dead link would otherwise look live for a while.
 struct Liveness {
     /// The client pings every 2 s, so a live link is never this quiet.
     static let silenceLimit: UInt64 = 4000
@@ -17,6 +17,9 @@ struct Liveness {
     /// How long a probe's Ping (`probe(ping:at:)`) may go unanswered before the link counts
     /// as lost.
     static let probeLimit: UInt64 = 3000
+    /// Bytes this long or more after a probe answer it too: buffered ones arrive at once, so
+    /// these travelled the link since (a slow link's Pong may wait behind a keyframe).
+    static let probeGrace: UInt64 = 1000
 
     private var lastHeard: UInt64?
     /// The probe now waiting: its Ping's `t`, and when it was sent.
@@ -30,6 +33,7 @@ struct Liveness {
     mutating func heard(at now: UInt64) -> Bool {
         lastHeard = now
         unansweredSince = nil
+        if let probing, now >= probing.at + Self.probeGrace { self.probing = nil }
         defer { isInterrupted = false }
         return isInterrupted
     }
@@ -47,9 +51,9 @@ struct Liveness {
         return true
     }
 
-    /// A probe (after a wake): the link is lost unless the Pong to Ping `t` arrives within
-    /// `probeLimit`. Any other byte may have been on its way before the Mac slept. A new probe
-    /// replaces the one waiting.
+    /// A probe (after a wake or a network change): the link is lost unless the Pong to Ping `t`,
+    /// or any bytes `probeGrace` after it, arrive within `probeLimit`. Bytes sooner may have
+    /// been on their way before the Mac slept. A new probe replaces the one waiting.
     mutating func probe(ping t: UInt64, at now: UInt64) {
         probing = (t, now)
     }

@@ -83,8 +83,8 @@ import Testing
         #expect(!failed)
     }
 
-    /// Bytes already on their way when the Mac slept, or an older Ping's Pong, prove nothing
-    /// about the link now.
+    /// Bytes already on their way when the Mac slept (arriving at once), or an older Ping's
+    /// Pong, prove nothing about the link now.
     @Test func otherBytesDontAnswerIt() {
         var liveness = Liveness()
         liveness.probe(ping: 7, at: 0)
@@ -92,6 +92,20 @@ import Testing
         liveness.answered(ping: 6)
         let failed = liveness.probeFailed(at: 3000)
         #expect(failed)
+    }
+
+    /// Bytes a second or more after the probe travelled the link since: a slow link's Pong,
+    /// queued behind a keyframe, needn't end it.
+    @Test func bytesASecondLaterAnswerIt() {
+        var liveness = Liveness()
+        liveness.probe(ping: 7, at: 0)
+        liveness.heard(at: 999)
+        let early = liveness.probeFailed(at: 3000)
+        liveness.probe(ping: 8, at: 4000)
+        liveness.heard(at: 5000)
+        let late = liveness.probeFailed(at: 7000)
+        #expect(early)
+        #expect(!late)
     }
 
     /// A probe after a second wake gets its own time, and only its own Pong answers it.

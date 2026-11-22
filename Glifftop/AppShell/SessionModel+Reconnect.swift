@@ -57,10 +57,10 @@ extension SessionModel {
     var canTryAgain: Bool { phase == .ended && destination != nil }
 
     /// Try Again on the ended screen: a new session to the same destination, with the window's
-    /// options.
+    /// options (the screen the sheet saved since, if any).
     func tryAgain() {
         guard let destination else { return }
-        start(destination, screen: screenChoice)
+        start(destination, screen: sheetScreen ?? screenChoice)
     }
 
     /// The session's phase changed: a try's session streamed or ended, or a session that may

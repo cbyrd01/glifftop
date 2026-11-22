@@ -17,7 +17,9 @@ struct RootView: View {
                 MachinesView(model: model)
             }
         }
-        .frame(minWidth: 360, idealWidth: 420, maxWidth: .infinity, minHeight: 200, maxHeight: .infinity)
+        .frame(
+            minWidth: 360, idealWidth: idealWidth, maxWidth: .infinity, minHeight: 200, maxHeight: .infinity
+        )
         // The window (contentSize resizability) takes its limits from the content. Without the
         // picture, the content is fixed at its ideal size in both directions: the window fits
         // each phase, taller ones aren't clipped, and a window macOS restores at a stream's
@@ -36,7 +38,8 @@ struct RootView: View {
         .sheet(item: $model.machineEdit) {
             EditMachineView(model: model, machine: $0.machine, isNew: $0.isNew)
         }
-        // Kept while View ▸ Screen reconnects: the new screen opens in full screen too.
+        // Kept while View ▸ Screen or a lost session reconnects: the new session opens in full
+        // screen too.
         .background {
             FullScreenTracker(
                 isFullScreen: $isFullScreen,
@@ -58,4 +61,6 @@ struct RootView: View {
     }
 
     private var isCompact: Bool { model.picture == nil && !isFullScreen }
+    /// The machines' own width; a session's window before its picture sizes it.
+    private var idealWidth: CGFloat { model.isActive ? 420 : MachinesView.width }
 }

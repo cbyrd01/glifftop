@@ -16,10 +16,11 @@ desktop for Hyprland/Omarchy, written in Swift. Not affiliated with Gliff.
   - the picture (H.264 through VideoToolbox, Dual420 recombined in Metal);
   - keyboard and pointer capture, and the remote cursor shape;
   - choosing the screen (a monitor, the focused one, or a virtual screen that follows the window);
-  - the shared clipboard: text, HTML and images, both ways, off until turned on.
+  - the shared clipboard: text, HTML and images, both ways, off until turned on;
+  - saved machines with their options, and reconnecting by itself after a lost link.
 - **Not yet:**
   - files over the clipboard;
-  - tabs and automatic reconnect;
+  - tabs;
   - an optional event tap for ⌘Space and ⌘Tab (they stay with the Mac);
   - signed releases.
 - **Known, upstream:** Hyprland 0.56.2 shares every cursor image fully transparent, so the

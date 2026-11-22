@@ -20,13 +20,14 @@ The name combines *gliff*, the Scots word for a glimpse, with *desktop* and *cli
 - Choosing the screen: one of the host's monitors, the focused one, or a virtual screen that
   follows the window's size.
 - A shared clipboard (text, HTML and images, both ways), off until you turn it on.
+- Saved machines, each with its options, and reconnecting by itself after a lost link.
 
 <img src="docs/media/screensaver.png" width="480" alt="Omarchy's screensaver in Glifftop: the logo's colour gradient, sharp at full chroma">
 
 **Not yet:**
 
 - Files over the clipboard.
-- Tabs, and reconnecting by itself.
+- Tabs.
 - ⌘Space and ⌘Tab stay with the Mac.
 - Signed releases: for now, build it yourself.
 

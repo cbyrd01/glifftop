@@ -54,6 +54,16 @@ public struct MachineList: Equatable, Sendable {
         sort()
     }
 
+    /// The machine sheet saved `machine`, a copy taken when it opened: what the sheet doesn't
+    /// show (the favourite, the last connection) stays as stored.
+    public mutating func saveEdit(_ machine: Machine) {
+        var edited = machine
+        if let stored = machines.first(where: { $0.id == machine.id }) {
+            (edited.isFavorite, edited.lastConnected) = (stored.isFavorite, stored.lastConnected)
+        }
+        save(edited)
+    }
+
     public mutating func remove(id: UUID) {
         machines.removeAll { $0.id == id }
     }
