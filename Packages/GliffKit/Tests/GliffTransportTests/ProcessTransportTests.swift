@@ -197,11 +197,35 @@
             }
         }
 
-        @Test func systemSSHUsesTheCommand() throws {
-            let command = SSHCommand(target: try SSHTarget("omarchy"))
-            let transport = SystemSSHTransport(command: command)
-            #expect(transport.process.executable == URL(filePath: "/usr/bin/ssh"))
-            #expect(transport.process.arguments == command.arguments)
+        /// The system ssh runs the command, with `ConnectTimeout` as the probe decides.
+        @Test(arguments: [false, true])
+        func systemSSHRunsTheCommand(timeout: Bool) async throws {
+            var command = SSHCommand(target: try SSHTarget("omarchy"))
+            let process = await SystemSSHTransport(command: command) { _ in timeout }.process()
+            command.connectTimeout = timeout
+            #expect(process.executable == URL(filePath: "/usr/bin/ssh"))
+            #expect(process.arguments == command.arguments)
+            #expect(process.arguments.contains("ConnectTimeout=10") == timeout)
+        }
+
+        /// Cancelled while the probe ran (a Disconnect): ssh never starts.
+        @Test func aConnectCancelledDuringTheProbeNeverStartsSSH() async throws {
+            let transport = SystemSSHTransport(command: SSHCommand(target: try SSHTarget("omarchy"))) { _ in
+                withUnsafeCurrentTask { $0?.cancel() }
+                return false
+            }
+            await #expect(throws: TransportError.cancelled) { _ = try await transport.connect() }
+        }
+
+        /// A cancelled read doesn't start its program.
+        @Test func aCancelledReadNeverStartsTheProgram() async throws {
+            let marker = FileManager.default.temporaryDirectory.appending(path: "glifftop-\(UUID())")
+            withUnsafeCurrentTask { $0?.cancel() }
+            let output = await ProcessOutput.read(
+                executable: URL(filePath: "/bin/sh"), arguments: ["-c", "touch \"$0\"", marker.path],
+                maxBytes: 16, timeout: .seconds(5))
+            #expect(output == .failure(.cancelled))
+            #expect(!FileManager.default.fileExists(atPath: marker.path))
         }
     }
 #endif

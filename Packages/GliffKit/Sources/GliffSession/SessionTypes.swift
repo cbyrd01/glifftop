@@ -116,6 +116,15 @@ public enum SessionEnd: Error, Equatable, Sendable {
         }
     }
 
+    /// Whether the session ended because `screen`, a monitor by name, isn't connected: the
+    /// server's setup error for an `--output` it can't find ("no output NAME").
+    public func isMissingMonitor(_ screen: ScreenChoice) -> Bool {
+        guard case .serverSetupFailed(let message) = self, case .named(let name) = screen else {
+            return false
+        }
+        return message == "no output \(name)"
+    }
+
     /// Whether trying again could work.
     public var mayReconnect: Bool {
         switch self {

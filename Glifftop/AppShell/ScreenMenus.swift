@@ -1,3 +1,4 @@
+import GliffSession
 import GliffTransport
 import SwiftUI
 
@@ -5,9 +6,11 @@ import SwiftUI
 /// checked; a step that gives the same remote scale as a larger one on this display is off.
 struct TextSizeMenu: View {
     @Bindable var model: SessionModel
+    /// Room either side of its title, inside the control (the toolbar's).
+    var labelPadding: CGFloat = 0
 
     var body: some View {
-        Menu("Text Size") {
+        Menu {
             Picker("Text Size", selection: $model.textSize) {
                 ForEach(TextSize.allCases) { size in
                     Text(size.label(backingScale: model.backingScale))
@@ -19,8 +22,35 @@ struct TextSizeMenu: View {
             }
             .pickerStyle(.inline)
             .labelsHidden()
+        } label: {
+            Text("Text Size").padding(.horizontal, labelPadding)
         }
         // A mirror's scale is the monitor's own.
+        .disabled(!model.isVirtual)
+    }
+}
+
+/// View ▸ Resolution: a virtual screen's, the one in use checked; Standard is off on a display
+/// under 2×, where it would change nothing.
+struct ResolutionMenu: View {
+    @Bindable var model: SessionModel
+
+    var body: some View {
+        Menu("Resolution") {
+            Picker("Resolution", selection: $model.resolution) {
+                ForEach(VirtualResolution.allCases, id: \.self) { resolution in
+                    Text(resolution.label)
+                        .tag(resolution)
+                        // The one in use stays enabled, so it never shows checked but off.
+                        .disabled(
+                            resolution == .standard && model.resolution != .standard
+                                && (model.backingScale ?? 2) < 2)
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        }
+        // A mirror's pixels are the monitor's own.
         .disabled(!model.isVirtual)
     }
 }
@@ -29,15 +59,19 @@ struct TextSizeMenu: View {
 /// new session to the same host. The host's monitors appear once listed.
 struct ScreenMenu: View {
     let model: SessionModel
+    /// Room either side of its title, inside the control (the toolbar's).
+    var labelPadding: CGFloat = 0
 
     var body: some View {
-        Menu("Screen") {
+        Menu {
             Picker("Screen", selection: Binding(get: { model.screenChoice }, set: model.switchScreen)) {
                 Text(focusedLabel).tag(ScreenChoice.focused)
                 Text(ScreenChoice.virtual.label).tag(ScreenChoice.virtual)
                 if !named.isEmpty {
                     Divider()
-                    ForEach(named, id: \.self) { Text(label(for: $0)).tag($0) }
+                    ForEach(named, id: \.self) {
+                        Text(model.screenList.label(for: $0, host: model.host)).tag($0)
+                    }
                 }
             }
             .pickerStyle(.inline)
@@ -50,6 +84,8 @@ struct ScreenMenu: View {
             if let error = model.screenList.error, model.screenList.isFor(model.host) {
                 Text(error)
             }
+        } label: {
+            Text("Screen").padding(.horizontal, labelPadding)
         }
         .disabled(model.destination == nil)
     }
@@ -63,15 +99,6 @@ struct ScreenMenu: View {
             return ScreenChoice.focused.label
         }
         return "\(ScreenChoice.focused.label) (\(output))"
-    }
-
-    /// A listed monitor as the connect form shows it, shortened to keep the menu narrow; one in
-    /// use though not listed, its name.
-    private func label(for choice: ScreenChoice) -> String {
-        guard case .named(let name) = choice, model.screenList.isFor(model.host),
-            let listed = model.screenList.screens.first(where: { $0.name == name })
-        else { return choice.label }
-        return listed.menuLabel
     }
 
     /// The listed monitors (if listed for this host), and a monitor in use though not listed,

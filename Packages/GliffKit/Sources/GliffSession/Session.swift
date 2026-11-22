@@ -24,6 +24,8 @@ public actor Session {
     var core: SessionCore
     private var parser = FrameParser()
     private var connection: (any ByteConnection)?
+    /// Connects, then reads; cancelled by a Disconnect while it is still connecting.
+    private var reader: Task<Void, Never>?
     var writer: SessionWriter?
     private var ticks: Task<Void, Never>?
     let inputs = InputQueue()
@@ -39,13 +41,16 @@ public actor Session {
     /// and a stuck stream's keyframe cycles don't log again. A new coded stream starts a new
     /// run. Reasons carry server values, so a run logs at most `maxLoggedDecodeFailures`.
     private var loggedDecodeFailures: Set<String> = []
-    /// Whether the link has gone quiet while streaming (only the client's Pings arm it).
-    private var liveness = Liveness()
+    /// Whether the link has gone quiet while streaming (only the client's Pings arm it), and
+    /// the wake probe (`Session+Probe.swift`).
+    var liveness = Liveness()
     private static let maxLoggedDecodeFailures = 16
     /// The StreamConfig in force, as received, for a recording started mid-stream.
     private var config: Frame?
     /// The window's latest size and scale, from any thread (latest wins).
     private nonisolated let viewTarget = Mutex<ViewTarget?>(nil)
+    /// Numbers each `probe()` and `withdrawProbe()` as it's called, for `Liveness` to order.
+    nonisolated let probeCalls = Mutex<UInt64>(0)
     /// Sends a Resize once the latest target has settled.
     private var resizeWake: Task<Void, Never>?
     /// The session's clipboard, when the app shares it (`Session+Clipboard.swift`).
@@ -94,6 +99,7 @@ public actor Session {
         }
         // Not a child task: cancelling run() must not cancel the reader before Bye is sent.
         let reader = Task { await self.connectAndRead() }
+        self.reader = reader
         await withTaskCancellationHandler {
             await reader.value
         } onCancel: {
@@ -104,6 +110,8 @@ public actor Session {
 
     /// Says Bye and ends the session as `.disconnected`. Input sent before this goes first.
     public func disconnect() async {
+        // Still connecting: there's no Bye to send, so the connect (ssh -G, ssh) stops now.
+        if connection == nil { reader?.cancel() }
         deliverInput(finishing: true)
         await perform(core.stop())
     }
@@ -196,6 +204,7 @@ public actor Session {
 
     private func handle(_ frame: Frame) async throws {
         let message = try ServerMessage.decode(frame.body)
+        if case .pong(let t, _) = message { liveness.answered(ping: t) }
         if case .streamConfig = message { config = frame }
         // A record() during the await may have installed a new recorder: keep that one.
         if let recorder, await !recorder.offer(frame: frame, message: message), self.recorder === recorder {
@@ -209,6 +218,7 @@ public actor Session {
         await perform(core.tick(now: Self.now()))
         // A tick after the end (the loop's last, once cancelled) reports nothing.
         if !core.isFinished, liveness.check(at: Self.uptime()) { yield(.interrupted(true)) }
+        await checkProbe()
     }
 
     private func writeFailed(_ error: any Error) async {
@@ -217,8 +227,7 @@ public actor Session {
 
     /// Carries out the core's actions in order. `frame` and `message` are the frame being
     /// handled, for `.decode` and `.deliver`.
-    private func perform(_ actions: [SessionAction], frame: Frame? = nil, message: ServerMessage? = nil) async
-    {
+    func perform(_ actions: [SessionAction], frame: Frame? = nil, message: ServerMessage? = nil) async {
         for action in actions {
             switch action {
             case .send(let message):
@@ -352,12 +361,12 @@ public actor Session {
     }
 
     /// Wall-clock milliseconds, as acks carry.
-    private static func now() -> UInt64 {
+    static func now() -> UInt64 {
         UInt64(max(0, Date.now.timeIntervalSince1970 * 1000))
     }
 
     /// Monotonic milliseconds that stop while the Mac sleeps, for `Liveness`.
-    private static func uptime() -> UInt64 {
+    static func uptime() -> UInt64 {
         UInt64((SuspendingClock.now - start) / .milliseconds(1))
     }
 

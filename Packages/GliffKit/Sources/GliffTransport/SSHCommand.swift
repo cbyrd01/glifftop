@@ -1,7 +1,7 @@
 /// The ssh invocation that starts `gliff-server --stdio` on the target:
 /// `/usr/bin/ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes -o Compression=no
-/// -o IPQoS=ef [ssh args] -o ServerAliveInterval=10 -o ServerAliveCountMax=6 -- <target>
-/// gliff-server --stdio [server args]`.
+/// -o IPQoS=ef [ssh args] -o ServerAliveInterval=10 -o ServerAliveCountMax=6
+/// [-o ConnectTimeout=10] -- <target> gliff-server --stdio [server args]`.
 ///
 /// - `BatchMode=yes`: never prompt. `StrictHostKeyChecking=yes` comes before any other
 ///   option because ssh keeps the first value it sees, so neither the extra arguments nor
@@ -10,6 +10,9 @@
 /// - `ServerAliveInterval=10`, `ServerAliveCountMax=6`: a dead link ends after about a minute,
 ///   not TCP's minutes, while a shorter outage survives. After the extra arguments, which
 ///   can change them.
+/// - `ConnectTimeout=10` with `connectTimeout`, which `SystemSSHTransport` sets from
+///   `SSHConnectTimeout`: a host that drops packets fails in 10 s, not macOS's 75 s. After the
+///   extra arguments, which can change it.
 /// - `--` before the target, so nothing after it is read as an ssh option.
 /// - ssh hands the remote command to the login shell as one line, so each server argument
 ///   is shell-quoted unless it is plainly safe.
@@ -19,6 +22,8 @@ public struct SSHCommand: Equatable, Sendable {
     public var target: SSHTarget
     public var sshArguments: [String]
     public var serverArguments: [String]
+    /// Whether `ConnectTimeout=10` is added; off unless the transport finds it wanted.
+    public var connectTimeout = false
 
     public init(target: SSHTarget, sshArguments: [String] = [], serverArguments: [String] = []) {
         self.target = target
@@ -27,16 +32,19 @@ public struct SSHCommand: Equatable, Sendable {
     }
 
     public var arguments: [String] {
-        Self.options(sshArguments) + ["--", target.value, "gliff-server", "--stdio"]
+        Self.options(sshArguments, connectTimeout: connectTimeout) + [
+            "--", target.value, "gliff-server", "--stdio",
+        ]
             + serverArguments.map(Self.shellQuoted)
     }
 
     /// Every option before `--`, the safety ones first; shared with `ScreenListCommand`.
-    static func options(_ sshArguments: [String]) -> [String] {
+    static func options(_ sshArguments: [String], connectTimeout: Bool = false) -> [String] {
         [
             "-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "Compression=no",
             "-o", "IPQoS=ef",
         ] + sshArguments + ["-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=6"]
+            + (connectTimeout ? SSHConnectTimeout.options : [])
     }
 
     private static let shellSafe = Set(

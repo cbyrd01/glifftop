@@ -16,12 +16,13 @@ let package = Package(
     name: "GliffKit",
     platforms: [.macOS(.v27), .iOS(.v27)],
     products: [
-        // The app links only GliffKit; each module joins its target list.
+        // The app links only GliffKit; each module joins its target list (GliffTestSupport,
+        // for tests only, never does).
         .library(
             name: "GliffKit",
             targets: [
                 "GliffProtocol", "GliffTransport", "GliffVideo", "GliffInput", "GliffClipboard",
-                "GliffSession",
+                "GliffSession", "GliffMachines",
             ])
     ],
     targets: [
@@ -54,7 +55,8 @@ let package = Package(
             name: "GliffClipboard", dependencies: ["GliffProtocol"], exclude: ["README.md"],
             swiftSettings: strictSettings),
         .testTarget(
-            name: "GliffClipboardTests", dependencies: ["GliffClipboard", "GliffProtocol"],
+            name: "GliffClipboardTests",
+            dependencies: ["GliffClipboard", "GliffProtocol", "GliffTestSupport"],
             swiftSettings: strictSettings),
         .target(
             name: "GliffSession",
@@ -64,8 +66,16 @@ let package = Package(
             name: "GliffSessionTests",
             dependencies: [
                 "GliffSession", "GliffProtocol", "GliffTransport", "GliffVideo", "GliffInput",
-                "GliffClipboard",
+                "GliffClipboard", "GliffTestSupport",
             ],
             swiftSettings: strictSettings),
+        .target(
+            name: "GliffMachines", dependencies: ["GliffTransport", "GliffSession"], exclude: ["README.md"],
+            swiftSettings: strictSettings),
+        .testTarget(
+            name: "GliffMachinesTests", dependencies: ["GliffMachines", "GliffTransport", "GliffSession"],
+            swiftSettings: strictSettings),
+        // Test doubles shared by the test targets (a clock tests move by hand); not in the product.
+        .target(name: "GliffTestSupport", exclude: ["README.md"], swiftSettings: strictSettings),
     ]
 )

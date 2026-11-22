@@ -111,6 +111,14 @@ extension SessionCore {
         return [ping(now: now), stats(now: now)].compactMap { $0 } + resizeDue(now: now)
     }
 
+    /// A Ping now, whenever the last went (the wake probe), its `t` being `now`; nil unless
+    /// streaming.
+    mutating func pingNow(now: UInt64) -> SessionAction? {
+        guard state == .streaming else { return nil }
+        video.lastPing = nil
+        return ping(now: now)
+    }
+
     /// The window's latest size and scale; sent by `resizeDue` once it settles.
     mutating func setViewTarget(_ target: ViewTarget, now: UInt64) {
         resize.set(target, now: now)
@@ -122,7 +130,9 @@ extension SessionCore {
         let view = ResizeRules.View(
             width: stream.viewWidth, height: stream.viewHeight, scale: Float(StreamInfo(stream).screenScale))
         let headless = session?.headless ?? false
-        return resize.due(now: now, headless: headless, view: view).map { [.send($0)] } ?? []
+        return resize.due(now: now, headless: headless, view: view, pipeline: stream.pipeline).map {
+            [.send($0)]
+        } ?? []
     }
 
     private mutating func ping(now: UInt64) -> SessionAction? {

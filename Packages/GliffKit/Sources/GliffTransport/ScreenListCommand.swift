@@ -6,6 +6,8 @@
 public struct ScreenListCommand: Equatable, Sendable {
     public var target: SSHTarget
     public var sshArguments: [String]
+    /// As `SSHCommand.connectTimeout`; `ScreenLister` sets it from `SSHConnectTimeout`.
+    public var connectTimeout = false
 
     public init(target: SSHTarget, sshArguments: [String] = []) {
         self.target = target
@@ -13,7 +15,7 @@ public struct ScreenListCommand: Equatable, Sendable {
     }
 
     public var arguments: [String] {
-        SSHCommand.options(sshArguments) + [
+        SSHCommand.options(sshArguments, connectTimeout: connectTimeout) + [
             "--", target.value, "sh", "-c", SSHCommand.shellQuoted(Self.script),
         ]
     }

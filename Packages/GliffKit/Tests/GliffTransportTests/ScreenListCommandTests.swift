@@ -13,6 +13,14 @@ import Testing
         #expect(Array(list.prefix(prefix.count)) == prefix)
     }
 
+    @Test func aConnectTimeoutIsAnOption() {
+        var list = ScreenListCommand(target: target)
+        #expect(!list.arguments.contains("ConnectTimeout=10"))
+        list.connectTimeout = true
+        let ours = list.arguments.firstIndex(of: "ConnectTimeout=10")
+        #expect(ours != nil && ours! < list.arguments.firstIndex(of: "--")!)
+    }
+
     @Test func theTargetFollowsTheDoubleDash() {
         let list = ScreenListCommand(target: target).arguments
         #expect(list[list.firstIndex(of: "--")! + 1] == "user@omarchy")

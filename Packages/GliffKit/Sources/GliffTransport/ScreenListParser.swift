@@ -37,7 +37,7 @@ public enum ScreenListParser {
 
     /// A gliff-server virtual screen (upstream `session.rs`: `gliff-<pid>`), this session's or
     /// another's: it goes when its session ends, so it isn't offered.
-    private static func isVirtualScreen(_ name: String) -> Bool {
+    static func isVirtualScreen(_ name: String) -> Bool {
         let prefix = "gliff-"
         guard name.hasPrefix(prefix) else { return false }
         let pid = name.dropFirst(prefix.count)

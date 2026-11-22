@@ -25,10 +25,30 @@ final class VideoNSView: NSView {
 
     /// Fits the window when it changes (and once the view is in a window). Each session gets its
     /// own view: StreamingView exists only while streaming. The sizing is the session's, set
-    /// once, so a later view from the server never resizes the window.
+    /// once, so a later view from the server never resizes the window; a reconnect's (with
+    /// `fitsWindow` off) changes only what Actual Size fits.
     var fit: Fit? {
-        didSet { if fit != oldValue { fitWindow() } }
+        didSet {
+            guard fit != oldValue, fitsWindow || fit?.request != oldValue?.request else { return }
+            fitWindow()
+        }
     }
+
+    /// Points under the picture in the window's content (the status bar). Counted when the
+    /// window is fitted; once fitted, a change grows or shrinks a mirror's window by as much,
+    /// and leaves a virtual screen's (the remote follows the picture).
+    var extraHeight: CGFloat = 0 {
+        didSet {
+            guard extraHeight != oldValue, fitted, let window, case .monitor = fit?.sizing else { return }
+            let delta = extraHeight - oldValue
+            // Not inside SwiftUI's update pass, as `fitWindow`.
+            Task { WindowSizer.grow(window, by: delta) }
+        }
+    }
+
+    /// False for a reconnect's session: its first fit leaves the window at the size it has
+    /// (a later one, Actual Size say, fits as usual).
+    var fitsWindow = true
 
     /// View ▸ Scale to Fit: a picture smaller than the view is scaled up to fill it.
     var scaleToFit = false
@@ -64,7 +84,7 @@ final class VideoNSView: NSView {
     /// A failing draw is retried every frame: log it once per run of failures.
     private var drawFailing = false
     /// Set once the window has been fitted for the session: no target before, as
-    /// the connect form's compact window isn't the session's.
+    /// the machines window isn't the session's.
     private var fitted = false
     /// The target last reported to `onTarget`.
     private var reported: (size: PixelSize, backingScale: Double)?
@@ -318,13 +338,17 @@ final class VideoNSView: NSView {
 
     private func fitWindow() {
         guard let window, let fit else { return }
+        guard fitsWindow || fitted else {
+            fitted = true
+            return
+        }
         // Not inside SwiftUI's update pass: resizing the window there re-enters its layout.
         Task {
             switch fit.sizing {
-            case .monitor(let size): WindowSizer.fit(window, view: size)
+            case .monitor(let size): WindowSizer.fit(window, view: size, extraHeight: extraHeight)
             case .fillScreen: WindowSizer.fill(window)
             }
-            // Laid out now, so the next tick's drawable is the fitted one, not the connect form's.
+            // Laid out now, so the next tick's drawable is the fitted one, not the machines window's.
             window.layoutIfNeeded()
             fitted = true
         }

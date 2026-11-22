@@ -279,6 +279,17 @@ import Testing
         #expect(SessionEnd.serverSetupFailed("no gpu").message.contains("no gpu"))
     }
 
+    /// gliff-server's setup error for an `--output` it can't find (`setup_output`: "no output
+    /// NAME"): the monitor chosen isn't connected.
+    @Test func aMissingMonitorIsRecognised() {
+        let missing = SessionEnd.serverSetupFailed("no output DP-3")
+        #expect(missing.isMissingMonitor(.named("DP-3")))
+        #expect(!missing.isMissingMonitor(.named("DP-2")))
+        #expect(!missing.isMissingMonitor(.focused))
+        #expect(!SessionEnd.serverSetupFailed("no gpu").isMissingMonitor(.named("DP-3")))
+        #expect(!SessionEnd.connectionLost.isMissingMonitor(.named("DP-3")))
+    }
+
     @Test func onlyTransientEndsMayReconnect() {
         #expect(SessionEnd.connectionLost.mayReconnect)
         #expect(SessionEnd.serverSetupFailed("x").mayReconnect)

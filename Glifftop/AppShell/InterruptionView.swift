@@ -2,10 +2,11 @@ import SwiftUI
 
 /// Over a picture that may be stale: the server has gone quiet. The picture dims (a plain
 /// scrim, never Liquid Glass on the video) under a glass panel that says so, until traffic
-/// resumes or the link is given up for lost.
+/// resumes or the link is given up for lost; Reconnect Now gives it up at once.
 struct InterruptionView: View {
     let host: String
-    let disconnect: () -> Void
+    let backToMachines: () -> Void
+    let reconnectNow: () -> Void
 
     var body: some View {
         ZStack {
@@ -16,7 +17,10 @@ struct InterruptionView: View {
                     .font(.headline)
                 Text("Waiting for \(host) to respond…")
                     .foregroundStyle(.secondary)
-                Button("Disconnect", action: disconnect)
+                HStack {
+                    Button("Disconnect", action: backToMachines)
+                    Button("Reconnect Now", action: reconnectNow)
+                }
             }
             .multilineTextAlignment(.center)
             .padding(24)

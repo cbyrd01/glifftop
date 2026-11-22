@@ -57,6 +57,18 @@ import Testing
         #expect(command.arguments.contains("ServerAliveCountMax=6"))
     }
 
+    /// With `connectTimeout` (`SSHConnectTimeout` decides), a host that drops packets fails in
+    /// 10 s; after the extra arguments, so they can change it, and before `--`.
+    @Test func aConnectTimeoutFollowsTheExtraArguments() {
+        #expect(!SSHCommand(target: target).arguments.contains("ConnectTimeout=10"))
+        var command = SSHCommand(target: target, sshArguments: ["-o", "ConnectTimeout=60"])
+        command.connectTimeout = true
+        let theirs = command.arguments.firstIndex(of: "ConnectTimeout=60")
+        let ours = command.arguments.firstIndex(of: "ConnectTimeout=10")
+        let dashes = command.arguments.firstIndex(of: "--")
+        #expect(theirs != nil && ours != nil && dashes != nil && theirs! < ours! && ours! < dashes!)
+    }
+
     /// The remote login shell parses the command line ssh sends, so each server argument is
     /// quoted unless it is plainly safe.
     @Test func serverArgumentsAreShellQuoted() {

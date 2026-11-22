@@ -64,4 +64,88 @@ import Testing
         let limit = Liveness.silenceLimit
         #expect(checks(&liveness, at: [1000 + limit - 1, 1000 + limit]) == [false, true])
     }
+
+    /// After a wake: a Ping sent at once, and the link counts as lost unless that Ping's Pong
+    /// arrives within `probeLimit`. Reported once.
+    @Test func aProbeWithoutAnswerFailsAfterThreeSeconds() {
+        var liveness = Liveness()
+        liveness.heard(at: 0)
+        liveness.probe(ping: 7, at: 1000, order: 1)
+        let failed = [3999, 4000, 4500].map { liveness.probeFailed(at: $0) }
+        #expect(failed == [false, true, false])
+    }
+
+    @Test func theProbesPongAnswersIt() {
+        var liveness = Liveness()
+        liveness.probe(ping: 7, at: 0, order: 1)
+        liveness.answered(ping: 7)
+        let failed = liveness.probeFailed(at: 10_000)
+        #expect(!failed)
+    }
+
+    /// The network went away after the probe (Wi-Fi still joining after a wake): the probe
+    /// sent once it's back decides, not this one.
+    @Test func aWithdrawnProbeNeverFails() {
+        var liveness = Liveness()
+        liveness.probe(ping: 7, at: 0, order: 1)
+        liveness.withdrawProbe(order: 2)
+        let failed = liveness.probeFailed(at: 10_000)
+        #expect(!failed)
+    }
+
+    /// The network went away and came back at once: the withdrawal, arriving after the newer
+    /// probe, leaves it to decide; a probe arriving after a newer withdrawal isn't made.
+    @Test func onlyTheNewestProbeOrWithdrawalCounts() {
+        var liveness = Liveness()
+        liveness.probe(ping: 7, at: 0, order: 2)
+        liveness.withdrawProbe(order: 1)
+        let failed = liveness.probeFailed(at: 3000)
+        liveness.withdrawProbe(order: 4)
+        liveness.probe(ping: 8, at: 4000, order: 3)
+        let stale = liveness.probeFailed(at: 10_000)
+        #expect(failed)
+        #expect(!stale)
+    }
+
+    /// Bytes already on their way when the Mac slept (arriving at once), or an older Ping's
+    /// Pong, prove nothing about the link now.
+    @Test func otherBytesDontAnswerIt() {
+        var liveness = Liveness()
+        liveness.probe(ping: 7, at: 0, order: 1)
+        liveness.heard(at: 10)
+        liveness.answered(ping: 6)
+        let failed = liveness.probeFailed(at: 3000)
+        #expect(failed)
+    }
+
+    /// Bytes a second or more after the probe travelled the link since: a slow link's Pong,
+    /// queued behind a keyframe, needn't end it.
+    @Test func bytesASecondLaterAnswerIt() {
+        var liveness = Liveness()
+        liveness.probe(ping: 7, at: 0, order: 1)
+        liveness.heard(at: 999)
+        let early = liveness.probeFailed(at: 3000)
+        liveness.probe(ping: 8, at: 4000, order: 2)
+        liveness.heard(at: 5000)
+        let late = liveness.probeFailed(at: 7000)
+        #expect(early)
+        #expect(!late)
+    }
+
+    /// A probe after a second wake gets its own time, and only its own Pong answers it.
+    @Test func aSecondProbeStartsAgain() {
+        var liveness = Liveness()
+        liveness.probe(ping: 7, at: 1000, order: 1)
+        liveness.probe(ping: 9, at: 3900, order: 2)
+        liveness.answered(ping: 7)
+        let failed = [4000, 6899, 6900].map { liveness.probeFailed(at: $0) }
+        #expect(failed == [false, false, true])
+    }
+
+    @Test func withoutAProbeNothingFails() {
+        var liveness = Liveness()
+        liveness.heard(at: 0)
+        let failed = liveness.probeFailed(at: 60_000)
+        #expect(!failed)
+    }
 }

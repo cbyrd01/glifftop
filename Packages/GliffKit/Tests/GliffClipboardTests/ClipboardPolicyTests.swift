@@ -188,4 +188,73 @@ import Testing
         var policy = ClipboardPolicy(sharing: true)
         #expect(policy.handle(.macChanged(mac(2))) == [])
     }
+
+    /// A copy with types to offer is offered; a password manager's only while passwords are shared.
+    @Test func aPasswordIsNotOfferableUnlessIncluded() {
+        #expect(ClipboardPolicy.offerable(typeCount: 1, isPassword: false, includePasswords: false))
+        #expect(ClipboardPolicy.offerable(typeCount: 1, isPassword: false, includePasswords: true))
+        #expect(!ClipboardPolicy.offerable(typeCount: 1, isPassword: true, includePasswords: false))
+        #expect(ClipboardPolicy.offerable(typeCount: 1, isPassword: true, includePasswords: true))
+        #expect(!ClipboardPolicy.offerable(typeCount: 0, isPassword: false, includePasswords: true))
+        #expect(!ClipboardPolicy.offerable(typeCount: 0, isPassword: true, includePasswords: true))
+    }
+
+    /// Passwords no longer shared: a password offered is withdrawn, as a Mac change would; on
+    /// again, it is offered again.
+    @Test func aRecheckWithdrawsWhatIsNoLongerOfferable() {
+        var policy = offering()
+        #expect(policy.handle(.recheck(mac(1, offerable: false))) == [.revokeMac(sendEmpty: true)])
+        #expect(policy.handle(.recheck(mac(1, offerable: false))) == [])
+        #expect(policy.handle(.recheck(mac(1))) == [.offerMac(changeCount: 1)])
+    }
+
+    @Test func aRecheckOffersWhatNowIs() {
+        var policy = offering()
+        #expect(policy.handle(.macChanged(mac(2, offerable: false))) == [.revokeMac(sendEmpty: true)])
+        #expect(policy.handle(.recheck(mac(2))) == [.offerMac(changeCount: 2)])
+        #expect(policy.handle(.recheck(mac(2))) == [])
+    }
+
+    /// Away, nothing is offered: what a recheck now allows waits for the front.
+    @Test func aRecheckAwayOrNotSharingDoesNothing() {
+        var off = ClipboardPolicy(sharing: false)
+        _ = off.handle(.front(true, mac(1, offerable: false)))
+        #expect(off.handle(.recheck(mac(1))) == [])
+
+        var policy = offering()
+        #expect(policy.handle(.macChanged(mac(2, offerable: false))) == [.revokeMac(sendEmpty: true)])
+        _ = policy.handle(.front(false, mac(2, offerable: false)))
+        #expect(policy.handle(.recheck(mac(2))) == [])
+        #expect(policy.handle(.front(true, mac(2))) == [.offerMac(changeCount: 2)])
+    }
+
+    /// Settings takes the front from the session's window: no longer sharing passwords there
+    /// still withdraws the password the host could read.
+    @Test func aRecheckWithdrawsEvenAway() {
+        var policy = offering()
+        _ = policy.handle(.front(false, mac(1)))
+        #expect(policy.handle(.recheck(mac(1, offerable: false))) == [.revokeMac(sendEmpty: true)])
+        #expect(policy.handle(.front(true, mac(1, offerable: false))) == [])
+    }
+
+    /// A host copy newer than the Mac's withheld one stands: a recheck doesn't offer over it.
+    @Test func aRecheckDoesNotOfferOverTheHostsNewerCopy() {
+        var policy = offering()
+        #expect(policy.handle(.macChanged(mac(2, offerable: false))) == [.revokeMac(sendEmpty: true)])
+        let jpeg = RemoteClipboardOffer(serial: 9, mimeTypes: ["image/jpeg"])
+        #expect(policy.handle(.remoteOffer(jpeg, mac(2, offerable: false))) == [])
+        #expect(policy.handle(.recheck(mac(2))) == [])
+    }
+
+    /// Our offer still live but the host has copied since: withdrawn on a recheck, and never
+    /// offered again over the host's copy.
+    @Test func aRecheckNeverRestoresOursOverTheHostsNewerCopy() {
+        var policy = offering()
+        let jpeg = RemoteClipboardOffer(serial: 9, mimeTypes: ["image/jpeg"])
+        #expect(policy.handle(.remoteOffer(jpeg, mac(1))) == [])
+        #expect(policy.handle(.recheck(mac(1, offerable: false))) == [.revokeMac(sendEmpty: false)])
+        #expect(policy.handle(.recheck(mac(1))) == [])
+        #expect(policy.handle(.front(false, mac(1))) == [])
+        #expect(policy.handle(.front(true, mac(1))) == [])
+    }
 }

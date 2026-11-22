@@ -20,7 +20,11 @@ the feature seam.
   reader, one writer task (`SessionWriter`), a 500 ms tick, and `status` as an
   `AsyncStream`. It reports `.interrupted(true)` when `Liveness` says so (a Ping unanswered
   for 2 s and not a byte for 4 s, on a clock that stops in sleep), and `.interrupted(false)`
-  at the next bytes. Closing waits up to 1 s for queued frames (Bye), then closes the
+  at the next bytes. `probe()` (after a wake or a network change, while streaming) sends a
+  Ping at once and ends the session as `.connectionLost` unless that Ping's Pong, or any
+  bytes 1 s or more after it, arrive within 3 s; bytes sooner may predate the sleep, so they
+  don't answer it. `withdrawProbe()` (the network went away) drops a probe waiting; the
+  next probe decides. The handshake isn't probed. Closing waits up to 1 s for queued frames (Bye), then closes the
   connection. Cancelling `run()` is a disconnect. A run of decode failures logs each
   reason once; the next picture ends the run.
 - **Input:** `Session.send(_:)` queues an `InputMessage` from any thread (`InputQueue`, in
@@ -29,13 +33,18 @@ the feature seam.
   what it ends went, and then even while interrupted (so the remote never holds a key or
   button past a stall, nor gets an unpaired release); a keymap always.
   Anything queued before the handshake is judged then (a press is dropped). `disconnect()`
-  sends the queue before Bye; after the end nothing is kept.
-- **Resize:** `Session.setViewTarget(_:)` takes the window's size in pixels, its backing scale
-  and text factor (`ViewTarget`) from any thread, latest wins. `ResizeRules` sends a Resize
-  once the target has stayed unchanged for 200 ms and video is streaming (a wake just past
-  the settle time, the tick as backup): no smaller than 320×240; a mirror's scale the backing
-  scale (0.5–4), a virtual screen's the backing scale times the text factor (1–4); never the
-  same request twice, nor one the StreamConfig in force already answers.
+  sends the queue before Bye; after the end nothing is kept. While the transport is still
+  connecting, `disconnect()` cancels that connect instead (`TransportError.cancelled`).
+- **Resize:** `Session.setViewTarget(_:)` takes the window's size in pixels, its backing
+  scale, text factor (`TextSize`) and resolution (`VirtualResolution`), as a `ViewTarget`,
+  from any thread, latest wins. `ResizeRules` sends a Resize once the target has stayed unchanged for
+  200 ms and video is streaming (a wake just past the settle time, the tick as backup): no
+  smaller than 320×240; a mirror's scale the backing scale (0.5–4), a virtual screen's the
+  backing scale times the text factor (1–4); a virtual screen's size and scale then times
+  its resolution's factor (½ for Standard on a Retina display whose window at ½ still fits
+  320×240, or Automatic on a CPU pipeline; the layout stays the same, the scale perhaps
+  down to 0.5); never the same
+  request twice, nor one the StreamConfig in force already answers.
 - **Cursor:** a CursorShape while streaming is checked with its frame's payload
   (GliffInput's `CursorImage`, with the pixels it declares; bytes past them are skipped) and
   published to the `CursorSlot` the session was made with (latest wins, a generation per
@@ -56,6 +65,16 @@ the feature seam.
   connect (a write error waits for ssh's classified exit); after it, a lost connection. A
   parse error on the very first frame means stdout wasn't Gliff (`remoteNotGliff`). Server
   text is made displayable as ssh's stderr is.
+- **Reconnect:** `ReconnectPolicy` says whether an end is tried again and after how long: an
+  end that may reconnect, and, once retrying, a host not found or a connection refused (a
+  network or host coming back after a wake); after 1, 2, 4, 8 and 16 s, then it gives up.
+  `Reconnector` runs it: a countdown before each try (`ReconnectState`, for the window), cut
+  short by `reconnectNow()`, stopped while `networkAvailable(false)` without spending a try
+  and started again once the network is back, and ended by cancelling its task (Disconnect).
+  A run counts from the first try, unless the last run's session ended within `ReconnectMemory.steadyTime`
+  (30 s) of streaming: then it goes on from that count (`ReconnectMemory`, shared by a
+  window's reconnectors), so a host that streams, then drops, runs out of tries. Its clock (by default one that stops in sleep) is
+  injected; tests use `ManualClock`.
 - **Features:** `SessionFeature` is an optional protocol feature as a plug-in unit: offered
   in Hello by name, active once HelloAck echoes it, then handed the unknown server variants
   it claims. `FeatureContext` lets it send its own client messages.

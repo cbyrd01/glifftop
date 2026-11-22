@@ -12,6 +12,15 @@ extension SessionModel {
         isSwitching = true
         start(destination, screen: choice)
     }
+
+    /// The monitor the ended session asked for by name, when the host has no such monitor
+    /// connected; nil otherwise, and once the sheet has saved another screen for Try Again.
+    var missingMonitor: String? {
+        guard phase == .ended, sheetScreen == nil, case .named(let name) = screenChoice,
+            snapshot.end?.isMissingMonitor(screenChoice) == true
+        else { return nil }
+        return name
+    }
 }
 
 extension ScreenChoice {
@@ -32,10 +41,11 @@ extension RemoteScreen {
         return description.isEmpty ? "\(name) — \(size)" : "\(name) — \(size), \(description)"
     }
 
-    /// `label`, at most `menuLength` characters (the last an ellipsis), for View ▸ Screen.
-    var menuLabel: String {
-        label.count <= Self.menuLength ? label : label.prefix(Self.menuLength - 1) + "…"
+    /// `label`, at most `shortLength` characters (the last an ellipsis), for View ▸ Screen and
+    /// the options' picker: a long make and model can't widen either.
+    var shortLabel: String {
+        label.count <= Self.shortLength ? label : label.prefix(Self.shortLength - 1) + "…"
     }
 
-    private static let menuLength = 60
+    private static let shortLength = 60
 }

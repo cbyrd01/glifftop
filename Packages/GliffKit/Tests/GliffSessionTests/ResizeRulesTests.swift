@@ -9,9 +9,11 @@ import Testing
     private typealias View = ResizeRules.View
 
     private static func target(
-        _ width: UInt32, _ height: UInt32, backing: Double = 2, factor: Double = 1
+        _ width: UInt32, _ height: UInt32, backing: Double = 2, factor: Double = 1,
+        resolution: VirtualResolution = .retina
     ) -> ViewTarget {
-        ViewTarget(width: width, height: height, backingScale: backing, textFactor: factor)
+        ViewTarget(
+            width: width, height: height, backingScale: backing, textFactor: factor, resolution: resolution)
     }
 
     private static let mirrorView = View(width: 2560, height: 1440, scale: 1)
@@ -20,9 +22,9 @@ import Testing
     @Test func nothingBeforeItSettles() {
         var rules = ResizeRules()
         rules.set(Self.target(1600, 1000), now: 0)
-        #expect(rules.due(now: 199, headless: true, view: Self.virtualView) == nil)
+        #expect(rules.due(now: 199, headless: true, view: Self.virtualView, pipeline: nil) == nil)
         #expect(
-            rules.due(now: 200, headless: true, view: Self.virtualView)
+            rules.due(now: 200, headless: true, view: Self.virtualView, pipeline: nil)
                 == .resize(width: 1600, height: 1000, scale: 2))
     }
 
@@ -32,7 +34,7 @@ import Testing
         for headless in [true, false] {
             var rules = ResizeRules()
             rules.set(Self.target(1600, 1000, backing: backing, factor: factor), now: 0)
-            #expect(rules.due(now: 500, headless: headless, view: Self.virtualView) == nil)
+            #expect(rules.due(now: 500, headless: headless, view: Self.virtualView, pipeline: nil) == nil)
         }
     }
 
@@ -43,34 +45,40 @@ import Testing
         var now: UInt64 = 0
         for step in 0...25 {
             rules.set(Self.target(1000 + UInt32(step) * 16, 600 + UInt32(step) * 12), now: now)
-            if let message = rules.due(now: now, headless: true, view: Self.virtualView) {
+            if let message = rules.due(now: now, headless: true, view: Self.virtualView, pipeline: nil) {
                 sent.append(message)
             }
             now += 16
         }
         let last = now - 16
-        #expect(rules.due(now: last + 199, headless: true, view: Self.virtualView) == nil)
-        if let message = rules.due(now: last + 200, headless: true, view: Self.virtualView) {
+        #expect(rules.due(now: last + 199, headless: true, view: Self.virtualView, pipeline: nil) == nil)
+        if let message = rules.due(now: last + 200, headless: true, view: Self.virtualView, pipeline: nil) {
             sent.append(message)
         }
-        #expect(rules.due(now: last + 900, headless: true, view: Self.virtualView) == nil)
+        #expect(rules.due(now: last + 900, headless: true, view: Self.virtualView, pipeline: nil) == nil)
         #expect(sent == [.resize(width: 1400, height: 900, scale: 2)])
     }
 
     @Test func theSameRequestIsNotSentTwice() {
         var rules = ResizeRules()
         rules.set(Self.target(1600, 1000), now: 0)
-        #expect(rules.due(now: 200, headless: true, view: Self.virtualView) != nil)
+        #expect(rules.due(now: 200, headless: true, view: Self.virtualView, pipeline: nil) != nil)
         rules.set(Self.target(1600, 1000), now: 300)
-        #expect(rules.due(now: 600, headless: true, view: Self.virtualView) == nil)
+        #expect(rules.due(now: 600, headless: true, view: Self.virtualView, pipeline: nil) == nil)
     }
 
     @Test func theServersViewIsNotRequested() {
         var rules = ResizeRules()
         rules.set(Self.target(1600, 1000), now: 0)
-        #expect(rules.due(now: 200, headless: true, view: View(width: 1600, height: 1000, scale: 2)) == nil)
+        #expect(
+            rules.due(
+                now: 200, headless: true, view: View(width: 1600, height: 1000, scale: 2), pipeline: nil)
+                == nil)
         // A mirror ignores the scale: its view alone decides.
-        #expect(rules.due(now: 200, headless: false, view: View(width: 1600, height: 1000, scale: 1)) == nil)
+        #expect(
+            rules.due(
+                now: 200, headless: false, view: View(width: 1600, height: 1000, scale: 1), pipeline: nil)
+                == nil)
     }
 
     /// The server rounds a virtual screen's mode (`clean_mode`); its answer
@@ -79,23 +87,26 @@ import Testing
         var rules = ResizeRules()
         rules.set(Self.target(1366, 768, backing: 1.25), now: 0)
         #expect(
-            rules.due(now: 200, headless: true, view: Self.virtualView)
+            rules.due(now: 200, headless: true, view: Self.virtualView, pipeline: nil)
                 == .resize(width: 1366, height: 768, scale: 1.25))
-        #expect(rules.due(now: 900, headless: true, view: View(width: 1360, height: 760, scale: 1.25)) == nil)
+        #expect(
+            rules.due(
+                now: 900, headless: true, view: View(width: 1360, height: 760, scale: 1.25), pipeline: nil)
+                == nil)
     }
 
     @Test(arguments: [(319, 600), (800, 239), (0, 0)] as [(UInt32, UInt32)])
     func tooSmallIsNotSent(width: UInt32, height: UInt32) {
         var rules = ResizeRules()
         rules.set(Self.target(width, height), now: 0)
-        #expect(rules.due(now: 200, headless: true, view: Self.virtualView) == nil)
+        #expect(rules.due(now: 200, headless: true, view: Self.virtualView, pipeline: nil) == nil)
     }
 
     @Test func aVirtualScreenGetsTheTextFactor() {
         var rules = ResizeRules()
         rules.set(Self.target(1600, 1000, factor: 0.75), now: 0)
         #expect(
-            rules.due(now: 200, headless: true, view: Self.virtualView)
+            rules.due(now: 200, headless: true, view: Self.virtualView, pipeline: nil)
                 == .resize(width: 1600, height: 1000, scale: 1.5))
     }
 
@@ -103,7 +114,7 @@ import Testing
         var rules = ResizeRules()
         rules.set(Self.target(1600, 1000, factor: 0.75), now: 0)
         #expect(
-            rules.due(now: 200, headless: false, view: Self.mirrorView)
+            rules.due(now: 200, headless: false, view: Self.mirrorView, pipeline: nil)
                 == .resize(width: 1600, height: 1000, scale: 2))
     }
 
@@ -112,17 +123,18 @@ import Testing
         var rules = ResizeRules()
         rules.set(Self.target(1600, 1000, backing: 1, factor: 0.5), now: 0)
         #expect(
-            rules.due(now: 200, headless: true, view: Self.virtualView)
+            rules.due(now: 200, headless: true, view: Self.virtualView, pipeline: nil)
                 == .resize(width: 1600, height: 1000, scale: 1))
     }
 
     @Test func aTextFactorChangeSendsTheSameSizeAtTheNewScale() {
         var rules = ResizeRules()
         rules.set(Self.target(1600, 1000), now: 0)
-        _ = rules.due(now: 200, headless: true, view: Self.virtualView)
+        _ = rules.due(now: 200, headless: true, view: Self.virtualView, pipeline: nil)
         rules.set(Self.target(1600, 1000, factor: 0.875), now: 300)
         #expect(
-            rules.due(now: 500, headless: true, view: View(width: 1600, height: 1000, scale: 2))
+            rules.due(
+                now: 500, headless: true, view: View(width: 1600, height: 1000, scale: 2), pipeline: nil)
                 == .resize(width: 1600, height: 1000, scale: 1.75))
     }
 
@@ -130,10 +142,11 @@ import Testing
     @Test func aBackingScaleChangeSendsAgain() {
         var rules = ResizeRules()
         rules.set(Self.target(1600, 1000), now: 0)
-        _ = rules.due(now: 200, headless: true, view: Self.virtualView)
+        _ = rules.due(now: 200, headless: true, view: Self.virtualView, pipeline: nil)
         rules.set(Self.target(800, 500, backing: 1), now: 300)
         #expect(
-            rules.due(now: 500, headless: true, view: View(width: 1600, height: 1000, scale: 2))
+            rules.due(
+                now: 500, headless: true, view: View(width: 1600, height: 1000, scale: 2), pipeline: nil)
                 == .resize(width: 800, height: 500, scale: 1))
     }
 
@@ -141,8 +154,55 @@ import Testing
         var rules = ResizeRules()
         rules.set(Self.target(1600, 1000, backing: 8), now: 0)
         #expect(
-            rules.due(now: 200, headless: true, view: Self.virtualView)
+            rules.due(now: 200, headless: true, view: Self.virtualView, pipeline: nil)
                 == .resize(width: 1600, height: 1000, scale: 4))
+    }
+
+    /// Standard: half a side and half the scale, on a Retina display.
+    @Test func aStandardVirtualScreenAsksForHalf() {
+        var rules = ResizeRules()
+        rules.set(Self.target(3024, 1964, resolution: .standard), now: 0)
+        #expect(
+            rules.due(now: 500, headless: true, view: Self.virtualView, pipeline: .gpu)
+                == .resize(width: 1512, height: 982, scale: 1))
+    }
+
+    /// The remote desktop's layout (width ÷ scale) is the same either way: only its pixels
+    /// change.
+    @Test(arguments: [TextSize.mac, .f75, .f50])
+    func theLayoutDoesNotChangeWithResolution(_ size: TextSize) throws {
+        var layouts: [Float] = []
+        for resolution in [VirtualResolution.retina, .standard] {
+            var rules = ResizeRules()
+            rules.set(Self.target(3024, 1964, factor: size.factor, resolution: resolution), now: 0)
+            let message = rules.due(now: 500, headless: true, view: Self.virtualView, pipeline: nil)
+            guard case .resize(let width, _, let scale) = try #require(message) else {
+                Issue.record("not a Resize")
+                return
+            }
+            layouts.append(Float(width) / scale)
+        }
+        #expect(layouts[0] == layouts[1])
+    }
+
+    @Test func aMirrorIgnoresResolution() {
+        var rules = ResizeRules()
+        rules.set(Self.target(3024, 1964, resolution: .standard), now: 0)
+        #expect(
+            rules.due(now: 500, headless: false, view: Self.mirrorView, pipeline: .cpu)
+                == .resize(width: 3024, height: 1964, scale: 2))
+    }
+
+    /// Automatic asks for every pixel until the stream says its pipeline is the CPU's.
+    @Test func automaticChangesWhenThePipelineIsKnown() {
+        var rules = ResizeRules()
+        rules.set(Self.target(3024, 1964, resolution: .automatic), now: 0)
+        #expect(
+            rules.due(now: 500, headless: true, view: Self.virtualView, pipeline: nil)
+                == .resize(width: 3024, height: 1964, scale: 2))
+        #expect(
+            rules.due(now: 1000, headless: true, view: Self.virtualView, pipeline: .cpu)
+                == .resize(width: 1512, height: 982, scale: 1))
     }
 }
 

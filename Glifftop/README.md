@@ -26,42 +26,76 @@ line with its `ictool` (into `.build/`, which git ignores):
 
 ## AppShell
 
-The SwiftUI side of the app: the window, the connect form (the host, and a Screen picker:
-Focused Monitor, Virtual Screen, then the host's monitors once Get Screens has listed them;
-editing the host forgets the list), the session view, the streaming view (the picture with
-the stats and Disconnect overlaid, and `InterruptionView`, a dimmed picture under a glass
-panel, while the server is quiet, and the "Shift+Esc releases input" hint for a few seconds
-after capture), the View menu (Actual Size ⌘0, disabled on a virtual screen; Scale to Fit
-⌥⌘0; Show Statistics; `ScreenMenus.swift`: Text Size, a virtual screen only, its steps
-showing the remote scale on the window's display and the ones that change nothing off; and
+The SwiftUI side of the app: the window, the machines (`MachinesView`: "Connect to a host",
+a field and Connect, with Options set before the first connection, `MachineOptionsForm`: a
+Screen picker (Focused Monitor, Virtual Screen, then the host's monitors once Get Screens has
+listed them, and a saved machine's monitor though not listed; editing the host forgets the
+list), a virtual screen's Text Size and Resolution, Scale to Fit and Reconnect automatically,
+from Settings, or from the saved machine the field names; then the saved machines: name, host
+and screen, when last connected and a favourite's star, double-click or Return connecting, and
+a menu of Connect, Edit…, Favourite and Remove, which asks), the machine sheet
+(`EditMachineView`: Name, Host and the options; New Machine… ⌘N and the + button add one and
+can Connect, Connection ▸ Edit Machine… ⌘E edits the session's), the session view, the streaming view (the picture below
+the toolbar, never under it; `InterruptionView`, a dimmed picture under a glass panel, while
+the server is quiet, with Disconnect and Reconnect Now; `ReconnectingView`, the last picture
+dimmed under a glass panel while a lost session is tried again: why it ended, the countdown
+and the try, Reconnect Now and Disconnect; the "Shift+Esc releases input" hint for a few seconds after capture; and
+under the picture, with View ▸ Show Status Bar, `StatusBar`: the state, fps, Mbit/s, round
+trip, chroma · encoder and the clipboard read, on the bar material, its height counted when
+a mirror's window is fitted), the window's title (the machine's name, else the host) and subtitle ("Virtual Screen ·
+Connected", `SessionModel+Chrome.swift`), the toolbar (`SessionToolbar`, while a session is
+shown, shown on hover in full screen: Screen and, on a virtual screen, Text Size; the
+clipboard (`ClipboardToolbarItem`: one button stepping through Not shared, Shared and Shared
+including passwords, each step up asking first as Settings does, with the clipboard read
+beside it); Connection Info, a popover of `StatsView`'s numbers and "The host draws W × H",
+and Disconnect), the Connection menu (`ConnectionCommands`: Disconnect ⇧⌘D, Reconnect ⇧⌘R,
+Connection Info ⌘I, Edit Machine… ⌘E), the View menu (Actual Size ⌘0, disabled on a virtual
+screen, turning Scale to Fit off; Scale to Fit ⌥⌘0; Show Status Bar ⌘/, app-wide, off by default; `ScreenMenus.swift`: Text Size, a virtual screen only, its steps
+showing the remote scale on the window's display and the ones that change nothing off;
+Resolution, a virtual screen only: Automatic, Retina and Standard, Standard off on a display
+under 2×, a Standard picture drawn scaled to the window (`drawsScaled`, from the stream in
+hand); and
 Screen, the choice in use checked, "Focused Monitor (DP-2)" once the session names its
 output, the listed monitors labelled as the form labels them (at most 60 characters), and
 Refresh Screen List, while streaming, its error shown under it; the same screen again only
 after the session ended; everything the menu reads changes only with its value, never with
 the stats or a new StreamConfig (`hasPicture`, not `picture`), so Enter Full Screen isn't
-lost), the Input menu (Release Input, ⇧⎋), Settings (`SettingsView`: the screen a
-connection starts on, the virtual screen's text size (`TextSize`), Scale to Fit and
-Share the clipboard (off by default; turning it on asks first; at once for an open session), in `UserDefaults` through
+lost), the Input menu (Release Input, ⇧⎋), Settings (`SettingsView`: the options a
+new host or machine starts from (`AppSettings.defaultOptions`: the screen, the virtual
+screen's text size (`TextSize`) and resolution, Scale to Fit, Reconnect automatically) and
+the clipboard (`ClipboardSharing`: Not shared by default, Shared, or Shared including passwords; a
+step up asks first; at once for an open session), in `UserDefaults` through
 `AppSettings`) and (Debug builds) the Debug menu: Record 5 Seconds
 and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes).
 
-- **Owns:** `SessionModel` (one window's session, folded into a `SessionSnapshot`; the
+- **Owns:** `MachineStore` (the saved machines in `UserDefaults`, key `machines`, as
+  GliffMachines' JSON); `SessionModel` (one window's session, its machine (the destination's
+  when it starts; recorded, with the window's options and the date, when it first streams, so
+  a host that never streams isn't saved; View-menu changes of screen, text size, resolution
+  and Scale to Fit kept on it, `SessionModel+Machines.swift`), folded into a `SessionSnapshot`; the
   session's `PictureSlot` and the app's one `PictureRenderer`; the window's sizing, set once
   per session: `.fillScreen` for a virtual screen, else `.monitor` from the first view within
-  the monitor (`SessionSnapshot.mirrorSize`); the window's Scale to Fit and text size, from Settings at each connection
-  from the form and kept when the screen is switched; the video view's drawable and
+  the monitor (`SessionSnapshot.mirrorSize`); the window's Scale to Fit, text size, resolution and reconnect, from the machine's
+  options at each connection and kept when the screen is switched; the video view's drawable and
   backing scale passed on as the session's `ViewTarget`; switching the session to another
   screen, a new session to the same host, in `SessionModel+Screens.swift`, the window staying
-  in full screen meanwhile (`isSwitching`)), `ScreenList`
+  in full screen meanwhile (`isSwitching`); a lost session tried again with backoff
+  (`SessionModel+Reconnect.swift`, GliffSession's `Reconnector`): a session that streamed and
+  ended with a reason a retry may fix, Reconnect automatically on, each try a new session in
+  the same window, its size and full screen kept; Disconnect, closing the window, quitting,
+  another connection or Reconnect automatically turned off stops it (the last, with why it was
+  lost on the end screen); `SessionEndedView` after
+  an end the person didn't choose, with Try Again, Edit Machine… and Close: Disconnect and
+  Cancel go straight back to the machines), `ScreenList`
   (the host's monitors, listed through a lister closure, ssh by default, and never saved:
   one listing at a time, stopped (its error dismissed) when a session starts; a refresh keeps the list until the
   new one arrives; the list belongs to its host and is forgotten when the field names
   another, and a monitor is chosen only from its own host's list), the
-  views, and the app's display text for protocol values (`DisplayNames.swift`; GliffKit
-  carries no UI text). Among the views, `ClipboardActivityView` shows the host's read of the
-  Mac clipboard over the picture's bottom leading corner: while it runs (reported
-  after a second) with the bytes sent and Cancel (`SessionModel.cancelClipboardServing`), and
-  for 3 s after a failure with why; temporary chrome, as the stats are.
+  views, and the app's display text for GliffKit values, text sizes included
+  (`DisplayNames.swift`; GliffKit carries no UI text). Among the views, `ClipboardReadView`
+  shows the host's read of the Mac clipboard in the toolbar and the status bar: while it runs
+  (reported after a second) with the bytes sent and Cancel
+  (`SessionModel.cancelClipboardServing`), and for 3 s after a failure with why.
 - **Imports:** SwiftUI, Observation, Foundation, UniformTypeIdentifiers, Metal (the system
   GPU for the renderer), `os` and the GliffKit modules. Must not import AppKit: anything
   AppKit goes through `MacPlatform`.
@@ -81,12 +115,14 @@ AppKit adapters for what SwiftUI can't do:
   new view box for the picture on screen, or Scale to Fit toggled, and only while the window
   is visible; wrapped for SwiftUI by `VideoView`. Once the window has been fitted for the
   session it reports its drawable size and backing scale (`onTarget`) on every change, from
-  the display link, never from the connect form's window. Its cursor handling is in
+  the display link, never from the machines window. Its cursor handling is in
   `VideoNSView+Cursor.swift`;
+- `WakeObserver`: the Mac waking (`NSWorkspace.didWakeNotification`) and whether the network
+  path is usable (`NWPathMonitor`), for the session's probe and its reconnect;
 - `FullScreenTracker`: the window's full-screen state for `RootView`, which keeps its content
   resizable while full screen (fixed-size content makes the window ignore
   `toggleFullScreen`), and leaving full screen when the picture goes (not while View ▸ Screen
-  reconnects), so the compact end screen isn't a box on black;
+  or a lost session reconnects), so the compact end screen isn't a box on black;
 - `WindowSizer`: for a mirror (`WindowSizing.monitor`), the window at 1:1 for the monitor
   when that fits the screen, else the largest fitting size (`VideoFit.contentSize`), when
   streaming starts and on View ▸ Actual Size, never for a later view (the server shrinks a
@@ -129,11 +165,12 @@ AppKit adapters for what SwiftUI can't do:
   (one per window's session) tells GliffClipboard's `ClipboardPolicy` when the session's
   window comes to the front or leaves it (the app active and the window key, from
   `ClipboardTracker`), when the pasteboard's `changeCount` moves (polled twice a second, in
-  front or not) and when Share the clipboard changes, and carries out its offers and
+  front or not) and when the clipboard's sharing changes, and carries out its offers and
   withdrawals through the session; it reads only the pasteboard's types. `PasteboardTypes`
   maps them to mime types (text, HTML, PNG or TIFF as `image/png`; a Finder copy only as its
   names in text) and finds password managers' concealed and transient marks: such a copy is
-  offered with KDE's `x-kde-passwordManagerHint`, so the host's clipboard history skips it.
+  offered only while it's Shared including passwords, and then with KDE's `x-kde-passwordManagerHint`, so the host's
+  clipboard history skips it.
   `PasteboardSource` reads the data when the remote pastes, only from the copy the offer was
   made from, a TIFF converted to PNG with ImageIO, at most 32 MiB.
 

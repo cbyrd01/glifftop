@@ -1,7 +1,8 @@
 import GliffSession
 import SwiftUI
 
-/// A running session: progress while connecting, the picture while streaming, and why it ended.
+/// A running session: progress while connecting, the picture while streaming (the last one,
+/// dimmed, while reconnecting), and why it ended.
 struct SessionView: View {
     let model: SessionModel
 
@@ -11,12 +12,14 @@ struct SessionView: View {
         ZStack {
             if let picture = model.picture {
                 StreamingView(model: model, stream: picture.stream, renderer: picture.renderer)
+            } else if model.isReconnecting {
+                ReconnectingView(model: model)
             } else {
                 status
                     .padding(24)
             }
         }
-        .onDisappear(perform: model.disconnect)
+        .onDisappear(perform: model.stopSession)
     }
 
     private var status: some View {
@@ -25,17 +28,14 @@ struct SessionView: View {
             case .idle, .connecting, .handshaking:
                 ProgressView()
                 Text("Connecting to \(model.host)…")
-                Button("Cancel", action: model.disconnect)
+                Button("Cancel", action: model.backToMachines)
                     .keyboardShortcut(.cancelAction)
             case .waitingForVideo, .streaming:
                 ProgressView()
                 Text("Waiting for video from \(model.host)…")
-                Button("Disconnect", action: model.disconnect)
+                Button("Disconnect", action: model.backToMachines)
             case .ended:
-                Text(model.snapshot.end?.message ?? "Disconnected.")
-                    .multilineTextAlignment(.center)
-                Button("Back", action: model.reset)
-                    .keyboardShortcut(.defaultAction)
+                SessionEndedView(model: model)
             }
         }
     }

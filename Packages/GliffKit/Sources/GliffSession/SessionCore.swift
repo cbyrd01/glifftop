@@ -118,6 +118,8 @@ struct SessionCore {
                 return []
             case .writeFailed:
                 return finish(.connectionLost)
+            case .cancelled:
+                return finish(.disconnected)
             }
         case let error as ProtocolError:
             return finish(afterFrames == 0 ? .remoteNotGliff : .protocolError("\(error)"))

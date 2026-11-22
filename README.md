@@ -20,13 +20,14 @@ The name combines *gliff*, the Scots word for a glimpse, with *desktop* and *cli
 - Choosing the screen: one of the host's monitors, the focused one, or a virtual screen that
   follows the window's size.
 - A shared clipboard (text, HTML and images, both ways), off until you turn it on.
+- Saved machines, each with its options, and reconnecting by itself after a lost link.
 
 <img src="docs/media/screensaver.png" width="480" alt="Omarchy's screensaver in Glifftop: the logo's colour gradient, sharp at full chroma">
 
 **Not yet:**
 
 - Files over the clipboard.
-- Tabs, and reconnecting by itself.
+- Tabs.
 - ⌘Space and ⌘Tab stay with the Mac.
 - Signed releases: for now, build it yourself.
 
@@ -46,17 +47,20 @@ encode).
 ## Using it
 
 1. Type the ssh destination, as you would after `ssh` (for example `omarchy`, a `Host` in
-   your `~/.ssh/config`), pick the screen, and connect. **Get Screens** lists the host's
-   monitors.
+   your `~/.ssh/config`), pick the screen under **Options**, and connect. **Get Screens**
+   lists the host's monitors. Each host you connect to is kept under **Machines**, with its
+   options.
 
-   <img src="docs/media/screen-choice.png" width="460" alt="The connect window: the host omarchy, and the screen menu with Focused Monitor, Virtual Screen and two monitors">
+   <img src="docs/media/screen-choice.png" width="480" alt="The Glifftop window: the host omarchy, Options open with the Screen menu listing Focused Monitor, Virtual Screen and two monitors, and omarchy under Machines">
 2. While the window is in front, the keyboard and pointer go to the remote computer;
    **Input ▸ Release Input** (⇧Esc) gives them back to the Mac.
-3. **View ▸ Actual Size** (⌘0) shows the remote 1:1; **View ▸ Scale to Fit** (⌥⌘0) scales a
-   smaller screen up.
-4. **Settings ▸ Share the clipboard** turns on the shared clipboard, after asking. While
-   Glifftop is in front, what you copy on the Mac (passwords included) goes to the remote
-   computer, and its copies come to the Mac.
+3. **View ▸ Actual Size** (⌘0) shows the remote 1:1, turning Scale to Fit off; **View ▸ Scale
+   to Fit** (⌥⌘0) scales a smaller screen up.
+4. **Settings ▸ Clipboard**, or the clipboard button in the toolbar, shares the clipboard,
+   after asking. While Glifftop is in front, what you copy on the Mac goes to the remote
+   computer, and its copies come to the Mac. A password manager's copies go only at **Shared,
+   including passwords**. The button steps through Not shared (grey), Shared (blue) and
+   Shared including passwords (orange, with a key).
 
 ## Build
 
