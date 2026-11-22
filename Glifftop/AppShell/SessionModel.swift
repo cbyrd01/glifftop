@@ -203,8 +203,8 @@ import os
     /// menu rebuilt for it loses Enter Full Screen.
     private(set) var hasPicture = false
 
-    /// Whether a session has been started and not yet put away with `reset()`; set only when
-    /// it changes (as `shownStream` is), so the window and the Debug menu don't follow the stats.
+    /// Whether a session has been started and not yet put away with `backToMachines()`; set
+    /// only when it changes (as `shownStream` is), so the window and the Debug menu don't follow the stats.
     private(set) var isActive = false
 
     /// What the picture is drawn from, while it is shown: streaming, with a stream and a
@@ -250,7 +250,8 @@ import os
         } catch {
             // No GPU video, no session: say why instead of connecting to show nothing.
             Self.logger.error("video setup failed: \(String(describing: error), privacy: .public)")
-            reset()
+            stopSession()
+            clearSession()
             snapshot.apply(.ended(.decoderFailed(error.setupFailure)))
             return
         }
@@ -329,8 +330,9 @@ import os
         return .monitor(size)
     }
 
-    /// Disconnect: stops any reconnect, then ends the session (`endSession`).
-    func disconnect() {
+    /// Stops any reconnect, then ends the session (`endSession`), the window staying where it
+    /// is: for closing the window and quitting. Disconnect is `backToMachines()`.
+    func stopSession() {
         cancelReconnect()
         endSession()
     }
@@ -348,17 +350,32 @@ import os
     /// transport stops ssh with SIGTERM, then SIGKILL, within a few seconds.
     func shutdown() async {
         quitting = true
-        disconnect()
+        stopSession()
         await running?.value
     }
 
-    /// Back to the machines after a session ended.
-    func reset() {
-        disconnect()
+    /// Ends the session and shows `end` as why it ended, not the session's own `.disconnected`:
+    /// its later statuses are no longer folded.
+    func endSession(showing end: SessionEnd) {
+        endSession()
+        session = nil
+        snapshot.apply(.ended(end))
+    }
+
+    /// Back to the machines: Disconnect (or Cancel) ends the session first, whatever it's
+    /// doing, reconnecting too; Close puts an ended one away. The end screen is only for ends
+    /// the person didn't choose.
+    func backToMachines() {
+        stopSession()
+        clearSession()
+    }
+
+    /// Forgets the session, its host and its picture: the window without one.
+    private func clearSession() {
         session = nil
         destination = nil
         isSwitching = false
-        (showsConnectionInfo, dismissedClipboardRun, gaveUp) = (false, nil, false)
+        (showsConnectionInfo, dismissedClipboardRun, gaveUp, showsVirtualNotice) = (false, nil, false, false)
         host = ""
         // The old pool's textures go with the old slot and session.
         slot = PictureSlot()

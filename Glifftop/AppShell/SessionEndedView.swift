@@ -28,7 +28,7 @@ struct SessionEndedView: View {
                 if model.machine != nil {
                     Button("Edit Machine…", action: model.editMachine)
                 }
-                Button("Close", action: model.reset)
+                Button("Close", action: model.backToMachines)
                     .keyboardShortcut(.cancelAction)
                 if model.canTryAgain {
                     Button("Try Again", action: model.tryAgain)

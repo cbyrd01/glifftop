@@ -9,7 +9,7 @@ struct ConnectionCommands: Commands {
 
     var body: some Commands {
         CommandMenu("Connection") {
-            Button("Disconnect", action: model.disconnect)
+            Button("Disconnect", action: model.backToMachines)
                 .keyboardShortcut("d", modifiers: [.command, .shift])
                 .disabled(!model.canDisconnect)
             Button("Reconnect", action: model.reconnectNow)

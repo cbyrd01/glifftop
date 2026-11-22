@@ -28,7 +28,7 @@ struct RootView: View {
         // unbounded maximum: the end screen alone is no bigger than its text, and a window
         // whose content can't grow can't use full screen, not even to leave it.
         // One view tree either way: a SessionView swapped for another would disappear, which
-        // disconnects.
+        // stops the session.
         .fixedSize(horizontal: isCompact, vertical: isCompact)
         .navigationTitle(model.title)
         .navigationSubtitle(model.subtitle)

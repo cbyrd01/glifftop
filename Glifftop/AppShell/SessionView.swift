@@ -19,7 +19,7 @@ struct SessionView: View {
                     .padding(24)
             }
         }
-        .onDisappear(perform: model.disconnect)
+        .onDisappear(perform: model.stopSession)
     }
 
     private var status: some View {
@@ -28,12 +28,12 @@ struct SessionView: View {
             case .idle, .connecting, .handshaking:
                 ProgressView()
                 Text("Connecting to \(model.host)…")
-                Button("Cancel", action: model.disconnect)
+                Button("Cancel", action: model.backToMachines)
                     .keyboardShortcut(.cancelAction)
             case .waitingForVideo, .streaming:
                 ProgressView()
                 Text("Waiting for video from \(model.host)…")
-                Button("Disconnect", action: model.disconnect)
+                Button("Disconnect", action: model.backToMachines)
             case .ended:
                 SessionEndedView(model: model)
             }

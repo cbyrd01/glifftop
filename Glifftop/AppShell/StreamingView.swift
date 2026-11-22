@@ -62,7 +62,7 @@ struct StreamingView: View {
                     .transition(.opacity)
             } else if model.snapshot.isInterrupted {
                 InterruptionView(
-                    host: model.host, disconnect: model.disconnect, reconnectNow: model.reconnectNow
+                    host: model.host, backToMachines: model.backToMachines, reconnectNow: model.reconnectNow
                 )
                 .transition(.opacity)
             }

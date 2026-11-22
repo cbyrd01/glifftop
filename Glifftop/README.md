@@ -83,8 +83,10 @@ and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes
   (`SessionModel+Reconnect.swift`, GliffSession's `Reconnector`): a session that streamed and
   ended with a reason a retry may fix, Reconnect automatically on, each try a new session in
   the same window, its size and full screen kept; Disconnect, closing the window, quitting,
-  another connection or Reconnect automatically turned off stops it; `SessionEndedView` after
-  an end, with Try Again, Edit Machine… and Close), `ScreenList`
+  another connection or Reconnect automatically turned off stops it (the last, with why it was
+  lost on the end screen); `SessionEndedView` after
+  an end the person didn't choose, with Try Again, Edit Machine… and Close: Disconnect and
+  Cancel go straight back to the machines), `ScreenList`
   (the host's monitors, listed through a lister closure, ssh by default, and never saved:
   one listing at a time, stopped (its error dismissed) when a session starts; a refresh keeps the list until the
   new one arrives; the list belongs to its host and is forgotten when the field names

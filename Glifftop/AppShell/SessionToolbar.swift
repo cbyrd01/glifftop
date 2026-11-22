@@ -21,7 +21,7 @@ struct SessionToolbar: ToolbarContent {
         ToolbarItemGroup {
             Button("Connection Info", systemImage: "info.circle") { model.showsConnectionInfo.toggle() }
                 .disabled(!model.hasPicture)
-            Button("Disconnect", systemImage: "power", action: model.disconnect)
+            Button("Disconnect", systemImage: "power", action: model.backToMachines)
                 .disabled(!model.canDisconnect)
         }
         .hidden(!model.isActive)

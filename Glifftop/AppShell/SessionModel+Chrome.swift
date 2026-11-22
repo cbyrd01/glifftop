@@ -21,8 +21,8 @@ extension SessionModel {
         }
     }
 
-    /// The session ended without ever getting through, and not because the person ended it:
-    /// it never streamed, and it isn't a reconnect of one that did.
+    /// The session ended without ever getting through: it never streamed, it isn't a reconnect
+    /// of one that did, and this Mac didn't end it (`.disconnected`).
     var neverConnected: Bool {
         phase == .ended && !host.isEmpty && !recorded && !keepsWindow && snapshot.end != .disconnected
     }

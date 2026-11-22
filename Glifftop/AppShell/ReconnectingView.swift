@@ -22,7 +22,7 @@ struct ReconnectingView: View {
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
                 HStack {
-                    Button("Disconnect", action: model.disconnect)
+                    Button("Disconnect", action: model.backToMachines)
                     Button("Reconnect Now", action: model.reconnectNow)
                         .keyboardShortcut(.defaultAction)
                 }

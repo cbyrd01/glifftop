@@ -110,11 +110,13 @@ extension SessionModel {
         if usable { probe() }
     }
 
-    /// Reconnect automatically turned off: a reconnect under way stops, with the try's session.
+    /// Reconnect automatically turned off: a reconnect under way stops, with the try's session,
+    /// and the end screen says why the session was lost, with Try Again.
     func reconnectsChanged() {
         guard !reconnects, isReconnecting else { return }
+        let lost = reconnectEnd ?? .connectionLost
         cancelReconnect()
-        if phase != .streaming { endSession() }
+        if phase != .streaming { endSession(showing: lost) }
     }
 
     private func beginReconnect(after end: SessionEnd, now: Bool = false) {

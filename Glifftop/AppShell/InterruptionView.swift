@@ -5,7 +5,7 @@ import SwiftUI
 /// resumes or the link is given up for lost; Reconnect Now gives it up at once.
 struct InterruptionView: View {
     let host: String
-    let disconnect: () -> Void
+    let backToMachines: () -> Void
     let reconnectNow: () -> Void
 
     var body: some View {
@@ -18,7 +18,7 @@ struct InterruptionView: View {
                 Text("Waiting for \(host) to respond…")
                     .foregroundStyle(.secondary)
                 HStack {
-                    Button("Disconnect", action: disconnect)
+                    Button("Disconnect", action: backToMachines)
                     Button("Reconnect Now", action: reconnectNow)
                 }
             }
