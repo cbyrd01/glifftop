@@ -7,18 +7,7 @@ cd "$(dirname "$0")/.."
 log=$(mktemp)
 trap 'rm -f "$log"' EXIT
 
-# step NAME COMMAND... — run a gate step quietly; on failure print its output and stop.
-step() {
-    local name=$1 start=$SECONDS
-    shift
-    if "$@" >"$log" 2>&1; then
-        printf 'ok    %-18s %3ds\n' "$name" $((SECONDS - start))
-    else
-        printf 'FAIL  %-18s %3ds\n' "$name" $((SECONDS - start))
-        sed 's/\x1b\[[0-9;]*m//g' "$log" | tail -60
-        exit 1
-    fi
-}
+source scripts/gate-step.sh
 
 # fixture_drift — regenerate the golden fixtures and the synthetic video planes from the pinned
 # upstream Rust into a temp dir and fail if they differ from the ones the Swift tests read

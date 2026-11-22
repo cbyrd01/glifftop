@@ -32,7 +32,7 @@
         /// User plus system CPU time of this test process so far.
         private func cpuSeconds() -> Double {
             var usage = rusage()
-            getrusage(RUSAGE_SELF, &usage)
+            precondition(getrusage(RUSAGE_SELF, &usage) == 0, "getrusage failed")
             func seconds(_ t: timeval) -> Double { Double(t.tv_sec) + Double(t.tv_usec) / 1_000_000 }
             return seconds(usage.ru_utime) + seconds(usage.ru_stime)
         }
@@ -129,16 +129,24 @@
             }
         }
 
-        /// close() from a cancelled task still waits by the clock, not by spinning.
-        @Test func closeFromACancelledTaskDoesNotSpin() async throws {
-            let connection = try await shell("trap '' TERM; while :; do sleep 1; done")
-            let before = cpuSeconds()
-            let task = Task {
-                withUnsafeCurrentTask { $0?.cancel() }
-                await connection.close()
+        /// close() from a cancelled task still waits by the clock, not by spinning. It runs in a
+        /// process of its own, so the CPU time counted is close()'s, not the other suites'.
+        @Test func closeFromACancelledTaskDoesNotSpin() async {
+            await #expect(processExitsWith: .success) {
+                alarm(30)  // a hung close() ends this process instead of outliving the run
+                let tests = ProcessTransportTests()
+                let connection = try await tests.shell("trap '' TERM; while :; do sleep 1; done")
+                let pid = connection.processIdentifier
+                let before = tests.cpuSeconds()
+                let task = Task {
+                    withUnsafeCurrentTask { $0?.cancel() }
+                    await connection.close()
+                }
+                await task.value
+                let used = tests.cpuSeconds() - before
+                #expect(used < 1, "close() used \(used) s of CPU")
+                #expect(kill(pid, 0) == -1 && errno == ESRCH, "close() left the process running")
             }
-            await task.value
-            #expect(cpuSeconds() - before < 1)
         }
 
         /// When whoever reads `incoming` goes away, the process is ended too.
