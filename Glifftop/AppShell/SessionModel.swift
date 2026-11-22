@@ -1,5 +1,6 @@
 import Foundation
 import GliffClipboard
+import GliffMachines
 import GliffProtocol
 import GliffSession
 import GliffTransport
@@ -24,6 +25,10 @@ import os
             let output = snapshot.session?.output
             if output != outputName { outputName = output }
             if isSwitching, snapshot.phase == .streaming || snapshot.phase == .ended { isSwitching = false }
+            if snapshot.phase == .streaming, !recorded {
+                recorded = true
+                recordConnection()
+            }
         }
     }
     /// How this session's window is sized, set once per session: a later view from
@@ -32,14 +37,32 @@ import os
     /// Whether the session is a virtual screen (the window drives it). Follows `windowSizing`,
     /// so the View menu that reads it doesn't follow the stats.
     var isVirtual: Bool { windowSizing == .fillScreen }
-    /// View ▸ Scale to Fit, for this window: from Settings at each connection from the form,
-    /// kept when View ▸ Screen switches.
-    var scaleToFit = false
+    /// View ▸ Scale to Fit, for this window: the machine's option at each connection, kept when
+    /// View ▸ Screen switches, and a change kept on the machine.
+    var scaleToFit = false {
+        didSet { if scaleToFit != oldValue { updateMachine { $0.scaleToFit = scaleToFit } } }
+    }
     /// View ▸ Text Size, for this window, as Scale to Fit is. A change sends the window's size
     /// again at the new scale.
     var textSize = TextSize.mac {
-        didSet { if textSize != oldValue { sendViewTarget() } }
+        didSet {
+            guard textSize != oldValue else { return }
+            sendViewTarget()
+            updateMachine { $0.textSize = textSize }
+        }
     }
+    /// A virtual screen's resolution, for this window, as Scale to Fit is.
+    var resolution = VirtualResolution.automatic {
+        didSet { if resolution != oldValue { updateMachine { $0.resolution = resolution } } }
+    }
+    /// Whether a lost link is tried again, for this window, from the machine's option.
+    var reconnects = true
+    /// The saved machines, kept in `UserDefaults`.
+    let machines = MachineStore()
+    /// Set while a connection sets the window's options from a machine's: not changes to keep.
+    @ObservationIgnored var applyingOptions = false
+    /// The machine sheet (New Machine…, Edit…, Connection ▸ Edit Machine…), while shown.
+    var machineEdit: MachineEdit?
     /// The session's output as the server names it (`DP-2`, `HEADLESS-1`), set only when it
     /// changes: the View menu reads it.
     private(set) var outputName: String?
@@ -80,7 +103,9 @@ import os
     /// their statuses are folded: each new one also awaits the one it replaced.
     private var running: Task<Void, Never>?
     /// Set by `shutdown()`: no new session may start while the app quits.
-    private var quitting = false
+    private(set) var quitting = false
+    /// Whether this session's streaming has been recorded on its machine.
+    @ObservationIgnored private var recorded = false
 
     /// The current session's latest picture, which the video view draws. A new one per
     /// session, so a new session never shows the last one's picture.
@@ -131,17 +156,6 @@ import os
         return (shownStream, renderer)
     }
 
-    /// Starts a session with `target` (as typed) showing `screen`, the window's text size and
-    /// Scale to Fit from Settings. Throws, with the reason to show, when the target isn't a
-    /// valid ssh destination.
-    func connect(to target: String, screen: ScreenChoice) throws(SSHTargetError) {
-        let destination = try SSHTarget(target)
-        guard !quitting else { return }
-        scaleToFit = AppSettings.scaleToFit
-        textSize = AppSettings.virtualTextSize
-        start(destination, screen: screen)
-    }
-
     /// Ends any session, then starts one with `destination` showing `screen`.
     func start(_ destination: SSHTarget, screen: ScreenChoice) {
         guard !quitting else {
@@ -152,6 +166,7 @@ import os
         screenList.stop()
         disconnect()
         (showsConnectionInfo, dismissedClipboardRun) = (false, nil)
+        recorded = false
         self.destination = destination
         screenChoice = screen
         host = destination.value
@@ -181,7 +196,7 @@ import os
         self.session = session
         capture.attach { session.send($0) }
         clipboard.attach(session, host: destination.value)
-        // Leave the connect form now, not when the session's own `.connecting` arrives.
+        // Leave the machines now, not when the session's own `.connecting` arrives.
         snapshot = SessionSnapshot()
         snapshot.apply(.connecting)
         running = Task { [previous = running] in
@@ -259,7 +274,7 @@ import os
         await running?.value
     }
 
-    /// Back to the connect form after a session ended.
+    /// Back to the machines after a session ended.
     func reset() {
         disconnect()
         session = nil

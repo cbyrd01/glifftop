@@ -35,6 +35,16 @@ extension VideoPipeline {
     }
 }
 
+extension VirtualResolution {
+    var label: String {
+        switch self {
+        case .automatic: "Automatic"
+        case .retina: "Retina"
+        case .standard: "Standard"
+        }
+    }
+}
+
 extension TextSize {
     /// "Same as the Mac", else the factor as a percentage, and the remote scale when the
     /// display is known (e.g. "87.5% (1.75×)"): the layout's, as at Retina. Standard halves

@@ -76,7 +76,7 @@ final class VideoNSView: NSView {
     /// A failing draw is retried every frame: log it once per run of failures.
     private var drawFailing = false
     /// Set once the window has been fitted for the session: no target before, as
-    /// the connect form's compact window isn't the session's.
+    /// the machines window isn't the session's.
     private var fitted = false
     /// The target last reported to `onTarget`.
     private var reported: (size: PixelSize, backingScale: Double)?
@@ -336,7 +336,7 @@ final class VideoNSView: NSView {
             case .monitor(let size): WindowSizer.fit(window, view: size, extraHeight: extraHeight)
             case .fillScreen: WindowSizer.fill(window)
             }
-            // Laid out now, so the next tick's drawable is the fitted one, not the connect form's.
+            // Laid out now, so the next tick's drawable is the fitted one, not the machines window's.
             window.layoutIfNeeded()
             fitted = true
         }

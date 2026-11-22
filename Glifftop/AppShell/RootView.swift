@@ -2,8 +2,8 @@ import GliffSession
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// The connect form, or the session once one has started, titled for it (the host, its screen
-/// and state), with the session's controls in the toolbar (shown on hover in full screen).
+/// The machines (and the connect field), or the session once one has started, titled for it
+/// (the machine's name, its screen and state), with the session's controls in the toolbar (shown on hover in full screen).
 struct RootView: View {
     @Bindable var model: SessionModel
     @State private var isFullScreen = false
@@ -14,7 +14,7 @@ struct RootView: View {
             if model.isActive {
                 SessionView(model: model)
             } else {
-                ConnectView(model: model)
+                MachinesView(model: model)
             }
         }
         .frame(minWidth: 360, idealWidth: 420, maxWidth: .infinity, minHeight: 200, maxHeight: .infinity)
@@ -33,6 +33,9 @@ struct RootView: View {
         .toolbar { SessionToolbar(model: model) }
         .windowToolbarFullScreenVisibility(.onHover)
         .shareClipboardConfirmation(isPresented: $model.confirmingShare) { shareClipboard = true }
+        .sheet(item: $model.machineEdit) {
+            EditMachineView(model: model, machine: $0.machine, isNew: $0.isNew)
+        }
         // Kept while View ▸ Screen reconnects: the new screen opens in full screen too.
         .background {
             FullScreenTracker(isFullScreen: $isFullScreen, wanted: model.picture != nil || model.isSwitching)

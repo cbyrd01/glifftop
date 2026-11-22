@@ -26,14 +26,21 @@ line with its `ictool` (into `.build/`, which git ignores):
 
 ## AppShell
 
-The SwiftUI side of the app: the window, the connect form (the host, and a Screen picker:
-Focused Monitor, Virtual Screen, then the host's monitors once Get Screens has listed them;
-editing the host forgets the list), the session view, the streaming view (the picture below
+The SwiftUI side of the app: the window, the machines (`MachinesView`: "Connect to a host",
+a field and Connect, with Options set before the first connection, `MachineOptionsForm`: a
+Screen picker (Focused Monitor, Virtual Screen, then the host's monitors once Get Screens has
+listed them, and a saved machine's monitor though not listed; editing the host forgets the
+list), a virtual screen's Text Size and Resolution, Scale to Fit and Reconnect automatically,
+from Settings, or from the saved machine the field names; then the saved machines: name, host
+and screen, when last connected and a favourite's star, double-click or Return connecting, and
+a menu of Connect, Edit…, Favourite and Remove, which asks), the machine sheet
+(`EditMachineView`: Name, Host and the options; New Machine… ⌘N and the + button add one and
+can Connect, Connection ▸ Edit Machine… ⌘E edits the session's), the session view, the streaming view (the picture below
 the toolbar, never under it; `InterruptionView`, a dimmed picture under a glass panel, while
 the server is quiet; the "Shift+Esc releases input" hint for a few seconds after capture; and
 under the picture, with View ▸ Show Status Bar, `StatusBar`: the state, fps, Mbit/s, round
 trip, chroma · encoder and the clipboard read, on the bar material, its height counted when
-a mirror's window is fitted), the window's title (the host) and subtitle ("Virtual Screen ·
+a mirror's window is fitted), the window's title (the machine's name, else the host) and subtitle ("Virtual Screen ·
 Connected", `SessionModel+Chrome.swift`), the toolbar (`SessionToolbar`, while a session is
 shown, shown on hover in full screen: Screen and, on a virtual screen, Text Size; Share the
 clipboard (`ClipboardToolbarItem`, asking first as Settings does, with the clipboard read
@@ -47,17 +54,22 @@ output, the listed monitors labelled as the form labels them (at most 60 charact
 Refresh Screen List, while streaming, its error shown under it; the same screen again only
 after the session ended; everything the menu reads changes only with its value, never with
 the stats or a new StreamConfig (`hasPicture`, not `picture`), so Enter Full Screen isn't
-lost), the Input menu (Release Input, ⇧⎋), Settings (`SettingsView`: the screen a
-connection starts on, the virtual screen's text size (`TextSize`), Scale to Fit and
+lost), the Input menu (Release Input, ⇧⎋), Settings (`SettingsView`: the options a
+new host or machine starts from (`AppSettings.defaultOptions`: the screen, the virtual
+screen's text size (`TextSize`) and resolution, Scale to Fit, Reconnect automatically) and
 Share the clipboard (off by default; turning it on asks first; at once for an open session), in `UserDefaults` through
 `AppSettings`) and (Debug builds) the Debug menu: Record 5 Seconds
 and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes).
 
-- **Owns:** `SessionModel` (one window's session, folded into a `SessionSnapshot`; the
+- **Owns:** `MachineStore` (the saved machines in `UserDefaults`, key `machines`, as
+  GliffMachines' JSON); `SessionModel` (one window's session, its machine (the destination's
+  when it starts; recorded, with the window's options and the date, when it first streams, so
+  a host that never streams isn't saved; View-menu changes of screen, text size, resolution
+  and Scale to Fit kept on it, `SessionModel+Machines.swift`), folded into a `SessionSnapshot`; the
   session's `PictureSlot` and the app's one `PictureRenderer`; the window's sizing, set once
   per session: `.fillScreen` for a virtual screen, else `.monitor` from the first view within
-  the monitor (`SessionSnapshot.mirrorSize`); the window's Scale to Fit and text size, from Settings at each connection
-  from the form and kept when the screen is switched; the video view's drawable and
+  the monitor (`SessionSnapshot.mirrorSize`); the window's Scale to Fit, text size, resolution and reconnect, from the machine's
+  options at each connection and kept when the screen is switched; the video view's drawable and
   backing scale passed on as the session's `ViewTarget`; switching the session to another
   screen, a new session to the same host, in `SessionModel+Screens.swift`, the window staying
   in full screen meanwhile (`isSwitching`)), `ScreenList`
@@ -89,7 +101,7 @@ AppKit adapters for what SwiftUI can't do:
   new view box for the picture on screen, or Scale to Fit toggled, and only while the window
   is visible; wrapped for SwiftUI by `VideoView`. Once the window has been fitted for the
   session it reports its drawable size and backing scale (`onTarget`) on every change, from
-  the display link, never from the connect form's window. Its cursor handling is in
+  the display link, never from the machines window. Its cursor handling is in
   `VideoNSView+Cursor.swift`;
 - `FullScreenTracker`: the window's full-screen state for `RootView`, which keeps its content
   resizable while full screen (fixed-size content makes the window ignore

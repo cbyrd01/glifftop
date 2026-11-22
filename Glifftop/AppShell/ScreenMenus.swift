@@ -66,7 +66,7 @@ struct ScreenMenu: View {
         return "\(ScreenChoice.focused.label) (\(output))"
     }
 
-    /// A listed monitor as the connect form shows it, shortened to keep the menu narrow; one in
+    /// A listed monitor as the options form shows it, shortened to keep the menu narrow; one in
     /// use though not listed, its name.
     private func label(for choice: ScreenChoice) -> String {
         guard case .named(let name) = choice, model.screenList.isFor(model.host),

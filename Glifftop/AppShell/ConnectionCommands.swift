@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The Connection menu: Disconnect (⇧⌘D), Reconnect (⇧⌘R), Connection Info (⌘I) and Edit
-/// Machine… (⌘E); Reconnect and Edit Machine… are disabled.
+/// The Connection menu: Disconnect (⇧⌘D), Reconnect (⇧⌘R, disabled), Connection Info (⌘I) and
+/// Edit Machine… (⌘E, the session's machine once it has one); and File ▸ New Machine… (⌘N).
 /// Everything it reads changes only with its value (`SessionModel+Chrome`), never with the
 /// stats each second.
 struct ConnectionCommands: Commands {
@@ -19,9 +19,13 @@ struct ConnectionCommands: Commands {
             Button("Connection Info") { model.showsConnectionInfo.toggle() }
                 .keyboardShortcut("i")
                 .disabled(!model.hasPicture)
-            Button("Edit Machine…") {}
+            Button("Edit Machine…", action: model.editMachine)
                 .keyboardShortcut("e")
-                .disabled(true)
+                .disabled(!model.isActive || model.machine == nil)
+        }
+        CommandGroup(replacing: .newItem) {
+            Button("New Machine…", action: model.newMachine)
+                .keyboardShortcut("n")
         }
     }
 }
