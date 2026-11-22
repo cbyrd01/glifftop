@@ -64,4 +64,50 @@ import Testing
         let limit = Liveness.silenceLimit
         #expect(checks(&liveness, at: [1000 + limit - 1, 1000 + limit]) == [false, true])
     }
+
+    /// After a wake: a Ping sent at once, and the link counts as lost unless that Ping's Pong
+    /// arrives within `probeLimit`. Reported once.
+    @Test func aProbeWithoutAnswerFailsAfterThreeSeconds() {
+        var liveness = Liveness()
+        liveness.heard(at: 0)
+        liveness.probe(ping: 7, at: 1000)
+        let failed = [3999, 4000, 4500].map { liveness.probeFailed(at: $0) }
+        #expect(failed == [false, true, false])
+    }
+
+    @Test func theProbesPongAnswersIt() {
+        var liveness = Liveness()
+        liveness.probe(ping: 7, at: 0)
+        liveness.answered(ping: 7)
+        let failed = liveness.probeFailed(at: 10_000)
+        #expect(!failed)
+    }
+
+    /// Bytes already on their way when the Mac slept, or an older Ping's Pong, prove nothing
+    /// about the link now.
+    @Test func otherBytesDontAnswerIt() {
+        var liveness = Liveness()
+        liveness.probe(ping: 7, at: 0)
+        liveness.heard(at: 10)
+        liveness.answered(ping: 6)
+        let failed = liveness.probeFailed(at: 3000)
+        #expect(failed)
+    }
+
+    /// A probe after a second wake gets its own time, and only its own Pong answers it.
+    @Test func aSecondProbeStartsAgain() {
+        var liveness = Liveness()
+        liveness.probe(ping: 7, at: 1000)
+        liveness.probe(ping: 9, at: 3900)
+        liveness.answered(ping: 7)
+        let failed = [4000, 6899, 6900].map { liveness.probeFailed(at: $0) }
+        #expect(failed == [false, false, true])
+    }
+
+    @Test func withoutAProbeNothingFails() {
+        var liveness = Liveness()
+        liveness.heard(at: 0)
+        let failed = liveness.probeFailed(at: 60_000)
+        #expect(!failed)
+    }
 }

@@ -20,7 +20,10 @@ the feature seam.
   reader, one writer task (`SessionWriter`), a 500 ms tick, and `status` as an
   `AsyncStream`. It reports `.interrupted(true)` when `Liveness` says so (a Ping unanswered
   for 2 s and not a byte for 4 s, on a clock that stops in sleep), and `.interrupted(false)`
-  at the next bytes. Closing waits up to 1 s for queued frames (Bye), then closes the
+  at the next bytes. `probe()` (after a wake or a network change, while streaming) sends a
+  Ping at once and ends the session as `.connectionLost` unless that Ping's Pong arrives
+  within 3 s; other bytes may predate the sleep, so they don't answer it. The handshake isn't
+  probed. Closing waits up to 1 s for queued frames (Bye), then closes the
   connection. Cancelling `run()` is a disconnect. A run of decode failures logs each
   reason once; the next picture ends the run.
 - **Input:** `Session.send(_:)` queues an `InputMessage` from any thread (`InputQueue`, in

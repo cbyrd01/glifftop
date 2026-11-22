@@ -39,8 +39,9 @@ public actor Session {
     /// and a stuck stream's keyframe cycles don't log again. A new coded stream starts a new
     /// run. Reasons carry server values, so a run logs at most `maxLoggedDecodeFailures`.
     private var loggedDecodeFailures: Set<String> = []
-    /// Whether the link has gone quiet while streaming (only the client's Pings arm it).
-    private var liveness = Liveness()
+    /// Whether the link has gone quiet while streaming (only the client's Pings arm it), and
+    /// the wake probe (`Session+Probe.swift`).
+    var liveness = Liveness()
     private static let maxLoggedDecodeFailures = 16
     /// The StreamConfig in force, as received, for a recording started mid-stream.
     private var config: Frame?
@@ -196,6 +197,7 @@ public actor Session {
 
     private func handle(_ frame: Frame) async throws {
         let message = try ServerMessage.decode(frame.body)
+        if case .pong(let t, _) = message { liveness.answered(ping: t) }
         if case .streamConfig = message { config = frame }
         // A record() during the await may have installed a new recorder: keep that one.
         if let recorder, await !recorder.offer(frame: frame, message: message), self.recorder === recorder {
@@ -209,6 +211,7 @@ public actor Session {
         await perform(core.tick(now: Self.now()))
         // A tick after the end (the loop's last, once cancelled) reports nothing.
         if !core.isFinished, liveness.check(at: Self.uptime()) { yield(.interrupted(true)) }
+        await checkProbe()
     }
 
     private func writeFailed(_ error: any Error) async {
@@ -217,8 +220,7 @@ public actor Session {
 
     /// Carries out the core's actions in order. `frame` and `message` are the frame being
     /// handled, for `.decode` and `.deliver`.
-    private func perform(_ actions: [SessionAction], frame: Frame? = nil, message: ServerMessage? = nil) async
-    {
+    func perform(_ actions: [SessionAction], frame: Frame? = nil, message: ServerMessage? = nil) async {
         for action in actions {
             switch action {
             case .send(let message):
@@ -352,12 +354,12 @@ public actor Session {
     }
 
     /// Wall-clock milliseconds, as acks carry.
-    private static func now() -> UInt64 {
+    static func now() -> UInt64 {
         UInt64(max(0, Date.now.timeIntervalSince1970 * 1000))
     }
 
     /// Monotonic milliseconds that stop while the Mac sleeps, for `Liveness`.
-    private static func uptime() -> UInt64 {
+    static func uptime() -> UInt64 {
         UInt64((SuspendingClock.now - start) / .milliseconds(1))
     }
 
