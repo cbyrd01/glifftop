@@ -41,6 +41,12 @@ import Testing
             stderr:
                 "kex_exchange_identification: Connection closed by remote host\r\nConnection closed by 192.168.1.20 port 22\r\n",
             status: 255, failure: .connectionRefused),
+        // sshd never greeted within `ConnectTimeout`: a timeout, so retried even on the first
+        // try, never taken for a mistyped host.
+        Case(
+            stderr:
+                "Connection timed out during banner exchange\r\nConnection to 192.168.1.20 port 22 timed out\r\n",
+            status: 255, failure: .unreachable),
         Case(
             stderr: "ssh: connect to host omarchy port 22: Operation timed out\n", status: 255,
             failure: .unreachable),

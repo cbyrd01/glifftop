@@ -19,6 +19,7 @@ public enum SSHErrorClassifier {
             if has("Permission denied") { return .permissionDenied }
             if has("Could not resolve hostname") { return .hostNotFound }
             // sshd closing the connection before its greeting: still starting, or too busy.
+            // One that never greets within `ConnectTimeout` is a timeout, below.
             if has("Connection refused") || has("kex_exchange_identification") { return .connectionRefused }
             if unreachablePhrases.contains(where: has) { return .unreachable }
         }

@@ -24,6 +24,8 @@ public actor Session {
     var core: SessionCore
     private var parser = FrameParser()
     private var connection: (any ByteConnection)?
+    /// Connects, then reads; cancelled by a Disconnect while it is still connecting.
+    private var reader: Task<Void, Never>?
     var writer: SessionWriter?
     private var ticks: Task<Void, Never>?
     let inputs = InputQueue()
@@ -95,6 +97,7 @@ public actor Session {
         }
         // Not a child task: cancelling run() must not cancel the reader before Bye is sent.
         let reader = Task { await self.connectAndRead() }
+        self.reader = reader
         await withTaskCancellationHandler {
             await reader.value
         } onCancel: {
@@ -105,6 +108,8 @@ public actor Session {
 
     /// Says Bye and ends the session as `.disconnected`. Input sent before this goes first.
     public func disconnect() async {
+        // Still connecting: there's no Bye to send, so the connect (ssh -G, ssh) stops now.
+        if connection == nil { reader?.cancel() }
         deliverInput(finishing: true)
         await perform(core.stop())
     }

@@ -21,4 +21,6 @@ public enum TransportError: Error, Equatable, Sendable {
     /// The process exited unsuccessfully; `failure` says why, from its stderr.
     case exited(status: Int32, failure: ConnectFailure)
     case writeFailed(String)
+    /// Whoever asked went away (a Disconnect) before the process was started.
+    case cancelled
 }

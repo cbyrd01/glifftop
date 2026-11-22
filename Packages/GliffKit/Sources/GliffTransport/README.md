@@ -12,7 +12,9 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   control characters, ssh_config wildcards or the shell characters ssh refuses),
   `SSHCommand` builds the argv (`BatchMode=yes`,
   `StrictHostKeyChecking=yes` first so nothing can relax it, `IPQoS=ef`, keepalives that
-  end a dead link after about a minute, `--` before the target, server arguments
+  end a dead link after about a minute, a 10 s `ConnectTimeout` for a host that drops
+  packets, added only when `ssh -G` shows the person's ssh_config sets no timeout and no
+  proxy (`SSHConnectTimeout`), `--` before the target, server arguments
   shell-quoted for the remote login shell), and `SSHErrorClassifier` turns ssh's stderr
   into a `ConnectFailure` with a plain-language `message`.
 - **Screens:** `ScreenChoice` is what a session shows (the focused monitor, one by name,
@@ -26,10 +28,12 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   newest whose socket answers) and prints `hyprctl -j monitors`. `ScreenLister` (macOS) runs
   it: stdout up to 1 MiB, a 60 s limit (room for a 1Password approval), failures in
   `SSHErrorClassifier`'s words; too much, too late or cancelled, it ends the process at once
-  (`ProcessConnection.terminate`), and it answers only once the process is reaped.
+  (`ProcessConnection.terminate`), and it answers only once the process is reaped. Both it
+  and the `ssh -G` probe read a one-shot program's output through `ProcessOutput`.
 - **Processes (macOS only):** `ProcessTransport` runs a program and speaks over its
   stdin/stdout through `DispatchIO` (never blocking the cooperative pool); it keeps stderr's
   last 16 KiB for the classifier. `SystemSSHTransport` is that with `/usr/bin/ssh` and
-  `SSHCommand.arguments`. `close()` closes stdin, waits 2 s, SIGTERMs, waits 1 s, SIGKILLs,
+  `SSHCommand.arguments`, after the `ssh -G` probe; cancelled by then, it throws
+  `.cancelled` without starting ssh, as `ProcessOutput` does. `close()` closes stdin, waits 2 s, SIGTERMs, waits 1 s, SIGKILLs,
   and returns once the process is reaped; it also runs when the reader of `incoming` goes
   away.

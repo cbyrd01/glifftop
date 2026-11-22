@@ -22,17 +22,34 @@
         }
     }
 
-    /// The system ssh (`/usr/bin/ssh`) running `gliff-server --stdio` on the target.
+    /// The system ssh (`/usr/bin/ssh`) running `gliff-server --stdio` on the target, with a
+    /// connect timeout where `SSHConnectTimeout` finds one wanted.
     public struct SystemSSHTransport: Transport {
-        let process: ProcessTransport
+        let command: SSHCommand
+        let wantsConnectTimeout: @Sendable (SSHCommand) async -> Bool
 
         public init(command: SSHCommand) {
-            process = ProcessTransport(
+            self.init(command: command) {
+                await SSHConnectTimeout.isWanted(sshArguments: $0.sshArguments, target: $0.target)
+            }
+        }
+
+        init(command: SSHCommand, wantsConnectTimeout: @escaping @Sendable (SSHCommand) async -> Bool) {
+            (self.command, self.wantsConnectTimeout) = (command, wantsConnectTimeout)
+        }
+
+        /// The ssh to run: the command, with `ConnectTimeout` if wanted.
+        func process() async -> ProcessTransport {
+            var command = command
+            command.connectTimeout = await wantsConnectTimeout(command)
+            return ProcessTransport(
                 executable: URL(filePath: SSHCommand.executable), arguments: command.arguments)
         }
 
         public func connect() async throws(TransportError) -> any ByteConnection {
-            try await process.connect()
+            let process = await process()
+            if Task.isCancelled { throw .cancelled }
+            return try await process.connect()
         }
     }
 #endif

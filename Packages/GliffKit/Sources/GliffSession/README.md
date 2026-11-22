@@ -32,7 +32,8 @@ the feature seam.
   what it ends went, and then even while interrupted (so the remote never holds a key or
   button past a stall, nor gets an unpaired release); a keymap always.
   Anything queued before the handshake is judged then (a press is dropped). `disconnect()`
-  sends the queue before Bye; after the end nothing is kept.
+  sends the queue before Bye; after the end nothing is kept. While the transport is still
+  connecting, `disconnect()` cancels that connect instead (`TransportError.cancelled`).
 - **Resize:** `Session.setViewTarget(_:)` takes the window's size in pixels, its backing
   scale, text factor (`TextSize`) and resolution (`VirtualResolution`), as a `ViewTarget`,
   from any thread, latest wins. `ResizeRules` sends a Resize once the target has stayed unchanged for
