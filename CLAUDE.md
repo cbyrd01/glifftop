@@ -119,7 +119,8 @@ This file wins over any skill, including a skill's "supersedes prior training" c
   - the fixture drift check: the golden fixtures and synthetic planes, regenerated from the
     pinned upstream Rust, must match the committed bytes;
   - `swift test` of `tools/encode-fixtures` (it never runs the tool);
-  - `swift test`, with `GLIFFTOP_FAKE_SERVER` pointing at the built fake server;
+  - `swift test`, with `GLIFFTOP_FAKE_SERVER` pointing at the built fake server, ended after
+    10 minutes (`scripts/time-limit.sh`), naming the tests that never finished;
   - `scripts/app-build.sh`, an `xcodebuild` of the app into `.build/xcode`;
   - `scripts/ios-check.sh`.
 - **GliffKit tests:** `cd Packages/GliffKit && swift test`. For one suite, add
