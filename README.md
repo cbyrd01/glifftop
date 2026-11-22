@@ -47,10 +47,11 @@ encode).
 ## Using it
 
 1. Type the ssh destination, as you would after `ssh` (for example `omarchy`, a `Host` in
-   your `~/.ssh/config`), pick the screen, and connect. **Get Screens** lists the host's
-   monitors.
+   your `~/.ssh/config`), pick the screen under **Options**, and connect. **Get Screens**
+   lists the host's monitors. Each host you connect to is kept under **Machines**, with its
+   options.
 
-   <img src="docs/media/screen-choice.png" width="460" alt="The connect window: the host omarchy, and the screen menu with Focused Monitor, Virtual Screen and two monitors">
+   <img src="docs/media/screen-choice.png" width="480" alt="The Glifftop window: the host omarchy, Options open with the Screen menu listing Focused Monitor, Virtual Screen and two monitors, and omarchy under Machines">
 2. While the window is in front, the keyboard and pointer go to the remote computer;
    **Input ▸ Release Input** (⇧Esc) gives them back to the Mac.
 3. **View ▸ Actual Size** (⌘0) shows the remote 1:1, turning Scale to Fit off; **View ▸ Scale
