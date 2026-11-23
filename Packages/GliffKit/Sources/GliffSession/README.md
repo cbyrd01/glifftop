@@ -63,6 +63,11 @@ the feature seam.
   clears); nothing after the end changes it.
 - **Recording:** `StreamRecorder` writes the raw frames, wire-exact, to a `.gliffrec` file:
   the StreamConfig, then video frames from the first keyframe. Nothing else.
+- **Protocol observer:** a session made with a `ProtocolObserver` tells it of each frame
+  written (once written, by the writer) and read (once framed and decoded): its direction,
+  message type, whole size and time, never its body or payload (`ProtocolEvent`).
+  `ProtocolTally` folds the events into the Debug inspector's table: per direction and type,
+  the count, bytes, last time and the last second's count, and the latest 200 events.
 - **Ends:** `SessionEnd` says why a session ended, with the message the app shows and
   whether a reconnect may help (`mayReconnect`). Before HelloAck any failure is a failure to
   connect (a write error waits for ssh's classified exit); after it, a lost connection. A

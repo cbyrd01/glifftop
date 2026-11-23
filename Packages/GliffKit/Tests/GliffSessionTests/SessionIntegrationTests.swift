@@ -265,5 +265,27 @@
             #expect(last == .ended(.disconnected))
             #expect(transport.serverFailure == nil)
         }
+
+        /// Every frame each way, after framing: sizes only.
+        @Test func theObserverSeesBothDirections() async throws {
+            let observer = RecordingObserver()
+            let transport = try #require(ObservedTransport(["stream", "--frames", "2", "--expect-bye"]))
+            let decoder = SpyDecoder()
+            let session = Session(
+                transport: transport, configuration: SessionConfiguration(maxWidth: 4096, maxHeight: 4096),
+                decoder: decoder, observer: observer)
+            let runner = Task { await session.run() }
+            await decoder.waitFor(2)
+            await session.disconnect()
+            await runner.value
+            #expect(transport.serverFailure == nil)
+            let events = observer.events
+            // A sent frame is told once written, so HelloAck may be told first.
+            #expect(events.first { $0.direction == .sent }?.type == "Hello")
+            let received = events.filter { $0.direction == .received }.map(\.type)
+            #expect(Array(received.prefix(3)) == ["HelloAck", "StreamConfig", "VideoFrame"])
+            #expect(events.filter { $0.direction == .sent }.map(\.type).contains("FrameAck"))
+            #expect(events.allSatisfy { $0.bytes > 0 })
+        }
     }
 #endif

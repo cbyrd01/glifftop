@@ -28,7 +28,7 @@
 
         /// On `connections`' shared connection to `target`, as the person's own try (it asks
         /// for a sign-in again). The list comes only at the script's end, so the channel's
-        /// first-byte watchdog waits as long as the listing may.
+        /// first-byte watchdog waits past the listing's own limit: a slow listing ends alone.
         public init(
             connections: HostConnections, target: SSHTarget, timeout: Duration = .seconds(60),
             clock: any Clock<Duration> = ContinuousClock()
@@ -36,7 +36,8 @@
             let command = ScreenListCommand(target: target).remoteCommand
             source = .channel(
                 ChannelTransport(
-                    connections: connections, target: target, command: command, silenceLimit: timeout,
+                    connections: connections, target: target, command: command,
+                    silenceLimit: timeout + .seconds(5),
                     fresh: true, clock: clock))
             self.timeout = timeout
         }

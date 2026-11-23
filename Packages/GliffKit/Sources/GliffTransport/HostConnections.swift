@@ -89,7 +89,9 @@ public actor HostConnections {
             for waiter in host.waiters.values { waiter.resume(returning: nil) }
         }
         hosts = [:]
-        for connection in connections { await connection.close() }
+        await withTaskGroup { group in
+            for connection in connections { group.addTask { await connection.close() } }
+        }
     }
 
     /// How many connections to `target` are open: for tests.

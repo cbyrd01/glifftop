@@ -48,8 +48,12 @@ final class FakeHostConnection: HostConnection {
 
     private let state = Mutex(State())
     private let writesFail: Bool
+    /// Each close waits on this before it ends the connection (a slow `-O exit`).
+    private let closeGate: CloseGate?
 
-    init(writesFail: Bool = false) { self.writesFail = writesFail }
+    init(writesFail: Bool = false, closeGate: CloseGate? = nil) {
+        (self.writesFail, self.closeGate) = (writesFail, closeGate)
+    }
 
     var commands: [String] { state.withLock { $0.commands } }
     var channels: [FakeChannel] { state.withLock { $0.channels } }
@@ -83,6 +87,7 @@ final class FakeHostConnection: HostConnection {
 
     func close() async {
         state.withLock { $0.closed += 1 }
+        await closeGate?.pass()
         finish(nil)
     }
 
@@ -111,6 +116,7 @@ final class FakeOpener: Sendable {
         var made: [FakeHostConnection] = []
         var writesFail = false
         var cancelled = 0
+        var closeGate: CloseGate?
     }
 
     private let state = Mutex(State())
@@ -135,6 +141,9 @@ final class FakeOpener: Sendable {
 
     func failNext(_ error: TransportError) { state.withLock { $0.failures.append(error) } }
 
+    /// Closes of connections opened from now on wait until `gate` opens.
+    func holdCloses(_ gate: CloseGate) { state.withLock { $0.closeGate = gate } }
+
     /// Channels on connections opened from now on fail every write.
     func failChannelWrites() { state.withLock { $0.writesFail = true } }
 
@@ -158,9 +167,34 @@ final class FakeOpener: Sendable {
         if let failure = state.withLock({ $0.failures.isEmpty ? nil : $0.failures.removeFirst() }) {
             throw failure
         }
-        let connection = FakeHostConnection(writesFail: state.withLock { $0.writesFail })
+        let (writesFail, closeGate) = state.withLock { ($0.writesFail, $0.closeGate) }
+        let connection = FakeHostConnection(writesFail: writesFail, closeGate: closeGate)
         state.withLock { $0.made.append(connection) }
         return connection
+    }
+}
+
+/// Holds whoever passes until opened.
+final class CloseGate: Sendable {
+    private let state = Mutex<(open: Bool, waiting: [CheckedContinuation<Void, Never>])>((false, []))
+
+    func pass() async {
+        await withCheckedContinuation { continuation in
+            let open = state.withLock { state in
+                if !state.open { state.waiting.append(continuation) }
+                return state.open
+            }
+            if open { continuation.resume() }
+        }
+    }
+
+    func open() {
+        let waiting = state.withLock { state in
+            state.open = true
+            defer { state.waiting = [] }
+            return state.waiting
+        }
+        for continuation in waiting { continuation.resume() }
     }
 }
 

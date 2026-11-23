@@ -37,18 +37,18 @@ final class HeldConnection: ByteConnection {
     @Test func urgentFramesOvertakeQueuedBulk() async {
         let connection = HeldConnection()
         let writer = SessionWriter(connection: connection) { _ in }
-        writer.sendBulk([1])
+        writer.sendBulk([1], type: "ClipboardData")
         await connection.waitFor(1)
-        writer.sendBulk([2])
-        writer.sendBulk([3])
-        writer.send([9])
+        writer.sendBulk([2], type: "ClipboardData")
+        writer.sendBulk([3], type: "ClipboardData")
+        writer.send([9], type: "Key")
         connection.release()
         await connection.waitFor(4)
         #expect(connection.writes == [[1], [9], [2], [3]])
     }
 
     @Test func finishingDropsBulk() async {
-        let queue = FrameQueue()
+        let queue = FrameQueue<[UInt8]>()
         queue.push([2], bulk: true)
         queue.push([9], bulk: false)
         queue.finish()
@@ -58,7 +58,7 @@ final class HeldConnection: ByteConnection {
 
     /// Input that never stops can't hold clipboard data back past its timeout.
     @Test func bulkIsNeverStarved() async {
-        let queue = FrameQueue()
+        let queue = FrameQueue<[UInt8]>()
         queue.push([0], bulk: true)
         for byte in UInt8(1)...10 { queue.push([byte], bulk: false) }
         var order: [UInt8] = []

@@ -159,6 +159,20 @@ import Testing
         _ = held
     }
 
+    /// Quitting with several hosts waits for the slowest `-O exit`, not their sum.
+    @Test func closeAllEndsThemTogether() async throws {
+        let hosts = connections()
+        let gate = CloseGate()
+        opener.holdCloses(gate)
+        let first = try await hosts.lease(for: omarchy())
+        let second = try await hosts.lease(for: SSHTarget("box"))
+        let closing = Task { await hosts.closeAll() }
+        #expect(await eventually { opener.made.map(\.closeCount) == [1, 1] })
+        gate.open()
+        await closing.value
+        _ = (first, second)
+    }
+
     @Test func aLeaseEndedWhileMovingGivesItsPlaceBack() async throws {
         let hosts = connections()
         let lease = try await hosts.lease(for: omarchy())

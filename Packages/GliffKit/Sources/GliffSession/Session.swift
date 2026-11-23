@@ -19,6 +19,7 @@ public actor Session {
     private let decoder: any FrameDecoder
     private let cursor: CursorSlot
     private let pointer: RemotePointerSlot
+    let observer: (any ProtocolObserver)?
     /// Whether an invalid cursor shape has been logged: a server sending them keeps doing so.
     private var loggedInvalidCursor = false
     private let features: [String: any SessionFeature]
@@ -69,13 +70,13 @@ public actor Session {
     static let tickInterval = Duration.milliseconds(500)
     /// How long closing waits for queued frames (Bye) to be written.
     static let drainLimit = Duration.seconds(1)
-    private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "GliffSession")
+    static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "GliffSession")
 
     public init(
         transport: any Transport, configuration: SessionConfiguration, decoder: any FrameDecoder,
         features: [any SessionFeature] = [], cursor: CursorSlot = CursorSlot(),
-        pointer: RemotePointerSlot = RemotePointerSlot(),
-        clipboard: ClipboardSetup? = nil
+        pointer: RemotePointerSlot = RemotePointerSlot(), clipboard: ClipboardSetup? = nil,
+        observer: (any ProtocolObserver)? = nil
     ) {
         precondition(Set(features.map(\.name)).count == features.count, "two features have the same name")
         let claimed = features.flatMap(\.serverVariants)
@@ -83,7 +84,7 @@ public actor Session {
         self.transport = transport
         self.decoder = decoder
         self.cursor = cursor
-        self.pointer = pointer
+        (self.pointer, self.observer) = (pointer, observer)
         self.features = Dictionary(uniqueKeysWithValues: features.map { ($0.name, $0) })
         core = SessionCore(configuration: configuration, features: self.features.mapValues(\.serverVariants))
         (status, continuation) = AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(256))
@@ -157,7 +158,7 @@ public actor Session {
         // Installed before any await, so no frame or StreamConfig can slip past it.
         let previous = recorder
         recorder = StreamRecorder(directory: directory, duration: duration, now: .now, config: config)
-        if core.state == .streaming { send(.requestKeyframe) }
+        if core.state == .streaming { enqueue(.requestKeyframe) }
         await previous?.finish()
     }
 
@@ -178,7 +179,9 @@ public actor Session {
             return
         }
         self.connection = connection
-        writer = SessionWriter(connection: connection) { [weak self] error in await self?.writeFailed(error) }
+        writer = SessionWriter(connection: connection, observer: observer) { [weak self] error in
+            await self?.writeFailed(error)
+        }
         ticks = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: Self.tickInterval)
@@ -209,6 +212,7 @@ public actor Session {
 
     private func handle(_ frame: Frame) async throws {
         let message = try ServerMessage.decode(frame.body)
+        observed(frame, message)
         if case .pong(let t, _) = message { liveness.answered(ping: t) }
         if case .streamConfig = message { config = frame }
         // A record() during the await may have installed a new recorder: keep that one.
@@ -237,7 +241,7 @@ public actor Session {
             switch action {
             case .send(let message):
                 if case .ping = message { liveness.pinged(at: Self.uptime()) }
-                send(message)
+                enqueue(message)
             case .configureDecoder(let config):
                 pointer.publish(nil)
                 loggedDecodeFailures.removeAll()
@@ -273,7 +277,7 @@ public actor Session {
                 for name in names {
                     await features[name]?.activate(
                         FeatureContext { [weak self] body, payload in
-                            await self?.send(body: body, payload: payload)
+                            await self?.send(body: body, payload: payload, type: name)
                         })
                 }
             case .deliver(let name):
@@ -322,24 +326,11 @@ public actor Session {
         let streaming = core.state == .streaming
         for input in queued
         where inputGate.admits(input, streaming: streaming, interrupted: liveness.isInterrupted) {
-            send(input.clientMessage)
+            enqueue(input.clientMessage)
         }
         if let command {
             carryingOut = true
             Task { await self.carryOut(command) }
-        }
-    }
-
-    private func send(_ message: ClientMessage) {
-        send(body: message.encoded)
-    }
-
-    private func send(body: [UInt8], payload: [UInt8] = []) {
-        guard let writer else { return }
-        do {
-            writer.send(try Frame.encode(body: body, payload: payload))
-        } catch {
-            Self.log.error("not sent, over the frame limits: \(error)")
         }
     }
 

@@ -165,6 +165,18 @@
             #expect(try await listing.value.isEmpty)
         }
 
+        /// A listing that runs out of time ends alone: its watchdog waits past the limit, so
+        /// it never ends the host's connection first.
+        @Test func aListingAtItsLimitLeavesTheConnectionAlone() async throws {
+            let clock = ManualClock()
+            let (listing, _, opener) = try await overALease(timeout: .seconds(60), clock: clock)
+            #expect(await clock.waitForSleepers(1))
+            clock.advance(by: .seconds(60))
+            try await Task.sleep(for: .milliseconds(50))
+            #expect(opener.made.first?.invalidateCount == 0)
+            listing.cancel()
+        }
+
         /// Get Screens is the person's own try: it asks for the sign-in again.
         @Test func getScreensAsksAgain() async throws {
             let opener = FakeOpener()

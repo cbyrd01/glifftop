@@ -11,8 +11,8 @@ public enum ClipboardMessage: Equatable, Sendable {
     case ack(id: UInt32, received: UInt64)
     case abort(id: UInt32)
 
-    /// Raw values are upstream's variant names, for errors.
-    enum Kind: String {
+    /// Raw values are upstream's variant names, for errors and the inspector.
+    public enum Kind: String, Sendable {
         case offer = "ClipboardOffer"
         case request = "ClipboardRequest"
         case data = "ClipboardData"
@@ -54,7 +54,7 @@ public enum ClipboardMessage: Equatable, Sendable {
         }
     }
 
-    var kind: Kind {
+    public var kind: Kind {
         switch self {
         case .offer: .offer
         case .request: .request
