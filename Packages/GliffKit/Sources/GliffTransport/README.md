@@ -36,14 +36,19 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   master gone (ssh then tries a direct connection, which `ProxyCommand=/usr/bin/false` stops);
   both may reconnect.
 - **The ControlMaster:** `SSHMasterCommand` builds the system ssh's arguments for one shared
-  connection: the master (`SSHCommand`'s options first, then `-M -N -S socket -o
-  ControlPersist=no`), `-O check` and `-O exit`, and a channel through it (`ControlMaster=no`,
-  and `ProxyCommand=/usr/bin/false` so a channel never signs in on its own).
+  connection: the master (`SSHCommand`'s options first, then `-o ControlMaster=yes -o
+  ControlPersist=no -S socket -N`), `-O check` and `-O exit`, and a channel through it
+  (`ControlMaster=no`, and `ProxyCommand=/usr/bin/false` so a channel never signs in on its own).
   `ControlSocketDirectory` (macOS) is where the sockets live: the caches directory's `ssh/`, else
   `/tmp/glifftop-<uid>` when that path is too long for a socket or is refused; each is created
   0700, and refused if it is a symbolic link, not a directory or another user's. Sockets are named
   `<pid>-<n>`; at launch, those of Glifftops no longer running (or with this app's own pid) are
-  removed, sockets only.
+  removed, sockets only, each master first ended with `-O exit`.
+  `SystemSSHConnection` (macOS) is a `HostConnection` on such a master: `open` waits until the
+  socket answers `-O check`, up to 60 s (then `ConnectFailure.signInTimedOut`, not retried);
+  each channel is one ssh through the socket; the master's own exit, even a clean one, is a lost
+  connection, and `close()` ends it with `-O exit`. `SystemSSH.opener()` is the app's opener for
+  `HostConnections`; every opener shares one socket directory and one numbering.
 - **Screens:** `ScreenChoice` is what a session shows (the focused monitor, one by name,
   or a virtual screen) as gliff-server's arguments. `ScreenListParser` reads the host's
   `hyprctl -j monitors` as untrusted input into `RemoteScreen`s: at most 1 MiB, names only

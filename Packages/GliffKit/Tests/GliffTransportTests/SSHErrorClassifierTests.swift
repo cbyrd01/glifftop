@@ -97,6 +97,12 @@ import Testing
             stderr: "kex_exchange_identification: Connection closed by remote host\n"
                 + "Connection closed by UNKNOWN port 65535\n", status: 255, failure: .sharedConnectionLost),
         Case(
+            stderr: "mux_client_read_packet: read header failed: Broken pipe\n", status: 255,
+            failure: .sharedConnectionLost),
+        Case(
+            stderr: "mux_client_request_session: read from master failed: Broken pipe\n", status: 255,
+            failure: .sharedConnectionLost),
+        Case(
             stderr: "bash: line 1: gliff-server: command not found\n", status: 127,
             failure: .serverNotInstalled),
     ]

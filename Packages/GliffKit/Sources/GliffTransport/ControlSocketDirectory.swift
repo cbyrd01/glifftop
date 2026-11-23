@@ -49,18 +49,29 @@
         /// first (its master may have outlived its app). Run at launch, before any master: a
         /// socket with this app's own pid is then an earlier Glifftop's. Anything that isn't a
         /// socket named `<pid>-<n>` is left alone.
-        func removeStale(isRunning: (Int32) -> Bool = Self.isRunning, ending: (String) -> Void = { _ in }) {
+        func removeStale(
+            isRunning: (Int32) -> Bool = Self.isRunning,
+            ending: @escaping @Sendable (String) async -> Void = { _ in }
+        ) async {
             let files = FileManager.default
             let own = getpid()
-            for name in (try? files.contentsOfDirectory(atPath: path)) ?? [] {
+            let stale = ((try? files.contentsOfDirectory(atPath: path)) ?? []).compactMap { name -> String? in
                 let parts = name.split(separator: "-")
                 let socket = path + "/" + name
                 guard parts.count == 2, UInt32(parts[1]) != nil, let pid = Int32(parts[0]),
                     pid == own || !isRunning(pid),
                     (try? files.attributesOfItem(atPath: socket))?[.type] as? FileAttributeType == .typeSocket
-                else { continue }
-                ending(socket)
-                try? files.removeItem(atPath: socket)
+                else { return nil }
+                return socket
+            }
+            // Each master is ended before its socket goes, all at once.
+            await withTaskGroup(of: Void.self) { group in
+                for socket in stale {
+                    group.addTask {
+                        await ending(socket)
+                        try? FileManager.default.removeItem(atPath: socket)
+                    }
+                }
             }
         }
 

@@ -18,7 +18,9 @@ public enum SSHErrorClassifier {
             if has("administratively prohibited") || has("Session open refused by peer") {
                 return .channelRefused
             }
-            if has("Control socket connect(") || has("kex_exchange_identification") || has("UNKNOWN port") {
+            if has("Control socket connect(") || has("kex_exchange_identification") || has("UNKNOWN port")
+                || has("mux_client_") || has("read from master failed")
+            {
                 return .sharedConnectionLost
             }
         }

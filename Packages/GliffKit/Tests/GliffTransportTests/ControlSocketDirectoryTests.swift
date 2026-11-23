@@ -81,7 +81,7 @@
 
         /// At launch no master of this app exists yet, so a socket with its pid is an earlier
         /// Glifftop's that had the same pid.
-        @Test func staleSocketsAreRemoved() throws {
+        @Test func staleSocketsAreRemoved() async throws {
             let directory = try ControlSocketDirectory.prepare(
                 preferred: root.appending(path: "ssh"), fallback: root.appending(path: "f"))
             let path = { (name: String) in directory.path + "/" + name }
@@ -89,11 +89,41 @@
             FileManager.default.createFile(atPath: path("333-1"), contents: Data())
             try FileManager.default.createDirectory(atPath: path("444-1"), withIntermediateDirectories: false)
             let ended = Mutex<[String]>([])
-            directory.removeStale(
+            await directory.removeStale(
                 isRunning: { $0 == 222 }, ending: { path in ended.withLock { $0.append(path) } })
             let left = try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted()
             #expect(left == ["222-1", "333-1", "444-1"])
             #expect(ended.withLock { $0.sorted() } == [path("111-1"), path("\(getpid())-1")].sorted())
+        }
+
+        @Test func staleMastersEndTogether() async throws {
+            let directory = try ControlSocketDirectory.prepare(
+                preferred: root.appending(path: "ssh"), fallback: root.appending(path: "f"))
+            for number in 1...3 { try makeSocket(directory.path + "/111-\(number)") }
+            let started = ContinuousClock.now
+            await directory.removeStale(
+                isRunning: { _ in false }, ending: { _ in try? await Task.sleep(for: .milliseconds(300)) })
+            #expect(ContinuousClock.now - started < .milliseconds(600))
+            #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
+        }
+
+        /// The app's socket numbering: one for the whole app, prepared once it works.
+        @Test func socketsAreNumberedInTurnAndAFailedPrepareIsTriedAgain() async throws {
+            let tries = Mutex(0)
+            let preferred = root.appending(path: "ssh")
+            let sockets = SystemSSHSockets {
+                let first = tries.withLock { tries in
+                    defer { tries += 1 }
+                    return tries == 0
+                }
+                if first { return nil }
+                return try? ControlSocketDirectory.prepare(preferred: preferred, fallback: preferred)
+            }
+            await #expect(throws: TransportError.self) { try await sockets.next() }
+            let pid = getpid()
+            #expect(try await sockets.next() == preferred.path + "/\(pid)-1")
+            #expect(try await sockets.next() == preferred.path + "/\(pid)-2")
+            #expect(tries.withLock { $0 } == 2)
         }
     }
 #endif
