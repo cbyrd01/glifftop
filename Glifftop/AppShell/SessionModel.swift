@@ -106,7 +106,7 @@ import os
     private(set) var outputName: String?
     /// The window's backing scale, from the video view, set only when it changes: View ▸ Text
     /// Size shows the remote scale for it.
-    private(set) var backingScale: Double?
+    var backingScale: Double?
     /// Set while View ▸ Screen's new session connects, until it streams or ends: the window
     /// stays in full screen meanwhile, though there's no picture. Set by `switchScreen`.
     var isSwitching = false
@@ -119,7 +119,7 @@ import os
     let screenList = ScreenList()
     /// The video view's drawable size in pixels, last reported (with `backingScale`). Changes
     /// every frame of a live resize, and no view reads it.
-    @ObservationIgnored private var viewPixels: PixelSize?
+    @ObservationIgnored var viewPixels: PixelSize?
     /// Whether the link is interrupted, set only when it changes (as `shownStream` is).
     private(set) var isInterrupted = false
     /// The session's phase, set only when it changes: the title, the toolbar and the menus read it.
@@ -128,6 +128,8 @@ import os
     private(set) var clipboardActivity: ClipboardActivity?
     /// Input capture (keys and pointer) for this window's session.
     let capture = CaptureController()
+    /// This window's, never another's: the Debug inspector's key.
+    let windowID = UUID()
     /// The shared clipboard for this window's session, as `clipboardInForce` says.
     @ObservationIgnored private(set) lazy var clipboard = ClipboardController { [weak self] in
         self?.clipboardInForce ?? .off
@@ -276,7 +278,7 @@ import os
                 on: destination, serverArguments: screen.serverArguments, fresh: asksAgain(reconnecting)),
             configuration: SessionConfiguration(maxWidth: pixels.width, maxHeight: pixels.height),
             decoder: decoder, cursor: cursor, pointer: remotePointer,
-            clipboard: ClipboardSetup(source: PasteboardSource()))
+            clipboard: ClipboardSetup(source: PasteboardSource()), observer: protocolObserver)
         self.session = session
         capture.attach(
             target: { [weak self] in self?.activationTarget(macPointer: $0) }, send: { session.send($0) })
@@ -319,21 +321,6 @@ import os
     func actualSize() {
         scaleToFit = false
         actualSizeRequests += 1
-    }
-
-    /// The video view's drawable (pixels) and backing scale: the remote screen follows it.
-    func viewTargetChanged(_ pixels: PixelSize, backingScale: Double) {
-        viewPixels = pixels
-        if backingScale != self.backingScale { self.backingScale = backingScale }
-        sendViewTarget()
-    }
-
-    private func sendViewTarget() {
-        guard let session, let viewPixels, let backingScale else { return }
-        session.setViewTarget(
-            ViewTarget(
-                width: UInt32(clamping: viewPixels.width), height: UInt32(clamping: viewPixels.height),
-                backingScale: backingScale, textFactor: textSize.factor, resolution: resolution))
     }
 
     /// Stops any reconnect, then ends the session (`endSession`), the window staying where it

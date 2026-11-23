@@ -31,6 +31,10 @@ import Observation
         let id = UUID()
         ending[id] = Task {
             await model.shutdown()
+            #if DEBUG
+                // After shutdown: its Bye and the replies are counted too.
+                InspectorModel.shared.remove(model)
+            #endif
             ending[id] = nil
         }
     }

@@ -32,5 +32,11 @@ struct GlifftopApp: App {
         Settings {
             SettingsView()
         }
+        #if DEBUG
+            Window("Protocol Inspector", id: "inspector") {
+                InspectorView()
+            }
+            .restorationBehavior(.disabled)
+        #endif
     }
 }

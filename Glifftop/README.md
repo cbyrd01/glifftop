@@ -75,7 +75,11 @@ the clipboard (`ClipboardSharing`: Not shared by default, Shared, or Shared incl
 step up asks first; at once for an open session following Settings. A machine may have its
 own, which the options form and the toolbar's button set; Settings' doesn't override it, and
 every window to the machine follows it), in `UserDefaults` through
-`AppSettings`) and (Debug builds) the Debug menu: Record 5 Seconds
+`AppSettings`) and (Debug builds) the Debug menu: Protocol Inspector (⌥⌘I: `InspectorView`, a
+section per open window titled as its tab, with each message type's count, bytes, last seen
+and rate per direction, and the last 200 messages, refreshed once a second, with Pause and
+Clear; `InspectorModel` holds a `ProtocolTally` per window behind a `Mutex`, filled by the
+session's `ProtocolObserver`: types and sizes only, never a body), Record 5 Seconds
 and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes).
 
 - **Owns:** `MachineStore` (the saved machines in `UserDefaults`, key `machines`, as
