@@ -116,8 +116,7 @@ final class FakeOpener: Sendable {
     private let state = Mutex(State())
 
     var calls: Int { state.withLock { $0.calls } }
-    /// How many opens found their task cancelled once let go (they still go on, as a slow one
-    /// might).
+    /// How many opens had their task cancelled (they still go on, as a slow one might).
     var cancelledCount: Int { state.withLock { $0.cancelled } }
     var made: [FakeHostConnection] { state.withLock { $0.made } }
     /// How many opens are waiting for `release()`.
@@ -145,14 +144,17 @@ final class FakeOpener: Sendable {
 
     private func open() async throws(TransportError) -> any HostConnection {
         state.withLock { $0.calls += 1 }
-        await withCheckedContinuation { continuation in
-            let goOn = state.withLock { state in
-                if state.held { state.waiting.append(continuation) }
-                return !state.held
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                let goOn = state.withLock { state in
+                    if state.held { state.waiting.append(continuation) }
+                    return !state.held
+                }
+                if goOn { continuation.resume() }
             }
-            if goOn { continuation.resume() }
+        } onCancel: {
+            state.withLock { $0.cancelled += 1 }
         }
-        if Task.isCancelled { state.withLock { $0.cancelled += 1 } }
         if let failure = state.withLock({ $0.failures.isEmpty ? nil : $0.failures.removeFirst() }) {
             throw failure
         }

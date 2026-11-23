@@ -23,8 +23,8 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   `HostLease`s: everyone asking while one opens waits for that one sign-in; it closes 10 s after
   its last lease ends; a sign-in that asked and failed (the agent or the key refused, no
   approval in a minute) answers that destination for 10 s unless a connection there has room,
-  and a `fresh` lease (an attempt the person starts) asks again; an open nobody waits for any
-  more is cancelled; a connection takes at most 10 leases (sshd's `MaxSessions`), and one that
+  and a `fresh` lease (an attempt the person starts) asks again; an open nobody has waited for
+  in 1 s is cancelled (so a session that starts as a listing stops shares its sign-in); a connection takes at most 10 leases (sshd's `MaxSessions`), and one that
   refuses a channel takes no more, its lease moving to a further connection; a lost connection is
   forgotten at once, so the next lease opens anew; `closeAll()` ends them all and cancels anyone
   waiting.

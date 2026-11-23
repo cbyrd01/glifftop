@@ -245,7 +245,30 @@ import Testing
         #expect(await eventually { opener.waitingCount == 1 })
         leasing.cancel()
         await #expect(throws: TransportError.cancelled) { try await leasing.value }
-        opener.release()
+        #expect(await clock.waitForSleepers(1))
+        clock.advance(by: .seconds(1))
         #expect(await eventually { opener.cancelledCount == 1 })
+        opener.release()
+    }
+
+    /// Connect pressed while Get Screens signs in: the listing stops, and the session waits for
+    /// the same sign-in, not a second prompt.
+    @Test func anOpenLeftBrieflyIsKeptForTheNextAsker() async throws {
+        let hosts = connections()
+        let target = try omarchy()
+        opener.hold()
+        let listing = Task { try await hosts.lease(for: target) }
+        #expect(await eventually { opener.waitingCount == 1 })
+        listing.cancel()
+        await #expect(throws: TransportError.cancelled) { try await listing.value }
+        #expect(await clock.waitForSleepers(1))
+        let session = Task { try await hosts.lease(for: target) }
+        #expect(await clock.waitForSleepers(0))
+        clock.advance(by: .seconds(1))
+        try await Task.sleep(for: .milliseconds(50))
+        opener.release()
+        _ = try await session.value
+        #expect(opener.calls == 1)
+        #expect(opener.cancelledCount == 0)
     }
 }

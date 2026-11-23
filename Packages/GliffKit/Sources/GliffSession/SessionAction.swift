@@ -10,6 +10,8 @@ enum SessionAction: Equatable {
     case decode(VideoFrameHeader)
     /// A cursor shape: validate it with the frame's payload and show it if valid.
     case cursor(CursorShape)
+    /// Where the host's pointer is, in capture-buffer pixels.
+    case cursorPosition(x: Double, y: Double, visible: Bool)
     case status(SessionStatus)
     /// The server echoed these features: activate them (sorted names).
     case activate(features: [String])

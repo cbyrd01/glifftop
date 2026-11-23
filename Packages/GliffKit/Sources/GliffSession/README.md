@@ -50,8 +50,11 @@ the feature seam.
   published to the `CursorSlot` the session was made with (latest wins, a generation per
   publish, like `PictureSlot`: a shape can be 4 MB). One that can't be shown is published as
   nil, so the arrow replaces the old shape (upstream `set_remote_cursor`), and logged once per
-  session. CursorPos is ignored, as upstream's
-  client does. A shape before the first StreamConfig is a protocol error (upstream).
+  session. A CursorPos is published to the session's `RemotePointerSlot` (capture-buffer
+  pixels, which can exceed a shrunk stream's, and whether the host shows a pointer; one that
+  isn't a number is dropped), cleared by a StreamConfig that brings a new picture and by the
+  session's end. A shape
+  or a position before the first StreamConfig is a protocol error (upstream).
 - **`SessionSnapshot`:** the statuses folded into what a window shows (phase, the server's
   session (headless or not), its own output from HelloAck (`output`; nil when HelloAck lists
   none, or its size is impossible, outside 1–16384 a side), `mirrorSize` (what a mirror's

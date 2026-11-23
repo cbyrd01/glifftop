@@ -79,8 +79,8 @@ final class LeasedChannel: ByteConnection {
     }
 
     func start() {
-        Task { await self.pump() }
         continuation.onTermination = { _ in Task { await self.close() } }
+        Task { await self.pump() }
     }
 
     func write(_ bytes: [UInt8]) async throws(TransportError) {

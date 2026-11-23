@@ -18,6 +18,7 @@ public actor Session {
     private let transport: any Transport
     private let decoder: any FrameDecoder
     private let cursor: CursorSlot
+    private let pointer: RemotePointerSlot
     /// Whether an invalid cursor shape has been logged: a server sending them keeps doing so.
     private var loggedInvalidCursor = false
     private let features: [String: any SessionFeature]
@@ -73,6 +74,7 @@ public actor Session {
     public init(
         transport: any Transport, configuration: SessionConfiguration, decoder: any FrameDecoder,
         features: [any SessionFeature] = [], cursor: CursorSlot = CursorSlot(),
+        pointer: RemotePointerSlot = RemotePointerSlot(),
         clipboard: ClipboardSetup? = nil
     ) {
         precondition(Set(features.map(\.name)).count == features.count, "two features have the same name")
@@ -81,6 +83,7 @@ public actor Session {
         self.transport = transport
         self.decoder = decoder
         self.cursor = cursor
+        self.pointer = pointer
         self.features = Dictionary(uniqueKeysWithValues: features.map { ($0.name, $0) })
         core = SessionCore(configuration: configuration, features: self.features.mapValues(\.serverVariants))
         (status, continuation) = AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(256))
@@ -236,6 +239,7 @@ public actor Session {
                 if case .ping = message { liveness.pinged(at: Self.uptime()) }
                 send(message)
             case .configureDecoder(let config):
+                pointer.publish(nil)
                 loggedDecodeFailures.removeAll()
                 do {
                     try await decoder.configure(config)
@@ -247,6 +251,8 @@ public actor Session {
                 if core.isFinished { return }
             case .updateDecoder(let config):
                 await decoder.update(config)
+            case .cursorPosition(let x, let y, let visible):
+                pointer.publish(.init(x: x, y: y, visible: visible))
             case .decode(let header):
                 guard let frame else { continue }
                 await decode(header, frame: frame)
@@ -358,6 +364,7 @@ public actor Session {
         if linkLost { await connection?.abandon() } else { await connection?.close() }
         await recorder?.finish()
         recorder = nil
+        pointer.publish(nil)
         yield(.ended(end))
         continuation.finish()
     }

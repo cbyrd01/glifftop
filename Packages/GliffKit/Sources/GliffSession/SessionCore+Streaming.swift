@@ -70,7 +70,10 @@ extension SessionCore {
             return []
         case .cursorShape(let shape):
             return [.cursor(shape)]
-        // CursorPos is ignored (upstream's client too).
+        case .cursorPosition(let x, let y, _, let visible):
+            // In capture-buffer pixels, as sent; a position that isn't a number is dropped.
+            guard x.isFinite, y.isFinite else { return [] }
+            return [.cursorPosition(x: x, y: y, visible: visible)]
         default:
             return []
         }

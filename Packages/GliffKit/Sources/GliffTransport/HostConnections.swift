@@ -9,8 +9,9 @@ import os
 ///   time) answers that destination's leases for `failureMemory`, so several tabs retrying
 ///   never mean several approval prompts at once. A `fresh` lease, an attempt the person
 ///   starts, asks again; a failure that asked nothing (an unreachable host) isn't remembered.
-/// - An open that nobody waits for any more (a cancel, `closeAll()`) is cancelled, so a sign-in
-///   prompt doesn't outlive its asker.
+/// - An open that nobody waits for any more is cancelled after `openGrace` (or at once by
+///   `closeAll()`), so a sign-in prompt doesn't outlive its asker, yet a session that starts as
+///   a listing stops shares the listing's sign-in.
 /// - A connection takes at most `leaseLimit` leases (sshd's `MaxSessions` is 10 by default);
 ///   more open a further connection to the same host.
 /// - A lost connection is forgotten as soon as it ends; the next lease opens a new one. Its
@@ -39,6 +40,8 @@ public actor HostConnections {
         var live: [Live] = []
         var opening = false
         var openTask: Task<Void, Never>?
+        /// Cancels the open once nobody has waited for it for `openGrace`.
+        var dropOpen: Task<Void, Never>?
         /// Those waiting for the open, each told its failure (nil: look again).
         var waiters: [Int: CheckedContinuation<TransportError?, Never>] = [:]
         var failure: TransportError?
@@ -50,6 +53,7 @@ public actor HostConnections {
     private let grace: Duration
     private let failureMemory: Duration
     private let leaseLimit: Int
+    private let openGrace = Duration.seconds(1)
     private var hosts: [String: Host] = [:]
     private var nextID = 0
     /// Moves on at `closeAll()`: an open that finishes after it is closed at once.
@@ -76,6 +80,7 @@ public actor HostConnections {
         for host in hosts.values {
             host.forget?.cancel()
             host.openTask?.cancel()
+            host.dropOpen?.cancel()
             for live in host.live {
                 live.grace?.cancel()
                 live.watcher?.cancel()
@@ -145,6 +150,8 @@ public actor HostConnections {
         }
         hosts[key]?.opening = false
         hosts[key]?.openTask = nil
+        hosts[key]?.dropOpen?.cancel()
+        hosts[key]?.dropOpen = nil
         switch result {
         case .success(let connection): install(connection, key)
         case .failure(let error): remember(error, key)
@@ -204,7 +211,11 @@ public actor HostConnections {
         let id = nextID
         return await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
-                self.assumeIsolated { $0.hosts[key]?.waiters[id] = continuation }
+                self.assumeIsolated { connections in
+                    connections.hosts[key]?.waiters[id] = continuation
+                    connections.hosts[key]?.dropOpen?.cancel()
+                    connections.hosts[key]?.dropOpen = nil
+                }
             }
         } onCancel: {
             Task { await self.stopWaiting(key, id) }
@@ -212,8 +223,16 @@ public actor HostConnections {
     }
 
     private func stopWaiting(_ key: String, _ id: Int) {
-        hosts[key]?.waiters.removeValue(forKey: id)?.resume(returning: nil)
-        if hosts[key]?.waiters.isEmpty == true { hosts[key]?.openTask?.cancel() }
+        // A waiter the open already answered left nothing behind.
+        guard let waiter = hosts[key]?.waiters.removeValue(forKey: id) else { return }
+        waiter.resume(returning: nil)
+        if hosts[key]?.waiters.isEmpty == true, hosts[key]?.opening == true {
+            hosts[key]?.dropOpen?.cancel()
+            hosts[key]?.dropOpen = Task { [clock, openGrace] in
+                do { try await clock.sleep(for: openGrace) } catch { return }
+                self.hosts[key]?.openTask?.cancel()
+            }
+        }
         forgetIfIdle(key)
     }
 
