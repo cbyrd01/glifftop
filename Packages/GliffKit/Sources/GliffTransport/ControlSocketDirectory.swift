@@ -46,7 +46,7 @@
         func socketPath(number: UInt32) -> String { path + "/\(getpid())-\(number)" }
 
         /// Removes the sockets of Glifftops no longer running, calling `ending` with each path
-        /// first (its master may have outlived its app). Run at launch, before any master: a
+        /// first (its master may have outlived its app). Run before the app's first master: a
         /// socket with this app's own pid is then an earlier Glifftop's. Anything that isn't a
         /// socket named `<pid>-<n>` is left alone.
         func removeStale(

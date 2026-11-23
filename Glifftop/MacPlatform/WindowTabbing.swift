@@ -23,7 +23,9 @@ struct WindowTabbing: NSViewRepresentable {
 
     /// File ▸ Close Window: every tab of the key window's group.
     static func closeKeyWindowGroup() {
-        guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return }
+        // A sheet's window is its parent's.
+        guard let key = NSApp.keyWindow ?? NSApp.mainWindow else { return }
+        let window = key.sheetParent ?? key
         for tab in window.tabbedWindows ?? [window] { tab.performClose(nil) }
     }
 }
@@ -35,6 +37,8 @@ final class TabbingView: NSView {
     /// Whether the window has been placed: in the requested group, or alone.
     private var placed = false
     private var groupObservation: NSKeyValueObservation?
+    /// The group `groupObservation` watches.
+    private weak var observedGroup: NSWindowTabGroup?
     private var windowObservation: NSKeyValueObservation?
     private var closeObserver: (any NSObjectProtocol)?
 
@@ -88,14 +92,17 @@ final class TabbingView: NSView {
 
     /// Follows the window's current group, and reports it.
     private func observeGroup() {
-        groupObservation = window?.tabGroup?.observe(\.windows) { [weak self] _, _ in
+        observedGroup = window?.tabGroup
+        groupObservation = observedGroup?.observe(\.windows) { [weak self] _, _ in
             MainActor.assumeIsolated { self?.report() }
         }
         report()
     }
 
+    /// Reports the group, first following the window to a new one if it moved unannounced.
     private func report() {
         guard let window else { return }
+        if window.tabGroup !== observedGroup { return observeGroup() }
         let tabs = window.tabGroup?.windows.map(\.windowNumber) ?? [window.windowNumber]
         changed((window.windowNumber, tabs))
     }

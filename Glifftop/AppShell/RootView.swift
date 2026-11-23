@@ -61,7 +61,8 @@ struct RootView: View {
         #endif
     }
 
-    private var isCompact: Bool { model.picture == nil && !isFullScreen }
+    /// A window shared with other tabs keeps the group's size: its content stays resizable.
+    private var isCompact: Bool { model.picture == nil && !isFullScreen && !model.sharesWindow }
     /// The machines' own width; a session's window before its picture sizes it.
     private var idealWidth: CGFloat { model.isActive ? 420 : MachinesView.width }
 }

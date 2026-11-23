@@ -67,11 +67,12 @@ import os
             updateMachine { $0.resolution = resolution }
         }
     }
-    /// Whether the picture is drawn scaled to the window: Scale to Fit, or a virtual screen's
-    /// picture at Standard (half the window's pixels a side), as the picture shown (a held one
-    /// while reconnecting) shows it, so a change draws right until the server answers.
+    /// Whether the picture is drawn scaled to the window: Scale to Fit, a mirror in a window it
+    /// shares with other tabs, or a virtual screen's picture at Standard (half the window's
+    /// pixels a side), as the picture shown (a held one while reconnecting) shows it, so a
+    /// change draws right until the server answers.
     var drawsScaled: Bool {
-        guard !scaleToFit else { return true }
+        guard !scaleToFit, isVirtual || !sharesWindow else { return true }
         guard isVirtual, let backingScale, let stream = picture?.stream else { return false }
         return ViewTarget.isStandardPicture(
             screenScale: stream.screenScale, backingScale: backingScale, textFactor: textSize.factor)

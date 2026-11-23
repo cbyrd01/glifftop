@@ -13,7 +13,7 @@ struct ClipboardToolbarItem: View {
 
     /// As `SessionModel.clipboardInForce`, with Settings' read through the view.
     private var sharing: ClipboardSharing {
-        MachineOptions.clipboard(saved: model.machine, window: model.clipboardSharing, settings: settings)
+        model.clipboardSharing(settings: settings)
     }
 
     var body: some View {

@@ -39,7 +39,10 @@ final class VideoNSView: NSView {
     /// and leaves a virtual screen's (the remote follows the picture).
     var extraHeight: CGFloat = 0 {
         didSet {
-            guard extraHeight != oldValue, fitted, let window, case .monitor = fit?.sizing else { return }
+            guard extraHeight != oldValue, fitted, !sharesWindow, let window, case .monitor = fit?.sizing
+            else {
+                return
+            }
             let delta = extraHeight - oldValue
             // Not inside SwiftUI's update pass, as `fitWindow`.
             Task { WindowSizer.grow(window, by: delta) }
@@ -49,6 +52,15 @@ final class VideoNSView: NSView {
     /// False for a reconnect's session: its first fit leaves the window at the size it has
     /// (a later one, Actual Size say, fits as usual).
     var fitsWindow = true
+
+    /// The window has other tabs, whose size it shares: the session never sizes it. A mirror
+    /// left alone in it (torn off, its other tabs closed) is fitted again.
+    var sharesWindow = false {
+        didSet {
+            guard oldValue, !sharesWindow, fitted, case .monitor = fit?.sizing else { return }
+            fitWindow()
+        }
+    }
 
     /// View ▸ Scale to Fit: a picture smaller than the view is scaled up to fill it.
     var scaleToFit = false
@@ -338,7 +350,7 @@ final class VideoNSView: NSView {
 
     private func fitWindow() {
         guard let window, let fit else { return }
-        guard fitsWindow || fitted else {
+        guard fitsWindow || fitted, !sharesWindow else {
             fitted = true
             return
         }

@@ -145,7 +145,10 @@ AppKit adapters for what SwiftUI can't do:
   when that fits the screen, else the largest fitting size (`VideoFit.contentSize`), when
   streaming starts and on View ▸ Actual Size, never for a later view (the server shrinks a
   mirror to the window); for a virtual screen (`.fillScreen`), the screen's visible area when
-  streaming starts. A full-screen window keeps its screen;
+  streaming starts. A full-screen window keeps its screen. A window with other tabs keeps the
+  group's size: no session sizes it, a mirror draws fitted (`SessionModel.sharesWindow`), the
+  machines stay resizable and Actual Size is off; a mirror left alone (torn off) is fitted
+  again;
 - input capture, keys and pointer together: `CaptureController` (one per window's session)
   feeds GliffInput's `InputController` the window, app, picture, link, sleep and lock
   changes, swallows the window's key events while captured (a local monitor, only while there

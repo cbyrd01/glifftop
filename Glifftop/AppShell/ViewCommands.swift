@@ -11,16 +11,19 @@ struct ViewCommands: Commands {
 
     var body: some Commands {
         CommandGroup(before: .toolbar) {
-            // A virtual screen follows the window: there's no size of its own to return to.
+            // A virtual screen follows the window: there's no size of its own to return to. A
+            // window shared with other tabs keeps the group's size.
             Button("Actual Size") { model?.actualSize() }
                 .keyboardShortcut("0")
-                .disabled(model?.hasPicture != true || model?.isVirtual == true)
+                .disabled(
+                    model?.hasPicture != true || model?.isVirtual == true || model?.sharesWindow == true)
             Toggle(
                 "Scale to Fit",
                 isOn: Binding(get: { model?.scaleToFit ?? false }, set: { model?.scaleToFit = $0 })
             )
             .keyboardShortcut("0", modifiers: [.command, .option])
-            .disabled(model?.hasPicture != true)
+            // A mirror in a window shared with other tabs is drawn fitted already.
+            .disabled(model?.hasPicture != true || model?.sharesWindow == true && model?.isVirtual == false)
             Toggle("Show Status Bar", isOn: $showsStatusBar)
                 .keyboardShortcut("/")
             Divider()

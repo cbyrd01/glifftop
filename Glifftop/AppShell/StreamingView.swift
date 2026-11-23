@@ -27,7 +27,8 @@ struct StreamingView: View {
             slot: model.shownSlot, renderer: renderer,
             sizing: model.windowSizing, fitsWindow: !model.keepsWindow,
             extraHeight: showsStatusBar ? StatusBar.height : 0,
-            fitRequest: model.actualSizeRequests, scaleToFit: model.drawsScaled,
+            fitRequest: model.actualSizeRequests, sharesWindow: model.sharesWindow,
+            scaleToFit: model.drawsScaled,
             onTarget: model.viewTargetChanged, onPointer: model.capture.pointer, cursor: model.viewCursor,
             captured: model.capture.isCaptured, headless: model.snapshot.session?.headless ?? false
         )

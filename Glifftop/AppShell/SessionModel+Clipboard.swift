@@ -6,9 +6,13 @@ import GliffSession
 extension SessionModel {
     /// The sharing in force: the saved machine's (another window's change included), else the
     /// window's own; nil in either, Settings'.
-    var clipboardInForce: ClipboardSharing {
+    var clipboardInForce: ClipboardSharing { clipboardSharing(settings: AppSettings.clipboardSharing) }
+
+    /// The sharing in force with Settings' `settings`. The window's own choice while its machine
+    /// doesn't keep it yet (one made in the form, until the session streams).
+    func clipboardSharing(settings: ClipboardSharing) -> ClipboardSharing {
         MachineOptions.clipboard(
-            saved: machine, window: clipboardSharing, settings: AppSettings.clipboardSharing)
+            saved: clipboardUnsaved ? nil : machine, window: clipboardSharing, settings: settings)
     }
 
     /// The window chose a sharing: the machine keeps it, and the controller follows it. Kept

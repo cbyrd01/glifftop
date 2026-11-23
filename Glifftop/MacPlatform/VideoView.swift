@@ -4,7 +4,8 @@ import GliffVideo
 import SwiftUI
 
 /// SwiftUI's handle on `VideoNSView`: the latest picture of `slot` (scaled up to fill with
-/// `scaleToFit`), the window fitted by `sizing` (once known) when it changes or `fitRequest` does, the
+/// `scaleToFit`), the window fitted by `sizing` (once known) when it changes or `fitRequest` does
+/// (never while it `sharesWindow` with other tabs), the
 /// drawable's size and backing scale to `onTarget` from then on, and over the picture the
 /// cursor for `cursor`'s shapes, whether input is `captured` and the session headless.
 struct VideoView: NSViewRepresentable {
@@ -17,6 +18,8 @@ struct VideoView: NSViewRepresentable {
     /// counts them.
     let extraHeight: CGFloat
     let fitRequest: Int
+    /// The window has other tabs: never sized for the session.
+    let sharesWindow: Bool
     let scaleToFit: Bool
     /// The drawable's size in pixels and the backing scale, once fitted and on every change.
     let onTarget: (PixelSize, Double) -> Void
@@ -32,6 +35,8 @@ struct VideoView: NSViewRepresentable {
 
     func updateNSView(_ nsView: VideoNSView, context: Context) {
         // Before `fit`: a first fit counts it.
+        // Before `extraHeight`: a shared window never grows for the status bar.
+        nsView.sharesWindow = sharesWindow
         nsView.extraHeight = extraHeight
         nsView.fitsWindow = fitsWindow
         nsView.fit = sizing.map { VideoNSView.Fit(sizing: $0, request: fitRequest) }
