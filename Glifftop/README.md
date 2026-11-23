@@ -86,8 +86,10 @@ and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes
   another connection or Reconnect automatically turned off stops it (the last, with why it was
   lost on the end screen); `SessionEndedView` after
   an end the person didn't choose, with Try Again, Edit Machine… and Close: Disconnect and
-  Cancel go straight back to the machines), `ScreenList`
-  (the host's monitors, listed through a lister closure, ssh by default, and never saved:
+  Cancel go straight back to the machines), `AppConnections` (the app's one `HostConnections`:
+  each session and Get Screens is a channel on its host's one signed-in ssh), `ScreenList`
+  (the host's monitors, listed through a lister closure, by default on the host's shared
+  connection, and never saved:
   one listing at a time, stopped (its error dismissed) when a session starts; a refresh keeps the list until the
   new one arrives; the list belongs to its host and is forgotten when the field names
   another, and a monitor is chosen only from its own host's list), the
@@ -109,7 +111,7 @@ AppKit adapters for what SwiftUI can't do:
   there by AutoFill (`TextComposition`: commits the composition in place, tells the input
   method, and returns the field's own value; the SwiftUI binding may update later);
 - quitting that waits for a session's Bye (`AppDelegate`, which knows only a `beforeQuit`
-  closure; `GlifftopApp` hands it `SessionModel.shutdown`);
+  closure; `GlifftopApp` hands it `SessionModel.shutdown`, then `AppConnections.closeAll`);
 - the video view: `VideoNSView`, a `CAMetalLayer` (sRGB, opaque) that a display link draws
   into through `PictureRenderer` only when there is a new picture, a new drawable size or a
   new view box for the picture on screen, or Scale to Fit toggled, and only while the window

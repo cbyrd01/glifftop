@@ -21,8 +21,10 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   shell commands as channels (`ByteConnection`s); a system ssh ControlMaster or an embedded ssh
   can each be one. `HostConnections` (an actor) keeps one per destination as typed, held by
   `HostLease`s: everyone asking while one opens waits for that one sign-in; it closes 10 s after
-  its last lease ends; a failed sign-in answers that destination for 10 s unless a connection
-  there has room; a connection takes at most 10 leases (sshd's `MaxSessions`), and one that
+  its last lease ends; a sign-in that asked and failed (the agent or the key refused, no
+  approval in a minute) answers that destination for 10 s unless a connection there has room,
+  and a `fresh` lease (an attempt the person starts) asks again; an open nobody waits for any
+  more is cancelled; a connection takes at most 10 leases (sshd's `MaxSessions`), and one that
   refuses a channel takes no more, its lease moving to a further connection; a lost connection is
   forgotten at once, so the next lease opens anew; `closeAll()` ends them all and cancels anyone
   waiting.
@@ -32,6 +34,8 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   the lease to a further connection once and is replayed there, unseen by the reader. A channel
   with no first byte in 15 s, while no other channel on the connection was heard from, means a
   dead link: the connection is invalidated and the stream ends as `sharedConnectionLost`.
+  `ByteConnection.abandon()` (a session found its link dead) closes the channel and invalidates
+  the connection too, unless another channel on it was heard from after this one's last byte.
   `SSHErrorClassifier.classifyChannel` reads a channel's stderr: refused by the master, or the
   master gone (ssh then tries a direct connection, which `ProxyCommand=/usr/bin/false` stops);
   both may reconnect.
@@ -58,10 +62,12 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   the one-shot ssh for Get Screens: `SSHCommand`'s options, then a fixed one-line `sh -c`
   script that tries each Hyprland instance as gliff-server does (the session's own, then the
   newest whose socket answers) and prints `hyprctl -j monitors`. `ScreenLister` (macOS) runs
-  it: stdout up to 1 MiB, a 60 s limit (room for a 1Password approval), failures in
-  `SSHErrorClassifier`'s words; too much, too late or cancelled, it ends the process at once
-  (`ProcessConnection.terminate`), and it answers only once the process is reaped. Both it
-  and the `ssh -G` probe read a one-shot program's output through `ProcessOutput`.
+  it, as a channel on a `HostConnections` connection (`ScreenListCommand.remoteCommand`, the
+  app's way) or as one ssh: output up to 1 MiB, a 60 s limit (room for a 1Password approval),
+  failures in `SSHErrorClassifier`'s words; too much, too late or cancelled, it ends the
+  process at once (`ProcessConnection.terminate`) or closes the channel, and it answers only
+  once that is done. It and the `ssh -G` probe read output through `ProcessOutput`.
+  `SSHCommand.remoteCommand` is the session's command line for a channel, as ssh sends it.
 - **Processes (macOS only):** `ProcessTransport` runs a program and speaks over its
   stdin/stdout through `DispatchIO` (never blocking the cooperative pool); it keeps stderr's
   last 16 KiB for the classifier. `SystemSSHTransport` is that with `/usr/bin/ssh` and

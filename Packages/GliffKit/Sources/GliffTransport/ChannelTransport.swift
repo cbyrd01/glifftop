@@ -9,24 +9,31 @@ import Synchronization
 /// - A channel that gives no first byte within `silenceLimit`, while no other channel on the
 ///   connection was heard from either, means the link is dead: the connection is invalidated,
 ///   which ends its channels, and this one ends as `sharedConnectionLost`.
+/// - `abandon()` (the session found the link dead) invalidates the connection too, unless
+///   another channel on it was heard from after this one's last byte: then only its own server
+///   is silent.
+/// - `fresh`: an attempt the person starts, which asks for a sign-in again even when one just
+///   failed (`HostConnections.lease(for:fresh:)`).
 public struct ChannelTransport: Transport {
     private let connections: HostConnections
     private let target: SSHTarget
     private let command: String
     private let silenceLimit: Duration
+    private let fresh: Bool
     private let clock: any Clock<Duration>
 
     public init(
         connections: HostConnections, target: SSHTarget, command: String,
-        silenceLimit: Duration = .seconds(15), clock: any Clock<Duration> = ContinuousClock()
+        silenceLimit: Duration = .seconds(15), fresh: Bool = false,
+        clock: any Clock<Duration> = ContinuousClock()
     ) {
         (self.connections, self.target, self.command) = (connections, target, command)
-        (self.silenceLimit, self.clock) = (silenceLimit, clock)
+        (self.silenceLimit, self.fresh, self.clock) = (silenceLimit, fresh, clock)
     }
 
     public func connect() async throws(TransportError) -> any ByteConnection {
         if Task.isCancelled { throw .cancelled }
-        let lease = try await connections.lease(for: target)
+        let lease = try await connections.lease(for: target, fresh: fresh)
         let channel: any ByteConnection
         do {
             channel = try await lease.channel(command: command)
@@ -57,6 +64,8 @@ final class LeasedChannel: ByteConnection {
         var closed = false
         /// The watchdog found the link dead.
         var linkDead = false
+        /// The connection's activity mark just after this channel's last byte.
+        var lastHeard: Int
     }
     private let state: Mutex<State>
 
@@ -66,7 +75,7 @@ final class LeasedChannel: ByteConnection {
     ) {
         (incoming, continuation) = AsyncThrowingStream.makeStream()
         (self.lease, self.command, self.silenceLimit, self.clock) = (lease, command, silenceLimit, clock)
-        state = Mutex(State(channel: channel))
+        state = Mutex(State(channel: channel, lastHeard: lease.activityMark))
     }
 
     func start() {
@@ -97,6 +106,12 @@ final class LeasedChannel: ByteConnection {
         await lease.end()
     }
 
+    func abandon() async {
+        let (closed, lastHeard) = state.withLock { ($0.closed, $0.lastHeard) }
+        if !closed, lease.quiet(since: lastHeard) { await lease.channelSilent() }
+        await close()
+    }
+
     private func pump() async {
         var channel = state.withLock { $0.channel }
         var failure = await relay(channel)
@@ -125,7 +140,11 @@ final class LeasedChannel: ByteConnection {
             for try await chunk in channel.incoming {
                 watchdog.cancel()
                 lease.heard()
-                state.withLock { $0.kept = nil }
+                let mark = lease.activityMark
+                state.withLock { state in
+                    state.kept = nil
+                    state.lastHeard = mark
+                }
                 continuation.yield(chunk)
             }
             return nil

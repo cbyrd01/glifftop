@@ -1,5 +1,6 @@
 #if os(macOS)
     import Foundation
+    import GliffTestSupport
     import Testing
 
     @testable import GliffTransport
@@ -96,6 +97,98 @@
             let lister = ScreenLister(
                 executable: URL(filePath: "/nonexistent/ssh"), arguments: [], timeout: .seconds(1))
             await #expect(throws: ScreenListError.self) { try await lister.screens() }
+        }
+
+        // On a shared connection: the app's way.
+
+        /// A lister on a fake shared connection, and the channel it opens.
+        private func overALease(
+            timeout: Duration = .seconds(10), clock: any Clock<Duration> = ContinuousClock(),
+            opener: FakeOpener = FakeOpener(), connections: HostConnections? = nil
+        ) async throws
+            -> (Task<[RemoteScreen], any Error>, FakeChannel, FakeOpener)
+        {
+            let connections = connections ?? HostConnections(open: opener.open)
+            let lister = ScreenLister(
+                connections: connections, target: try SSHTarget("omarchy"), timeout: timeout, clock: clock)
+            let listing = Task { try await lister.screens() }
+            try #require(await eventually { opener.made.first?.channels.count == 1 })
+            return (listing, try #require(opener.made.first?.channels.first), opener)
+        }
+
+        @Test func screensComeOverALease() async throws {
+            let (listing, channel, opener) = try await overALease()
+            channel.send(
+                Array(#"[{"name":"DP-2","make":"A","model":"B","width":2560,"height":1440,"scale":1}]"#.utf8))
+            channel.end()
+            #expect(try await listing.value.map(\.name) == ["DP-2"])
+            let target = try SSHTarget("omarchy")
+            #expect(opener.made.first?.commands == [ScreenListCommand(target: target).remoteCommand])
+            #expect(channel.isClosed)
+        }
+
+        @Test func tooMuchOutputEndsTheChannel() async throws {
+            let (listing, channel, _) = try await overALease()
+            channel.send([UInt8](repeating: 0x20, count: ScreenListParser.maxBytes + 1))
+            await #expect(throws: ScreenListError.tooLarge) { try await listing.value }
+            #expect(channel.isClosed)
+        }
+
+        @Test func aSlowHostTimesOut() async throws {
+            let (listing, channel, _) = try await overALease(timeout: .milliseconds(300))
+            await #expect(throws: ScreenListError.timedOut) { try await listing.value }
+            #expect(channel.isClosed)
+        }
+
+        /// The script's own line for a missing hyprctl, as a channel's failure carries it.
+        @Test func aMissingHyprctlSaysSoOverAChannel() async throws {
+            let (listing, channel, _) = try await overALease()
+            channel.fail(.exited(status: 127, failure: .other("hyprctl: command not found")))
+            await #expect(
+                throws: ScreenListError.failed(
+                    .other("hyprctl isn't installed on the host, or isn't on its PATH."))
+            ) {
+                try await listing.value
+            }
+        }
+
+        /// The list comes only at the script's end: a slow one is not a dead link.
+        @Test func aSlowListingLeavesTheConnectionAlone() async throws {
+            let clock = ManualClock()
+            let (listing, channel, opener) = try await overALease(timeout: .seconds(60), clock: clock)
+            #expect(await clock.waitForSleepers(1))
+            clock.advance(by: .seconds(20))
+            try await Task.sleep(for: .milliseconds(50))
+            #expect(opener.made.first?.invalidateCount == 0)
+            channel.send(Array("[]".utf8))
+            channel.end()
+            #expect(try await listing.value.isEmpty)
+        }
+
+        /// Get Screens is the person's own try: it asks for the sign-in again.
+        @Test func getScreensAsksAgain() async throws {
+            let opener = FakeOpener()
+            let connections = HostConnections(open: opener.open)
+            opener.failNext(.exited(status: 255, failure: .agentRefused))
+            await #expect(throws: TransportError.self) {
+                try await connections.lease(for: SSHTarget("omarchy"))
+            }
+            let (listing, channel, _) = try await overALease(opener: opener, connections: connections)
+            channel.send(Array("[]".utf8))
+            channel.end()
+            #expect(try await listing.value.isEmpty)
+        }
+
+        @Test func aConnectionThatCantStartSaysWhy() async throws {
+            let opener = FakeOpener()
+            opener.failNext(.launchFailed("There's no private folder for ssh's connections."))
+            let lister = ScreenLister(
+                connections: HostConnections(open: opener.open), target: try SSHTarget("omarchy"))
+            await #expect(
+                throws: ScreenListError.failed(.other("There's no private folder for ssh's connections."))
+            ) {
+                try await lister.screens()
+            }
         }
     }
 #endif

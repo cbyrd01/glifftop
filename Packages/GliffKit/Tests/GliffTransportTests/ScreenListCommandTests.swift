@@ -6,6 +6,13 @@ import Testing
 @Suite struct ScreenListCommandTests {
     private let target = try! SSHTarget("user@omarchy")
 
+    @Test func theRemoteCommandIsTheArgvTail() {
+        let command = ScreenListCommand(target: target)
+        let tail = command.arguments.drop { $0 != "user@omarchy" }.dropFirst()
+        #expect(command.remoteCommand == tail.joined(separator: " "))
+        #expect(command.remoteCommand.hasPrefix("sh -c '"))
+    }
+
     @Test func theSafetyOptionsComeFirst() {
         let session = SSHCommand(target: target, sshArguments: ["-p", "2222"]).arguments
         let list = ScreenListCommand(target: target, sshArguments: ["-p", "2222"]).arguments

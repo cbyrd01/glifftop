@@ -229,7 +229,7 @@ import os
             isSwitching = false
             return
         }
-        // A listing still running would ask for a second ssh approval beside the session's.
+        // A listing still running is the form's, which the session replaces.
         screenList.stop()
         if !reconnecting {
             cancelReconnect()
@@ -261,8 +261,8 @@ import os
         // its setup, where a Keymap that fails is ignored (it keeps US). The Mac's layout
         // goes as a Keymap straight after, queued before the session runs.
         let session = Session(
-            transport: SystemSSHTransport(
-                command: SSHCommand(target: destination, serverArguments: screen.serverArguments)),
+            transport: AppConnections.session(
+                on: destination, serverArguments: screen.serverArguments, fresh: asksAgain(reconnecting)),
             configuration: SessionConfiguration(maxWidth: pixels.width, maxHeight: pixels.height),
             decoder: decoder, cursor: cursor, clipboard: ClipboardSetup(source: PasteboardSource()))
         self.session = session

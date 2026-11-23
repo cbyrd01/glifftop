@@ -25,7 +25,7 @@ the feature seam.
   bytes 1 s or more after it, arrive within 3 s; bytes sooner may predate the sleep, so they
   don't answer it. `withdrawProbe()` (the network went away) drops a probe waiting; the
   next probe decides. The handshake isn't probed. Closing waits up to 1 s for queued frames (Bye), then closes the
-  connection. Cancelling `run()` is a disconnect. A run of decode failures logs each
+  connection, or abandons it (`ByteConnection.abandon()`) after an unanswered probe. Cancelling `run()` is a disconnect. A run of decode failures logs each
   reason once; the next picture ends the run.
 - **Input:** `Session.send(_:)` queues an `InputMessage` from any thread (`InputQueue`, in
   order); the session sends what `InputGate` admits: a key or button press, motion and

@@ -16,6 +16,14 @@ import Testing
         #expect(SSHCommand.executable == "/usr/bin/ssh")
     }
 
+    /// A channel on a shared connection runs one command line: what ssh would send itself.
+    @Test func theRemoteCommandIsTheArgvTail() {
+        let command = SSHCommand(target: target, serverArguments: ["--output", "DP 2", "it's"])
+        let tail = command.arguments.drop { $0 != "user@omarchy" }.dropFirst()
+        #expect(command.remoteCommand == tail.joined(separator: " "))
+        #expect(command.remoteCommand == "gliff-server --stdio --output 'DP 2' 'it'\\''s'")
+    }
+
     @Test func extraArgumentsLandAroundTheTarget() {
         let command = SSHCommand(
             target: target, sshArguments: ["-p", "2222"], serverArguments: ["--output", "DP-2"])

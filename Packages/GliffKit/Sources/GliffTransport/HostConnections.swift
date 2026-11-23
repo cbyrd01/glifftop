@@ -5,8 +5,12 @@ import os
 /// - Opening is single-flight: everyone asking while a connection opens waits for that one
 ///   sign-in.
 /// - A connection closes `grace` after its last lease ends, so reopening a tab is instant.
-/// - A failed sign-in answers that destination's leases for `failureMemory`, so several tabs
-///   retrying never mean several approval prompts at once.
+/// - A sign-in that asked and failed (the agent refused, the key was refused, no approval in
+///   time) answers that destination's leases for `failureMemory`, so several tabs retrying
+///   never mean several approval prompts at once. A `fresh` lease, an attempt the person
+///   starts, asks again; a failure that asked nothing (an unreachable host) isn't remembered.
+/// - An open that nobody waits for any more (a cancel, `closeAll()`) is cancelled, so a sign-in
+///   prompt doesn't outlive its asker.
 /// - A connection takes at most `leaseLimit` leases (sshd's `MaxSessions` is 10 by default);
 ///   more open a further connection to the same host.
 /// - A lost connection is forgotten as soon as it ends; the next lease opens a new one. Its
@@ -34,7 +38,9 @@ public actor HostConnections {
     private struct Host {
         var live: [Live] = []
         var opening = false
-        var waiters: [Int: CheckedContinuation<Void, Never>] = [:]
+        var openTask: Task<Void, Never>?
+        /// Those waiting for the open, each told its failure (nil: look again).
+        var waiters: [Int: CheckedContinuation<TransportError?, Never>] = [:]
         var failure: TransportError?
         var forget: Task<Void, Never>?
     }
@@ -58,8 +64,9 @@ public actor HostConnections {
         (self.failureMemory, self.leaseLimit) = (failureMemory, leaseLimit)
     }
 
-    public func lease(for target: SSHTarget) async throws(TransportError) -> HostLease {
-        HostLease(owner: self, target: target, place: try await acquire(target))
+    public func lease(for target: SSHTarget, fresh: Bool = false) async throws(TransportError) -> HostLease {
+        if fresh { forgetFailure(target.value) }
+        return HostLease(owner: self, target: target, place: try await acquire(target))
     }
 
     /// Ends every connection, in use or in its grace; a later lease opens anew.
@@ -68,12 +75,13 @@ public actor HostConnections {
         var connections: [any HostConnection] = []
         for host in hosts.values {
             host.forget?.cancel()
+            host.openTask?.cancel()
             for live in host.live {
                 live.grace?.cancel()
                 live.watcher?.cancel()
                 connections.append(live.connection)
             }
-            for waiter in host.waiters.values { waiter.resume() }
+            for waiter in host.waiters.values { waiter.resume(returning: nil) }
         }
         hosts = [:]
         for connection in connections { await connection.close() }
@@ -93,8 +101,14 @@ public actor HostConnections {
             if let failure = hosts[key]?.failure { throw failure }
             if hosts[key]?.opening != true { startOpen(target) }
             let generation = self.generation
-            await waitForOpen(key)
+            let failed = await waitForOpen(key)
             if generation != self.generation { throw .cancelled }
+            // The open waited for failed: that is the answer, unless a place came free meanwhile.
+            // One cancelled because nobody waited any more is not, for a lease that came after.
+            if let failed, failed != .cancelled {
+                if let place = takePlace(key) { return place }
+                throw failed
+            }
         }
     }
 
@@ -111,7 +125,7 @@ public actor HostConnections {
         let key = target.value
         hosts[key, default: Host()].opening = true
         let generation = self.generation
-        Task { [open] in
+        hosts[key]?.openTask = Task { [open] in
             let result: Result<any HostConnection, TransportError>
             do throws(TransportError) {
                 result = .success(try await open(target))
@@ -130,13 +144,17 @@ public actor HostConnections {
             return
         }
         hosts[key]?.opening = false
+        hosts[key]?.openTask = nil
         switch result {
         case .success(let connection): install(connection, key)
         case .failure(let error): remember(error, key)
         }
         let waiters = hosts[key].map { Array($0.waiters.values) } ?? []
         hosts[key]?.waiters = [:]
-        for waiter in waiters { waiter.resume() }
+        let failure: TransportError? =
+            if case .failure(let error) = result { error } else { nil }
+        for waiter in waiters { waiter.resume(returning: failure) }
+        forgetIfIdle(key)
     }
 
     private func install(_ connection: any HostConnection, _ key: String) {
@@ -154,7 +172,7 @@ public actor HostConnections {
     }
 
     private func remember(_ error: TransportError, _ key: String) {
-        guard error != .cancelled else { return }
+        guard case .exited(_, let failure) = error, Self.asked.contains(failure) else { return }
         hosts[key]?.failure = error
         hosts[key]?.forget?.cancel()
         hosts[key]?.forget = Task { [clock, failureMemory] in
@@ -163,8 +181,12 @@ public actor HostConnections {
         }
     }
 
+    /// The failures of a sign-in that asked the person or their agent something.
+    private static let asked: [ConnectFailure] = [.agentRefused, .permissionDenied, .signInTimedOut]
+
     private func forgetFailure(_ key: String) {
         hosts[key]?.failure = nil
+        hosts[key]?.forget?.cancel()
         hosts[key]?.forget = nil
         forgetIfIdle(key)
     }
@@ -177,10 +199,10 @@ public actor HostConnections {
         hosts[key] = nil
     }
 
-    private func waitForOpen(_ key: String) async {
+    private func waitForOpen(_ key: String) async -> TransportError? {
         nextID += 1
         let id = nextID
-        await withTaskCancellationHandler {
+        return await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
                 self.assumeIsolated { $0.hosts[key]?.waiters[id] = continuation }
             }
@@ -190,7 +212,8 @@ public actor HostConnections {
     }
 
     private func stopWaiting(_ key: String, _ id: Int) {
-        hosts[key]?.waiters.removeValue(forKey: id)?.resume()
+        hosts[key]?.waiters.removeValue(forKey: id)?.resume(returning: nil)
+        if hosts[key]?.waiters.isEmpty == true { hosts[key]?.openTask?.cancel() }
         forgetIfIdle(key)
     }
 

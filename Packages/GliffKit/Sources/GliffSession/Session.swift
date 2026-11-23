@@ -24,6 +24,8 @@ public actor Session {
     var core: SessionCore
     private var parser = FrameParser()
     private var connection: (any ByteConnection)?
+    /// A probe went unanswered: the connection is abandoned, not closed.
+    var linkLost = false
     /// Connects, then reads; cancelled by a Disconnect while it is still connecting.
     private var reader: Task<Void, Never>?
     var writer: SessionWriter?
@@ -353,7 +355,7 @@ public actor Session {
         inputs.close()
         await closeClipboard()
         await writer?.drain(within: Self.drainLimit)
-        await connection?.close()
+        if linkLost { await connection?.abandon() } else { await connection?.close() }
         await recorder?.finish()
         recorder = nil
         yield(.ended(end))

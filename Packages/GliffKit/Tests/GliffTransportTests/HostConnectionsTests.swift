@@ -205,6 +205,7 @@ import Testing
         await #expect(throws: TransportError.cancelled) { try await leasing.value }
         #expect(opener.calls == 1)
         opener.release()
+        #expect(await eventually { opener.cancelledCount == 1 })
         #expect(await eventually { opener.made.first?.closeCount == 1 })
     }
 
@@ -215,5 +216,36 @@ import Testing
         #expect(await clock.waitForSleepers(1))
         clock.advance(by: .seconds(10))
         #expect(await eventually { await hosts.hostCount == 0 })
+    }
+
+    /// Only a sign-in that asked something (an agent's approval) is remembered: an unreachable
+    /// host is tried again at once.
+    @Test func aFailureThatAskedNothingIsNotRemembered() async throws {
+        let hosts = connections()
+        opener.failNext(.exited(status: 255, failure: .unreachable))
+        await #expect(throws: TransportError.self) { try await hosts.lease(for: omarchy()) }
+        _ = try await hosts.lease(for: omarchy())
+        #expect(opener.calls == 2)
+    }
+
+    @Test func aFreshLeaseAsksAgain() async throws {
+        let hosts = connections()
+        opener.failNext(.exited(status: 255, failure: .agentRefused))
+        await #expect(throws: TransportError.self) { try await hosts.lease(for: omarchy()) }
+        _ = try await hosts.lease(for: omarchy(), fresh: true)
+        #expect(opener.calls == 2)
+    }
+
+    /// Cancel while the 1Password prompt is up: the sign-in stops too.
+    @Test func anOpenNobodyWaitsForIsCancelled() async throws {
+        let hosts = connections()
+        let target = try omarchy()
+        opener.hold()
+        let leasing = Task { try await hosts.lease(for: target) }
+        #expect(await eventually { opener.waitingCount == 1 })
+        leasing.cancel()
+        await #expect(throws: TransportError.cancelled) { try await leasing.value }
+        opener.release()
+        #expect(await eventually { opener.cancelledCount == 1 })
     }
 }

@@ -165,4 +165,45 @@ import Testing
             for try await _ in connection.incoming {}
         }
     }
+
+    /// A session found its link dead (an unanswered probe), and nothing else on the connection
+    /// was heard from since this channel's last byte: the connection goes too.
+    @Test func abandoningAQuietLinkInvalidates() async throws {
+        let connection = try await transport().connect()
+        try #require(channels.first).send([1])
+        var chunks = connection.incoming.makeAsyncIterator()
+        _ = try await chunks.next()
+        await connection.abandon()
+        #expect(opener.made.first?.invalidateCount == 1)
+        #expect(channels.first?.isClosed == true)
+    }
+
+    /// Another channel was heard from after this one fell silent: its server hung, not the link.
+    @Test func abandoningBesideALiveChannelInvalidatesNothing() async throws {
+        let hung = try await transport().connect()
+        let live = try await transport().connect()
+        try #require(channels.first).send([1])
+        var hungChunks = hung.incoming.makeAsyncIterator()
+        _ = try await hungChunks.next()
+        try #require(channels.last).send([2])
+        var liveChunks = live.incoming.makeAsyncIterator()
+        _ = try await liveChunks.next()
+        await hung.abandon()
+        #expect(opener.made.first?.invalidateCount == 0)
+        #expect(channels.first?.isClosed == true)
+    }
+
+    /// An attempt the person starts asks for the sign-in again, whatever failed just before.
+    @Test func aFreshTransportAsksAgain() async throws {
+        let target = try SSHTarget("omarchy")
+        opener.failNext(.exited(status: 255, failure: .agentRefused))
+        await #expect(throws: TransportError.self) { try await transport().connect() }
+        await #expect(throws: TransportError.self) { try await transport().connect() }
+        #expect(opener.calls == 1)
+        _ = try await ChannelTransport(
+            connections: connections, target: target, command: "gliff-server --stdio", fresh: true,
+            clock: clock
+        ).connect()
+        #expect(opener.calls == 2)
+    }
 }

@@ -8,7 +8,12 @@ struct GlifftopApp: App {
     var body: some Scene {
         Window("Glifftop", id: "main") {
             RootView(model: model)
-                .onAppear { appDelegate.beforeQuit = model.shutdown }
+                .onAppear {
+                    appDelegate.beforeQuit = { [model] in
+                        await model.shutdown()
+                        await AppConnections.closeAll()
+                    }
+                }
         }
         .windowResizability(.contentSize)
         // A remote desktop's height is the picture's: the toolbar takes as little as it can.

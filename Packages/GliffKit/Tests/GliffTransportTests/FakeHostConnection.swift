@@ -29,6 +29,8 @@ final class FakeChannel: ByteConnection {
     }
 
     func send(_ bytes: [UInt8]) { continuation.yield(bytes) }
+    /// The command exits successfully.
+    func end() { continuation.finish() }
     func fail(_ error: TransportError) { continuation.finish(throwing: error) }
 }
 
@@ -108,11 +110,15 @@ final class FakeOpener: Sendable {
         var failures: [TransportError] = []
         var made: [FakeHostConnection] = []
         var writesFail = false
+        var cancelled = 0
     }
 
     private let state = Mutex(State())
 
     var calls: Int { state.withLock { $0.calls } }
+    /// How many opens found their task cancelled once let go (they still go on, as a slow one
+    /// might).
+    var cancelledCount: Int { state.withLock { $0.cancelled } }
     var made: [FakeHostConnection] { state.withLock { $0.made } }
     /// How many opens are waiting for `release()`.
     var waitingCount: Int { state.withLock { $0.waiting.count } }
@@ -146,6 +152,7 @@ final class FakeOpener: Sendable {
             }
             if goOn { continuation.resume() }
         }
+        if Task.isCancelled { state.withLock { $0.cancelled += 1 } }
         if let failure = state.withLock({ $0.failures.isEmpty ? nil : $0.failures.removeFirst() }) {
             throw failure
         }

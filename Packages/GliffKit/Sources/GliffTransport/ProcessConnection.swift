@@ -69,7 +69,7 @@
             } catch {
                 log.error(
                     "launch failed: \(executable.path, privacy: .public): \(error.localizedDescription)")
-                connection.abandon()
+                connection.discardUnstarted()
                 throw .launchFailed(error.localizedDescription)
             }
             log.debug("launched \(executable.path, privacy: .public), pid \(process.processIdentifier)")
@@ -120,7 +120,7 @@
         }
 
         /// The process didn't start: release the pipes and end `incoming`.
-        private func abandon() {
+        private func discardUnstarted() {
             state.withLock { $0.finished = true }
             for io in [stdin, stdout, stderr] { io.close(flags: .stop) }
             continuation.finish()

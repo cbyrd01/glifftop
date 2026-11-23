@@ -12,6 +12,8 @@ final class ReconnectRun {
     var waiter: CheckedContinuation<ReconnectAttempt, Never>?
     /// Reconnect Now before the first countdown began: it is cut short as it starts.
     var skipsFirstWait = false
+    /// Reconnect Now was asked for: the next try asks for a sign-in again, as the person's own.
+    var asked = false
     let network: AsyncStream<Bool>
     let networkChanges: AsyncStream<Bool>.Continuation
 
@@ -41,6 +43,7 @@ extension SessionModel {
     /// ends the session and tries at once; after an end, Try Again.
     func reconnectNow() {
         if let run = reconnectRun {
+            run.asked = true
             Task { await run.reconnector?.reconnectNow() }
         } else if phase == .ended {
             tryAgain()
@@ -50,6 +53,14 @@ extension SessionModel {
             endSession()
             beginReconnect(after: .connectionLost, now: true)
         }
+    }
+
+    /// Whether a session starting asks for a sign-in again (`HostConnections`' fresh lease):
+    /// one the person started does, a reconnect's try only after Reconnect Now.
+    func asksAgain(_ reconnecting: Bool) -> Bool {
+        guard reconnecting, let run = reconnectRun else { return true }
+        defer { run.asked = false }
+        return run.asked
     }
 
     /// Whether Reconnect has something to do.
@@ -135,7 +146,7 @@ extension SessionModel {
             return await self?.attempt(for: run) ?? .ended(.disconnected)
         }
         run.reconnector = reconnector
-        run.skipsFirstWait = now
+        (run.skipsFirstWait, run.asked) = (now, now)
         reconnectRun = run
         refreshHasPicture()
         run.networkChanges.yield(networkUsable)
