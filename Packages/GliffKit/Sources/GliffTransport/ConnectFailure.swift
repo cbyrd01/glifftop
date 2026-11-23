@@ -8,6 +8,10 @@ public enum ConnectFailure: Equatable, Sendable {
     case connectionRefused
     case unreachable
     case serverNotInstalled
+    /// The host refused another session on the shared connection (sshd's `MaxSessions`).
+    case channelRefused
+    /// The shared connection to the host ended under its sessions.
+    case sharedConnectionLost
     /// Anything else: the last line ssh printed, or the exit status.
     case other(String)
 
@@ -28,6 +32,8 @@ public enum ConnectFailure: Equatable, Sendable {
         case .connectionRefused: "The host refused the connection. Is ssh running there?"
         case .unreachable: "The host couldn't be reached."
         case .serverNotInstalled: "gliff-server isn't installed on the host, or isn't on its PATH."
+        case .channelRefused: "The host refused another session on this connection."
+        case .sharedConnectionLost: "The connection to the host was lost."
         case .other(let text): text
         }
     }

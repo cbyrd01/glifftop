@@ -14,9 +14,17 @@ import os
 public actor HostConnections {
     public typealias Open = @Sendable (SSHTarget) async throws(TransportError) -> any HostConnection
 
+    /// A lease's place: which connection, its number, and its activity.
+    struct Place {
+        let id: Int
+        let connection: any HostConnection
+        let activity: ConnectionActivity
+    }
+
     private struct Live {
         let id: Int
         let connection: any HostConnection
+        let activity = ConnectionActivity()
         var leases = 0
         var limit: Int
         var grace: Task<Void, Never>?
@@ -51,8 +59,7 @@ public actor HostConnections {
     }
 
     public func lease(for target: SSHTarget) async throws(TransportError) -> HostLease {
-        let (id, connection) = try await acquire(target)
-        return HostLease(owner: self, target: target, id: id, connection: connection)
+        HostLease(owner: self, target: target, place: try await acquire(target))
     }
 
     /// Ends every connection, in use or in its grace; a later lease opens anew.
@@ -78,7 +85,7 @@ public actor HostConnections {
     var hostCount: Int { hosts.count }
 
     /// A place on a connection with room, opening one if none has.
-    private func acquire(_ target: SSHTarget) async throws(TransportError) -> (Int, any HostConnection) {
+    private func acquire(_ target: SSHTarget) async throws(TransportError) -> Place {
         let key = target.value
         while true {
             if Task.isCancelled { throw .cancelled }
@@ -91,13 +98,13 @@ public actor HostConnections {
         }
     }
 
-    private func takePlace(_ key: String) -> (Int, any HostConnection)? {
+    private func takePlace(_ key: String) -> Place? {
         guard let index = hosts[key]?.live.firstIndex(where: { $0.leases < $0.limit }) else { return nil }
         hosts[key]?.live[index].leases += 1
         hosts[key]?.live[index].grace?.cancel()
         hosts[key]?.live[index].grace = nil
         guard let live = hosts[key]?.live[index] else { return nil }
-        return (live.id, live.connection)
+        return Place(id: live.id, connection: live.connection, activity: live.activity)
     }
 
     private func startOpen(_ target: SSHTarget) {
@@ -235,7 +242,7 @@ public actor HostConnections {
             hosts[key]?.live[index].limit = left
             if left == 0 { startGrace(key, id) }
         }
-        let (newID, newConnection) = try await acquire(lease.target)
-        if !lease.moved(to: newID, newConnection) { give(back: newID, key) }
+        let place = try await acquire(lease.target)
+        if !lease.moved(to: place) { give(back: place.id, key) }
     }
 }

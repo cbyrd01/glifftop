@@ -8,15 +8,18 @@ final class FakeChannel: ByteConnection {
     let incoming: AsyncThrowingStream<[UInt8], any Error>
     private let continuation: AsyncThrowingStream<[UInt8], any Error>.Continuation
     private let state = Mutex((written: [UInt8](), closed: false))
+    private let writesFail: Bool
 
-    init() {
+    init(writesFail: Bool = false) {
         (incoming, continuation) = AsyncThrowingStream.makeStream()
+        self.writesFail = writesFail
     }
 
     var written: [UInt8] { state.withLock { $0.written } }
     var isClosed: Bool { state.withLock { $0.closed } }
 
     func write(_ bytes: [UInt8]) async throws(TransportError) {
+        if writesFail { throw .writeFailed("broken pipe") }
         state.withLock { $0.written += bytes }
     }
 
@@ -42,6 +45,9 @@ final class FakeHostConnection: HostConnection {
     }
 
     private let state = Mutex(State())
+    private let writesFail: Bool
+
+    init(writesFail: Bool = false) { self.writesFail = writesFail }
 
     var commands: [String] { state.withLock { $0.commands } }
     var channels: [FakeChannel] { state.withLock { $0.channels } }
@@ -49,7 +55,7 @@ final class FakeHostConnection: HostConnection {
     var invalidateCount: Int { state.withLock { $0.invalidated } }
 
     func channel(command: String) async throws(TransportError) -> any ByteConnection {
-        let channel = FakeChannel()
+        let channel = FakeChannel(writesFail: writesFail)
         state.withLock {
             $0.commands.append(command)
             $0.channels.append(channel)
@@ -101,6 +107,7 @@ final class FakeOpener: Sendable {
         var waiting: [CheckedContinuation<Void, Never>] = []
         var failures: [TransportError] = []
         var made: [FakeHostConnection] = []
+        var writesFail = false
     }
 
     private let state = Mutex(State())
@@ -123,6 +130,9 @@ final class FakeOpener: Sendable {
 
     func failNext(_ error: TransportError) { state.withLock { $0.failures.append(error) } }
 
+    /// Channels on connections opened from now on fail every write.
+    func failChannelWrites() { state.withLock { $0.writesFail = true } }
+
     var open: HostConnections.Open {
         { [self] _ throws(TransportError) in try await self.open() }
     }
@@ -139,7 +149,7 @@ final class FakeOpener: Sendable {
         if let failure = state.withLock({ $0.failures.isEmpty ? nil : $0.failures.removeFirst() }) {
             throw failure
         }
-        let connection = FakeHostConnection()
+        let connection = FakeHostConnection(writesFail: state.withLock { $0.writesFail })
         state.withLock { $0.made.append(connection) }
         return connection
     }

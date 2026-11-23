@@ -26,6 +26,15 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   refuses a channel takes no more, its lease moving to a further connection; a lost connection is
   forgotten at once, so the next lease opens anew; `closeAll()` ends them all and cancels anyone
   waiting.
+- **A session on a shared connection:** `ChannelTransport` leases a connection and runs the
+  command as a channel, ending the lease when the stream ends. Bytes written before the first
+  byte arrives are kept: a channel refused before then (`ConnectFailure.channelRefused`) moves
+  the lease to a further connection once and is replayed there, unseen by the reader. A channel
+  with no first byte in 15 s, while no other channel on the connection was heard from, means a
+  dead link: the connection is invalidated and the stream ends as `sharedConnectionLost`.
+  `SSHErrorClassifier.classifyChannel` reads a channel's stderr: refused by the master, or the
+  master gone (ssh then tries a direct connection, which `ProxyCommand=/usr/bin/false` stops);
+  both may reconnect.
 - **Screens:** `ScreenChoice` is what a session shows (the focused monitor, one by name,
   or a virtual screen) as gliff-server's arguments. `ScreenListParser` reads the host's
   `hyprctl -j monitors` as untrusted input into `RemoteScreen`s: at most 1 MiB, names only

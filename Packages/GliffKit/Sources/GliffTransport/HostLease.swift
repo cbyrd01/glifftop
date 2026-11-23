@@ -1,5 +1,13 @@
 import Synchronization
 
+/// Counts the bytes' arrivals on one connection, across its channels: a channel silent beside
+/// others that are heard from is slow, not on a dead link.
+final class ConnectionActivity: Sendable {
+    private let count = Mutex(0)
+    func heard() { count.withLock { $0 &+= 1 } }
+    var mark: Int { count.withLock { $0 } }
+}
+
 /// One user's hold on a host's shared connection (a tab's session, a Get Screens): the
 /// connection stays open while any lease does, and for a grace after the last one ends.
 public final class HostLease: Sendable {
@@ -9,14 +17,15 @@ public final class HostLease: Sendable {
     private struct State {
         var id: Int
         var connection: any HostConnection
+        var activity: ConnectionActivity
         var ended = false
     }
     private let state: Mutex<State>
 
-    init(owner: HostConnections, target: SSHTarget, id: Int, connection: any HostConnection) {
+    init(owner: HostConnections, target: SSHTarget, place: HostConnections.Place) {
         self.owner = owner
         self.target = target
-        state = Mutex(State(id: id, connection: connection))
+        state = Mutex(State(id: place.id, connection: place.connection, activity: place.activity))
     }
 
     /// The connection this lease is on, and its number among the host's connections.
@@ -36,13 +45,22 @@ public final class HostLease: Sendable {
 
     /// Puts the lease on its new place; false when it ended during the move, and the place is
     /// the caller's to give back.
-    func moved(to id: Int, _ connection: any HostConnection) -> Bool {
+    func moved(to place: HostConnections.Place) -> Bool {
         state.withLock { state in
             guard !state.ended else { return false }
-            (state.id, state.connection) = (id, connection)
+            (state.id, state.connection, state.activity) = (place.id, place.connection, place.activity)
             return true
         }
     }
+
+    /// A channel on this lease's connection received bytes.
+    func heard() { state.withLock { $0.activity }.heard() }
+
+    /// Where the connection's count of arrivals stands, for `quiet(since:)`.
+    var activityMark: Int { state.withLock { $0.activity }.mark }
+
+    /// Whether no channel on the connection has received anything since `mark`.
+    func quiet(since mark: Int) -> Bool { activityMark == mark }
 
     public func channel(command: String) async throws(TransportError) -> any ByteConnection {
         try await current.connection.channel(command: command)

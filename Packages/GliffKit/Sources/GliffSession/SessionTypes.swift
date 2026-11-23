@@ -129,7 +129,9 @@ public enum SessionEnd: Error, Equatable, Sendable {
     public var mayReconnect: Bool {
         switch self {
         // serverError is only ever a code outside 1–255, which upstream says a retry may fix.
-        case .connectionLost, .serverSetupFailed, .serverError, .connectFailed(.unreachable): true
+        case .connectionLost, .serverSetupFailed, .serverError, .connectFailed(.unreachable),
+            .connectFailed(.channelRefused), .connectFailed(.sharedConnectionLost):
+            true
         default: false
         }
     }
