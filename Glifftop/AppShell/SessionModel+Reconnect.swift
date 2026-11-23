@@ -51,7 +51,7 @@ extension SessionModel {
         } else if phase == .streaming, !quitting {
             // Asked for: it counts afresh.
             reconnectMemory.forget()
-            endSession()
+            endSession(abandoningAQuietLink: true)
             beginReconnect(after: .connectionLost, now: true)
         }
     }

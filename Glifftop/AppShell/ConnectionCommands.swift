@@ -29,9 +29,12 @@ struct ConnectionCommands: Commands {
         }
         CommandGroup(replacing: .newItem) {
             // The key session window's group; without one, a window of its own.
-            Button("New Tab") { openWindow(value: TabRequest(tabOf: model?.tabGroup?.window)) }
-                .keyboardShortcut("t")
-            Button("New Window") { openWindow(value: TabRequest()) }
+            Button("New Tab") {
+                let tabOf = model?.tabGroup?.window
+                openWindow(value: TabRequest(tabOf: tabOf, alone: tabOf == nil, host: model?.host))
+            }
+            .keyboardShortcut("t")
+            Button("New Window") { openWindow(value: TabRequest(alone: true)) }
                 .keyboardShortcut("n")
             Button("New Machine…") { model?.newMachine() }
                 .keyboardShortcut("n", modifiers: [.command, .option])

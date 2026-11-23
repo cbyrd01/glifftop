@@ -11,7 +11,9 @@ struct MachinesView: View {
     /// The window's width while it shows the machines.
     static let width: CGFloat = 600
     let model: SessionModel
-    @AppStorage("lastTarget") private var target = ""
+    /// The field: this window's own, starting from the host of the tab it was opened beside,
+    /// else the last host connected to.
+    @State private var target = ""
     @State private var options = AppSettings.defaultOptions
     /// What Options were last filled with (Settings', or the saved machine's the field names):
     /// while `options` still equal them, they follow the field and Settings; once edited, they
@@ -44,10 +46,14 @@ struct MachinesView: View {
                         .labelStyle(.titleAndIcon)
                         .padding(.horizontal, 6)
                 }
-                .help("New Machine… (⌘N)")
+                .help("New Machine… (⌥⌘N)")
             }
         }
-        .onAppear { fillOptions(for: target) }
+        .onAppear {
+            let lastHost = UserDefaults.standard.string(forKey: SessionModel.lastHostKey)
+            target = [model.fieldHost, lastHost].compactMap(\.self).first { !$0.isEmpty } ?? ""
+            fillOptions(for: target)
+        }
         // Posted on whichever thread changed the defaults: handled on the main one.
         .onReceive(
             NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification).receive(

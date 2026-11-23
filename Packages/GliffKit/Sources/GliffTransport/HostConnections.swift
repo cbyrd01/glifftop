@@ -70,7 +70,8 @@ public actor HostConnections {
 
     public func lease(for target: SSHTarget, fresh: Bool = false) async throws(TransportError) -> HostLease {
         if fresh { forgetFailure(target.value) }
-        return HostLease(owner: self, target: target, place: try await acquire(target))
+        let place = try await acquire(target)
+        return HostLease(owner: self, target: target, place: place, generation: generation)
     }
 
     /// Ends every connection, in use or in its grace, and every open under way (returning once
@@ -280,8 +281,10 @@ public actor HostConnections {
     }
 
     /// `lease`'s connection refused a channel: it is full at the leases it has left, and the
-    /// lease moves to another. A lease that has ended moves nowhere.
+    /// lease moves to another. A lease that has ended, or was taken before a `closeAll()`,
+    /// moves nowhere.
     func move(_ lease: HostLease) async throws(TransportError) {
+        guard lease.generation == generation else { throw .cancelled }
         let key = lease.key
         guard let (id, _) = lease.beginMove() else { return }
         if let index = hosts[key]?.live.firstIndex(where: { $0.id == id }) {

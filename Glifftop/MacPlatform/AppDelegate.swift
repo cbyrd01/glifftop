@@ -1,4 +1,5 @@
 import AppKit
+import GliffTransport
 
 /// Lets quitting wait for async cleanup, such as the sessions' Bye and ssh's exit, before the
 /// process ends. Closing the last window quits, so this covers both.
@@ -8,6 +9,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var beforeQuit: (() async -> Void)?
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+
+    /// The ssh sockets' folder is prepared now: the masters a Glifftop that crashed left
+    /// signed in are ended at launch, not at the first connection.
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        Task { await SystemSSH.prepare() }
+    }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         // A paste on the Mac fetching from the remote ends first, without data.

@@ -28,6 +28,8 @@ public actor Session {
     private var connection: (any ByteConnection)?
     /// A probe went unanswered: the connection is abandoned, not closed.
     var linkLost = false
+    /// Reconnect Now: a link interrupted when the session ends is abandoned too.
+    private var abandonsQuietLink = false
     /// Connects, then reads; cancelled by a Disconnect while it is still connecting.
     private var reader: Task<Void, Never>?
     var writer: SessionWriter?
@@ -115,7 +117,10 @@ public actor Session {
     }
 
     /// Says Bye and ends the session as `.disconnected`. Input sent before this goes first.
-    public func disconnect() async {
+    /// `abandoningAQuietLink`: Reconnect Now, whose next try mustn't wait on a link that is
+    /// interrupted now (`ByteConnection.abandon()`); a close or Disconnect closes only its own.
+    public func disconnect(abandoningAQuietLink: Bool = false) async {
+        if abandoningAQuietLink { abandonsQuietLink = true }
         // Still connecting: there's no Bye to send, so the connect (ssh -G, ssh) stops now.
         if connection == nil { reader?.cancel() }
         deliverInput(finishing: true)
@@ -352,9 +357,9 @@ public actor Session {
         inputs.close()
         await closeClipboard()
         await writer?.drain(within: Self.drainLimit)
-        // A link found dead, or quiet when the session ends (Reconnect Now while interrupted),
-        // is abandoned: the next try mustn't wait on it.
-        if linkLost || liveness.isInterrupted {
+        // A link found dead, or quiet when Reconnect Now ends the session, is abandoned: the
+        // next try mustn't wait on it.
+        if linkLost || abandonsQuietLink && liveness.isInterrupted {
             await connection?.abandon()
         } else {
             await connection?.close()

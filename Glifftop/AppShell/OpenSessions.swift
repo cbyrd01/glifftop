@@ -1,5 +1,6 @@
 import Foundation
 import GliffInput
+import GliffMachines
 import Observation
 
 /// The open windows' models, in opening order, held weakly: what a new tab, a machine's host
@@ -50,6 +51,12 @@ import Observation
     func isOpen(_ host: String, besides model: SessionModel) -> Bool {
         let host = host.trimmingCharacters(in: .whitespacesAndNewlines)
         return models.contains { $0 !== model && $0.isActive && $0.host == host }
+    }
+
+    /// The machine sheet saved `saved`: every window showing it takes its options, so none
+    /// records its older ones back over them.
+    func machineSaved(_ saved: Machine) {
+        for model in models { model.machineSaved(saved) }
     }
 
     /// Ends every window's session and waits for each to end, closed windows' too, for quitting.

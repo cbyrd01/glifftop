@@ -2,20 +2,23 @@ import AppKit
 import SwiftUI
 
 /// The window's native tabs: joins the tab group of window `tabOf` once (a new tab, added after
-/// its last tab), and reports the window's number and its group's, in tab order, at each change
-/// (a tab added, closed, moved or torn off), and the window's close.
+/// its last tab), or leaves any group once when opened `alone`, and reports the window's number
+/// and its group's, in tab order, at each change (a tab added, closed, moved or torn off), and
+/// the window's close.
 ///
 /// A SwiftUI window is already ordered in when its content reaches it, so `tabbingMode` can't
 /// place it: the group is joined with `addTabbedWindow`, and a window opened alone that macOS
-/// tabbed anyway (System Settings' "Prefer tabs: Always") leaves its group.
+/// tabbed anyway (System Settings' "Prefer tabs: Always") leaves its group. Any other window
+/// (the tab bar's +) stays where macOS put it.
 struct WindowTabbing: NSViewRepresentable {
     static let identifier = "session"
 
     let tabOf: Int?
+    let alone: Bool
     let changed: (_ group: (window: Int, tabs: [Int])) -> Void
     let closed: () -> Void
 
-    func makeNSView(context: Context) -> TabbingView { TabbingView(tabOf: tabOf) }
+    func makeNSView(context: Context) -> TabbingView { TabbingView(tabOf: tabOf, alone: alone) }
 
     func updateNSView(_ view: TabbingView, context: Context) {
         (view.changed, view.closed) = (changed, closed)
@@ -34,6 +37,7 @@ final class TabbingView: NSView {
     var changed: (_ group: (window: Int, tabs: [Int])) -> Void = { _ in }
     var closed: () -> Void = {}
     private let tabOf: Int?
+    private let alone: Bool
     /// Whether the window has been placed: in the requested group, or alone.
     private var placed = false
     private var groupObservation: NSKeyValueObservation?
@@ -42,8 +46,8 @@ final class TabbingView: NSView {
     private var windowObservation: NSKeyValueObservation?
     private var closeObserver: (any NSObjectProtocol)?
 
-    init(tabOf: Int?) {
-        self.tabOf = tabOf
+    init(tabOf: Int?, alone: Bool) {
+        (self.tabOf, self.alone) = (tabOf, alone)
         super.init(frame: .zero)
     }
 
@@ -78,7 +82,7 @@ final class TabbingView: NSView {
     /// Joins the requested group; a window opened alone stays alone.
     private func place(_ window: NSWindow) {
         guard let tabOf else {
-            if let group = window.tabGroup, group.windows.count > 1 { group.removeWindow(window) }
+            if alone, let group = window.tabGroup, group.windows.count > 1 { group.removeWindow(window) }
             return
         }
         // Already in its group: macOS tabbed it ("Prefer tabs: Always").

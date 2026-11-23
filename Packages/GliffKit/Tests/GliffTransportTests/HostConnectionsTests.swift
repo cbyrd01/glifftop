@@ -80,10 +80,14 @@ import Testing
         leasing.cancel()
         await #expect(throws: TransportError.cancelled) { try await leasing.value }
         opener.release()
-        #expect(await eventually { opener.made.count == 1 })
-        #expect(await clock.waitForSleepers(1))
-        clock.advance(by: .seconds(10))
-        #expect(await eventually { opener.made.first?.closeCount == 1 })
+        #expect(await eventually { await hosts.connectionCount(for: target) == 1 })
+        // The open's 1 s drop timer may still be asleep beside the 10 s grace: advance until
+        // the grace has run, whichever sleeper registered first.
+        #expect(
+            await eventually {
+                clock.advance(by: .seconds(10))
+                return opener.made.first?.closeCount == 1
+            })
     }
 
     @Test func aLostConnectionIsRebuiltOnce() async throws {
@@ -158,6 +162,16 @@ import Testing
         _ = try await hosts.lease(for: omarchy())
         #expect(opener.calls == 3)
         _ = held
+    }
+
+    /// Quitting: a lease whose connection `closeAll()` ended moves nowhere, so no sign-in
+    /// starts after it.
+    @Test func aLeaseMovesNowhereAfterCloseAll() async throws {
+        let hosts = connections()
+        let held = try await hosts.lease(for: omarchy())
+        await hosts.closeAll()
+        await #expect(throws: TransportError.cancelled) { try await held.channelRefused() }
+        #expect(opener.calls == 1)
     }
 
     /// Quitting with several hosts waits for the slowest `-O exit`, not their sum.

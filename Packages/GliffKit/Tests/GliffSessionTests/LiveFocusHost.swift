@@ -59,12 +59,13 @@
             return list.first { $0["focused"] as? Bool == true }?["id"] as? Int
         }
 
-        /// The addresses of the windows on `monitor` (each `0x` and hex digits).
-        static func windows(on monitor: Int) throws -> [String] {
+        /// The addresses (each `0x` and hex digits) of the windows on `monitor`, or on every
+        /// monitor.
+        static func windows(on monitor: Int? = nil) throws -> [String] {
             let clients = try #require(try json("clients") as? [[String: Any]])
             return clients.compactMap { client in
-                guard client["monitor"] as? Int == monitor, let address = client["address"] as? String,
-                    address.wholeMatch(of: /0x[0-9a-f]+/) != nil
+                guard monitor == nil || client["monitor"] as? Int == monitor,
+                    let address = client["address"] as? String, address.wholeMatch(of: /0x[0-9a-f]+/) != nil
                 else { return nil }
                 return address
             }
@@ -72,9 +73,9 @@
 
         static func windowCount(on monitor: Int) throws -> Int { try windows(on: monitor).count }
 
-        /// Closes the windows on `monitor`, by address: only the test's own virtual screens'.
-        static func closeWindows(on monitor: Int) throws {
-            for address in try windows(on: monitor) {
+        /// Closes the windows the test opened, by address, those still open: never another.
+        static func closeWindows(_ addresses: Set<String>) throws {
+            for address in try windows() where addresses.contains(address) {
                 _ = try run("hyprctl dispatch closewindow address:\(address)")
             }
         }

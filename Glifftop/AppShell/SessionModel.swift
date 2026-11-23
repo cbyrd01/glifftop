@@ -140,6 +140,9 @@ import os
     private var shownStream: StreamInfo?
     /// The ssh destination as typed (for "Connecting to user@host…").
     private(set) var host = ""
+    /// The machines' field until this window's first connection: the host of the tab it was
+    /// opened beside (File ▸ New Tab).
+    @ObservationIgnored var fieldHost: String?
     /// The session's destination, for View ▸ Screen's new session to the same host.
     private(set) var destination: SSHTarget?
     private(set) var session: Session?
@@ -247,7 +250,9 @@ import os
             cancelReconnect()
             (gaveUp, sheetScreen) = (false, nil)
         }
-        endSession()
+        // A new session to the same host (View ▸ Screen, a reconnect's try) mustn't wait on the
+        // old one's link if it is interrupted now.
+        endSession(abandoningAQuietLink: destination == self.destination)
         (showsConnectionInfo, dismissedClipboardRun, keepsWindow) = (false, nil, reconnecting)
         recorded = false
         self.destination = destination
@@ -332,11 +337,12 @@ import os
 
     /// Says Bye and ends the session (no-op once it has ended), leaving a reconnect be. Keys the
     /// remote holds are let go first: their releases are queued ahead of the Bye.
-    func endSession() {
+    /// `abandoningAQuietLink`: Reconnect Now, whose next try mustn't wait on an interrupted link.
+    func endSession(abandoningAQuietLink: Bool = false) {
         capture.detach()
         clipboard.detach()
         guard let session else { return }
-        Task { await session.disconnect() }
+        Task { await session.disconnect(abandoningAQuietLink: abandoningAQuietLink) }
     }
 
     /// Says Bye and waits for the session to end and ssh to exit, for quitting. Bounded: the

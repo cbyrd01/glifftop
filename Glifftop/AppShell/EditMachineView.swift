@@ -121,7 +121,7 @@ struct EditMachineView: View {
         saved.name = saved.name.trimmingCharacters(in: .whitespacesAndNewlines)
         if saved.name.isEmpty { saved.name = saved.destination }
         model.machines.saveEdit(saved)
-        model.machineSaved(saved)
+        OpenSessions.shared.machineSaved(saved)
         dismiss()
         return saved
     }

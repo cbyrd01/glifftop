@@ -125,5 +125,20 @@
             #expect(try await sockets.next() == preferred.path + "/\(pid)-2")
             #expect(tries.withLock { $0 } == 2)
         }
+
+        /// At launch: the directory is prepared (the masters of Glifftops no longer running are
+        /// ended) before any connection, and once only.
+        @Test func preparingAtLaunchIsDoneOnce() async throws {
+            let tries = Mutex(0)
+            let preferred = root.appending(path: "ssh")
+            let sockets = SystemSSHSockets {
+                tries.withLock { $0 += 1 }
+                return try? ControlSocketDirectory.prepare(preferred: preferred, fallback: preferred)
+            }
+            await sockets.prepare()
+            #expect(tries.withLock { $0 } == 1)
+            #expect(try await sockets.next() == preferred.path + "/\(getpid())-1")
+            #expect(tries.withLock { $0 } == 1)
+        }
     }
 #endif

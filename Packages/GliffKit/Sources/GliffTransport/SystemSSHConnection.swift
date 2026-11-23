@@ -164,9 +164,12 @@
     }
 
     /// The app's opener for `HostConnections`. Every opener shares one numbering of sockets in
-    /// one directory, prepared on the first open: the masters of Glifftops no longer running are
-    /// ended then.
+    /// one directory, prepared at launch (`prepare()`), else on the first open: the masters of
+    /// Glifftops no longer running are ended then.
     public enum SystemSSH {
+        /// Prepares the sockets' directory now, ending stale masters: at the app's launch.
+        public static func prepare() async { await SystemSSHSockets.shared.prepare() }
+
         public static func opener() -> HostConnections.Open {
             { target throws(TransportError) in
                 try await SystemSSHConnection.open(target: target, socket: SystemSSHSockets.shared.next())
@@ -178,21 +181,29 @@
     actor SystemSSHSockets {
         static let shared = SystemSSHSockets(prepare: standard)
 
-        private let prepare: @Sendable () async -> ControlSocketDirectory?
+        private let makeDirectory: @Sendable () async -> ControlSocketDirectory?
         private var directory: Task<ControlSocketDirectory?, Never>?
         private var number: UInt32 = 0
 
-        init(prepare: @escaping @Sendable () async -> ControlSocketDirectory?) { self.prepare = prepare }
+        init(prepare: @escaping @Sendable () async -> ControlSocketDirectory?) { makeDirectory = prepare }
+
+        /// The directory, prepared once it works: a failure is tried again next time.
+        func prepare() async { _ = await prepared() }
 
         func next() async throws(TransportError) -> String {
-            let preparing = directory ?? Task { [prepare] in await prepare() }
-            directory = preparing
-            guard let directory = await preparing.value else {
-                self.directory = nil
+            guard let directory = await prepared() else {
                 throw .launchFailed("There's no private folder for ssh's connections.")
             }
             number &+= 1
             return directory.socketPath(number: number)
+        }
+
+        private func prepared() async -> ControlSocketDirectory? {
+            let preparing = directory ?? Task { [makeDirectory] in await makeDirectory() }
+            directory = preparing
+            let prepared = await preparing.value
+            if prepared == nil, directory == preparing { directory = nil }
+            return prepared
         }
 
         private static func standard() async -> ControlSocketDirectory? {

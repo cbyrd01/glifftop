@@ -44,6 +44,7 @@ final class FakeHostConnection: HostConnection {
         var invalidated = 0
         var end: ConnectFailure??
         var waiter: CheckedContinuation<ConnectFailure?, Never>?
+        var channelFailure: TransportError?
     }
 
     private let state = Mutex(State())
@@ -60,12 +61,19 @@ final class FakeHostConnection: HostConnection {
     var closeCount: Int { state.withLock { $0.closed } }
     var invalidateCount: Int { state.withLock { $0.invalidated } }
 
+    /// The next channel asked for fails to open with `failure`.
+    func failNextChannel(_ failure: TransportError) { state.withLock { $0.channelFailure = failure } }
+
     func channel(command: String) async throws(TransportError) -> any ByteConnection {
         let channel = FakeChannel(writesFail: writesFail)
-        state.withLock {
-            $0.commands.append(command)
-            $0.channels.append(channel)
+        let failure = state.withLock { state -> TransportError? in
+            defer { state.channelFailure = nil }
+            guard state.channelFailure == nil else { return state.channelFailure }
+            state.commands.append(command)
+            state.channels.append(channel)
+            return nil
         }
+        if let failure { throw failure }
         return channel
     }
 

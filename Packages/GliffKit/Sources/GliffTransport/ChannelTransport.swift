@@ -38,7 +38,7 @@ public struct ChannelTransport: Transport {
         let lease = try await connections.lease(for: target, fresh: fresh)
         let channel: any ByteConnection
         do {
-            channel = try await lease.channel(command: command)
+            channel = try await Self.firstChannel(on: lease, command: command)
         } catch {
             await lease.end()
             throw error
@@ -47,6 +47,19 @@ public struct ChannelTransport: Transport {
             lease: lease, command: command, channel: channel, silenceLimit: silenceLimit, clock: clock)
         connection.start()
         return connection
+    }
+
+    /// The command's channel; on a connection found lost (its master died before anyone
+    /// noticed), the lease moves once and opens it on the next.
+    private static func firstChannel(on lease: HostLease, command: String) async throws(TransportError)
+        -> any ByteConnection
+    {
+        do {
+            return try await lease.channel(command: command)
+        } catch .exited(_, .sharedConnectionLost) {
+            try await lease.channelRefused()
+            return try await lease.channel(command: command)
+        }
     }
 }
 

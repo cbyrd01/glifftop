@@ -74,9 +74,25 @@
             for await status in session.status {
                 if case .interrupted(true) = status { break }
             }
-            await session.disconnect()
+            await session.disconnect(abandoningAQuietLink: true)
             await runner.value
             #expect(spy.abandoned == 1)
+        }
+
+        /// Closing a tab while its link is interrupted: only its channel closes, so the other
+        /// tabs on the connection keep it if the link comes back.
+        @Test func aCloseWhileInterruptedOnlyCloses() async throws {
+            let spy = try #require(AbandonSpy(["stall", "20000"]))
+            let session = Session(
+                transport: spy, configuration: SessionConfiguration(maxWidth: 4096, maxHeight: 4096),
+                decoder: SpyDecoder())
+            let runner = Task { await session.run() }
+            for await status in session.status {
+                if case .interrupted(true) = status { break }
+            }
+            await session.disconnect()
+            await runner.value
+            #expect(spy.abandoned == 0)
         }
 
         @Test func aDisconnectClosesWithoutAbandoning() async throws {

@@ -27,7 +27,7 @@ import Observation
     /// remote, its repeats and key-up too.
     @ObservationIgnored var onTabChord: (TabChord, Int?) -> Void = { _, _ in }
     /// The Mac pointer over the uncovered picture, in remote coordinates (`VideoNSView`): an
-    /// activation's first choice. Reset at each attach, until the session's view sets it.
+    /// activation's first choice, set by the window's video view.
     @ObservationIgnored var macPointer: () -> (x: Double, y: Double)? = { nil }
     /// Where an activation puts the remote pointer, given `macPointer`'s answer: the session's
     /// (`attach`), nil without a stream, and then nothing is sent.
@@ -70,7 +70,7 @@ import Observation
     ) {
         detach()
         controller = InputController(keymap: "")
-        (self.target, self.send, macPointer) = (target, send, { nil })
+        (self.target, self.send) = (target, send)
         keymapChanged()
         apply(.appActive(NSApplication.shared.isActive))
         apply(.windowKey(window?.isKeyWindow ?? false))

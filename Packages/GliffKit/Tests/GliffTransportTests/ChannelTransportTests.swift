@@ -216,6 +216,27 @@ import Testing
         #expect(try await chunks.next() == [9])
     }
 
+    /// The connection's master died just before the lease reached it: the first channel moves
+    /// to a new connection, as a replay does.
+    @Test func aFirstChannelOnADeadConnectionMoves() async throws {
+        _ = try await transport().connect()
+        try #require(opener.made.first).failNextChannel(.exited(status: 255, failure: .sharedConnectionLost))
+        let connection = try await transport().connect()
+        #expect(opener.calls == 2)
+        let second = try #require(opener.made.last?.channels.first)
+        second.send([9])
+        var chunks = connection.incoming.makeAsyncIterator()
+        #expect(try await chunks.next() == [9])
+    }
+
+    /// A first channel that fails otherwise fails the connect, and moves nothing.
+    @Test func aFirstChannelsOtherFailureIsThrown() async throws {
+        _ = try await transport().connect()
+        try #require(opener.made.first).failNextChannel(.launchFailed("no ssh"))
+        await #expect(throws: TransportError.launchFailed("no ssh")) { try await transport().connect() }
+        #expect(opener.calls == 1)
+    }
+
     /// A session found its link dead (an unanswered probe), and nothing else on the connection
     /// was heard from since this channel's last byte: the connection goes too.
     @Test func abandoningAQuietLinkInvalidates() async throws {

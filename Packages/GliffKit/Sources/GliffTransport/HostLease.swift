@@ -14,6 +14,8 @@ public final class HostLease: Sendable {
     private let owner: HostConnections
     let target: SSHTarget
     var key: String { target.value }
+    /// The `HostConnections` generation it was taken in: after a `closeAll()` it moves nowhere.
+    let generation: Int
     private struct State {
         var id: Int
         var connection: any HostConnection
@@ -22,9 +24,8 @@ public final class HostLease: Sendable {
     }
     private let state: Mutex<State>
 
-    init(owner: HostConnections, target: SSHTarget, place: HostConnections.Place) {
-        self.owner = owner
-        self.target = target
+    init(owner: HostConnections, target: SSHTarget, place: HostConnections.Place, generation: Int) {
+        (self.owner, self.target, self.generation) = (owner, target, generation)
         state = Mutex(State(id: place.id, connection: place.connection, activity: place.activity))
     }
 

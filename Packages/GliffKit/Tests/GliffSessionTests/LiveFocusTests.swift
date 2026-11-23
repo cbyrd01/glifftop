@@ -28,6 +28,7 @@
             let target = try SSHTarget(try #require(LiveHost.target))
             let connections = HostConnections(open: SystemSSH.opener())
             var screens: [(LiveFocusScreen, LiveHyprland.Monitor?)] = []
+            var opened: Set<String> = []
             do {
                 let before = Set(try LiveHyprland.monitors().map(\.name))
                 for _ in 0..<2 {
@@ -46,28 +47,38 @@
                     try await nap(0.5)
                     try #require(
                         try LiveHyprland.focusedMonitor() == monitor?.id, "focus never reached the screen")
+                    let existing = Set(try LiveHyprland.windows())
                     screen.chord(Self.returnKey)
                     try await nap(2)
                     screen.capture(.windowKey(false))
+                    opened.formUnion(
+                        Set(try LiveHyprland.windows(on: try #require(monitor).id)).subtracting(existing))
                 }
                 try await body(
                     Pair(
                         a: screens[0].0, b: screens[1].0, monitorA: try #require(screens[0].1),
                         monitorB: try #require(screens[1].1)))
             } catch {
-                await close(screens, connections)
+                await close(screens, opened, connections)
                 throw error
             }
-            await close(screens, connections)
+            await close(screens, opened, connections)
         }
 
         private func close(
-            _ screens: [(LiveFocusScreen, LiveHyprland.Monitor?)], _ connections: HostConnections
+            _ screens: [(LiveFocusScreen, LiveHyprland.Monitor?)], _ opened: Set<String>,
+            _ connections: HostConnections
         ) async {
-            for (screen, monitor) in screens {
-                screen.capture(.windowKey(false))
-                if let monitor { try? LiveHyprland.closeWindows(on: monitor.id) }
+            for (screen, _) in screens { screen.capture(.windowKey(false)) }
+            // A terminal mapped late is still on the test's own screen: its monitor, rechecked
+            // by name too, since Hyprland reuses ids.
+            var closing = opened
+            let current = (try? LiveHyprland.monitors()) ?? []
+            for case (_, let monitor?) in screens
+            where current.contains(where: { $0.id == monitor.id && $0.name == monitor.name }) {
+                closing.formUnion((try? LiveHyprland.windows(on: monitor.id)) ?? [])
             }
+            try? LiveHyprland.closeWindows(closing)
             try? await nap(1)
             for (screen, _) in screens { await screen.end() }
             await connections.closeAll()
