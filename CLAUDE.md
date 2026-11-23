@@ -17,10 +17,11 @@ desktop for Hyprland/Omarchy, written in Swift. Not affiliated with Gliff.
   - keyboard and pointer capture, and the remote cursor shape;
   - choosing the screen (a monitor, the focused one, or a virtual screen that follows the window);
   - the shared clipboard: text, HTML and images, both ways, off until turned on;
-  - saved machines with their options, and reconnecting by itself after a lost link.
+  - saved machines with their options, and reconnecting by itself after a lost link;
+  - tabs and windows, one session each, sharing one ssh connection per host, with input and
+    the host's focus following the window on top.
 - **Not yet:**
   - files over the clipboard;
-  - tabs;
   - an optional event tap for ⌘Space and ⌘Tab (they stay with the Mac);
   - signed releases.
 - **Known, upstream:** Hyprland 0.56.2 shares every cursor image fully transparent, so the
@@ -240,12 +241,15 @@ This file wins over any skill, including a skill's "supersedes prior training" c
 ```
 Glifftop.app   Glifftop/: AppShell (SwiftUI windows, settings) + MacPlatform (AppKit adapters)
 GliffKit       Packages/GliffKit/, platform-neutral, one target per module
-  GliffMachines   saved machines and their options, as JSON for the app to store
+  GliffMachines   saved machines and their options, as JSON for the app to store; a new tab's
+                  options and the tabs' titles
   GliffSession    per-window actor: handshake, reader/writer tasks, acks, resize, input order
   GliffClipboard  offer/request/data/ack/abort state machine, sharing policy (no pasteboard)
   GliffVideo      H.264 → VideoToolbox (2 sessions) → Metal recombine → BGRA texture
-  GliffInput      macOS keycode → evdev, key ledger, XKB keymap text, pointer mapping, cursor
-  GliffTransport  `Transport` protocol; SystemSSHTransport spawns /usr/bin/ssh … gliff-server --stdio
+  GliffInput      macOS keycode → evdev, key ledger, XKB keymap text, pointer mapping, cursor,
+                  focus target, the tab chord
+  GliffTransport  `Transport` protocol; HostConnections: one ssh ControlMaster per host, each
+                  session a channel on it (ChannelTransport) running gliff-server --stdio
   GliffProtocol   frame header, minimal CBOR, ClientMessage/ServerMessage; pure, no I/O
   GliffTestSupport  test doubles shared by the test targets (ManualClock); never in the product
 ```
