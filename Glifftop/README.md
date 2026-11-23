@@ -128,6 +128,11 @@ AppKit adapters for what SwiftUI can't do:
   and a window opened alone that macOS tabbed anyway leaves its group; it reports the window's
   number and its group's in tab order (KVO on the group's windows) and the window's close;
   Close Window closes every tab of the key window's group;
+- switching tabs (`TabSwitcher`): Window ▸ Previous Tab and Next Tab (⇧⌘[, ⇧⌘]), and the same
+  chord over the picture, taken by `CaptureController`'s key monitor before the remote (while
+  captured, too), select the window's previous or next tab; in a window of one tab, the
+  previous or next session window in opening order (a group once, as its selected tab), whose
+  Space comes forward;
 - the video view: `VideoNSView`, a `CAMetalLayer` (sRGB, opaque) that a display link draws
   into through `PictureRenderer` only when there is a new picture, a new drawable size or a
   new view box for the picture on screen, or Scale to Fit toggled, and only while the window

@@ -24,6 +24,9 @@ struct SessionWindow: View {
                     OpenSessions.shared.close(model)
                 }
             }
-            .onAppear { OpenSessions.shared.add(model) }
+            .onAppear {
+                OpenSessions.shared.add(model)
+                model.capture.onTabChord = OpenSessions.shared.selectTab
+            }
     }
 }

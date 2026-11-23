@@ -1,8 +1,10 @@
+import GliffInput
 import SwiftUI
 
 /// The Connection menu: Disconnect (⇧⌘D), Reconnect (⇧⌘R: Reconnect Now, or Try Again), Connection
 /// Info (⌘I) and Edit Machine… (⌘E, the session's machine once it has one); and in File, New Tab
-/// (⌘T), New Window (⌘N), New Machine… (⌥⌘N) and Close Window (⇧⌘W, every tab of the window).
+/// (⌘T), New Window (⌘N), New Machine… (⌥⌘N) and Close Window (⇧⌘W, every tab of the window); in
+/// Window, Previous Tab (⇧⌘[) and Next Tab (⇧⌘]), to the next window when the window has one tab.
 /// They act on the key window's session, disabled without one. Everything they read changes only
 /// with its value (`SessionModel+Chrome`), never with the stats each second.
 struct ConnectionCommands: Commands {
@@ -35,10 +37,22 @@ struct ConnectionCommands: Commands {
                 .keyboardShortcut("n", modifiers: [.command, .option])
                 .disabled(model == nil)
         }
+        CommandGroup(before: .windowArrangement) {
+            // Over a picture, the window's key monitor takes the chord first (`CaptureController`).
+            tabButton("Previous Tab", .previous, key: "[")
+            tabButton("Next Tab", .next, key: "]")
+            Divider()
+        }
         CommandGroup(after: .saveItem) {
             Button("Close Window", action: WindowTabbing.closeKeyWindowGroup)
                 .keyboardShortcut("w", modifiers: [.command, .shift])
                 .disabled(model == nil)
         }
+    }
+
+    private func tabButton(_ title: String, _ chord: TabChord, key: KeyEquivalent) -> some View {
+        Button(title) { OpenSessions.shared.selectTab(chord, from: model?.tabGroup?.window) }
+            .keyboardShortcut(key, modifiers: [.command, .shift])
+            .disabled(OpenSessions.shared.models.count < 2)
     }
 }

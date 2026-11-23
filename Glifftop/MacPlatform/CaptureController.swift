@@ -21,6 +21,11 @@ import Observation
     /// App, workspace and distributed observers, each with its centre: for the controller's life.
     @ObservationIgnored private var observers: [(NotificationCenter, any NSObjectProtocol)] = []
     @ObservationIgnored private var hintTimer: Task<Void, Never>?
+    /// One for every window: the chord's repeats and key-up reach the window it moved to.
+    @ObservationIgnored private static var chordKeys = TabChordKeys()
+    /// ⌘⇧[ or ⌘⇧] over the picture, captured or not, with the window's number: kept from the
+    /// remote, its repeats and key-up too.
+    @ObservationIgnored var onTabChord: (TabChord, Int?) -> Void = { _, _ in }
     /// The Mac pointer over the uncovered picture, in remote coordinates (`VideoNSView`): an
     /// activation's first choice. Reset at each attach, until the session's view sets it.
     @ObservationIgnored var macPointer: () -> (x: Double, y: Double)? = { nil }
@@ -163,9 +168,15 @@ import Observation
 
     /// nil (swallowed) when the event was for the remote.
     private func key(_ event: NSEvent) -> NSEvent? {
-        guard event.window === window, let key = MacKeyEvent(event), let result = controller?.key(key) else {
-            return event
+        guard event.window === window, let key = MacKeyEvent(event) else { return event }
+        switch Self.chordKeys.take(key) {
+        case .chord(let chord):
+            onTabChord(chord, window?.windowNumber)
+            return nil
+        case .swallowed: return nil
+        case .passed: break
         }
+        guard let result = controller?.key(key) else { return event }
         handle(result)
         return result.consumed ? nil : event
     }

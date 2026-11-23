@@ -65,7 +65,9 @@ encode).
    a window of its own. A machine already open in another tab or window gets a virtual screen
    of its own. Input goes to the tab in front, and the host's focus follows it to that tab's
    screen: the pointer moves there (to where the Mac's pointer is over the picture, else to
-   where the host's pointer was), so the window under it takes the keyboard.
+   where the host's pointer was), so the window under it takes the keyboard. ⇧⌘[ and ⇧⌘]
+   (the keys right of P, wherever the layout puts its brackets) move to the previous or next
+   tab, or window, even while input is captured.
 
    Known limits:
    - An empty screen leaves the keyboard focus on another screen's window until you click or

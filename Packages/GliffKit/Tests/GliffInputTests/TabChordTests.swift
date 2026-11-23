@@ -14,7 +14,7 @@ import Testing
     @Test func tabChords() {
         #expect(TabChord(event(30, .down(isRepeat: false), commandShift)) == .next)
         #expect(TabChord(event(33, .down(isRepeat: false), commandShift)) == .previous)
-        // Held down, it moves once: its repeats are swallowed (`isChordKey`).
+        // Held down, it moves once: its repeats are swallowed (`TabChordKeys`).
         #expect(TabChord(event(30, .down(isRepeat: true), commandShift)) == nil)
         #expect(TabChord(event(30, .down(isRepeat: false), [.command, .leftCommand])) == nil)
         #expect(
@@ -40,6 +40,15 @@ import Testing
         #expect(keys.take(event(30, .down(isRepeat: false), [])) == .passed)
         #expect(keys.take(event(30, .down(isRepeat: true), commandShift)) == .passed)
         #expect(keys.take(event(30, .up, commandShift)) == .passed)
+    }
+
+    /// The chord moved to another window, which saw its key-up: a later press of that key here
+    /// is the remote's, and so is its release.
+    @Test func aPressAfterAMissedUpIsTheRemotes() {
+        var keys = TabChordKeys()
+        #expect(keys.take(event(30, .down(isRepeat: false), commandShift)) == .chord(.next))
+        #expect(keys.take(event(30, .down(isRepeat: false), [])) == .passed)
+        #expect(keys.take(event(30, .up, [])) == .passed)
     }
 
     @Test func otherKeysPass() {

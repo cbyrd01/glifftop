@@ -1,4 +1,5 @@
 import Foundation
+import GliffInput
 import Observation
 
 /// The open windows' models, in opening order, held weakly: what a new tab, a machine's host
@@ -32,6 +33,12 @@ import Observation
             await model.shutdown()
             ending[id] = nil
         }
+    }
+
+    /// ⌘⇧[ or ⌘⇧] from window `window` (a window number): its previous or next tab, else the
+    /// previous or next session window in opening order.
+    func selectTab(_ chord: TabChord, from window: Int?) {
+        TabSwitcher.select(chord, from: window, order: models.compactMap { $0.tabGroup?.window })
     }
 
     /// Whether a session to `host` (as typed: compared trimmed, as machines are) is shown in a

@@ -49,7 +49,11 @@ public struct TabChordKeys: Sendable {
             held = nil
             return .swallowed
         case .down(isRepeat: true): return .swallowed
-        case .down, .flagsChanged: return .passed
+        case .down:
+            // A new press: the chord's key-up went to another window, and this one is the remote's.
+            held = nil
+            return .passed
+        case .flagsChanged: return .passed
         }
     }
 }
