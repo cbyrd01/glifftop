@@ -61,6 +61,19 @@ encode).
    computer, and its copies come to the Mac. A password manager's copies go only at **Shared,
    including passwords**. The button steps through Not shared (grey), Shared (blue) and
    Shared including passwords (orange, with a key).
+5. **File ▸ New Tab** (⌘T) opens another session as a tab; **New Window** (⌘N) opens one in
+   a window of its own. A machine already open in another tab or window gets a virtual screen
+   of its own. Input goes to the tab in front, and the host's focus follows it to that tab's
+   screen: the pointer moves there (to where the Mac's pointer is over the picture, else to
+   where the host's pointer was), so the window under it takes the keyboard.
+
+   Known limits:
+   - An empty screen leaves the keyboard focus on another screen's window until you click or
+     use a keybinding; Super+number still works there.
+   - Glifftop doesn't fight focus changes made on the host: your own shortcut to another
+     monitor, an app taking focus, or someone at the host.
+   - Hyprland combines the modifiers of every keyboard, so two tabs to one host share their
+     held keys; switching tabs lets go of the old tab's keys first.
 
 ## Build
 

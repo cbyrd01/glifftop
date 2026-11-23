@@ -1,3 +1,4 @@
+import GliffInput
 import GliffProtocol
 import GliffSession
 
@@ -13,6 +14,15 @@ extension SessionModel {
             if testCursorShape { return TestCursor.slot }
         #endif
         return cursor
+    }
+
+    /// Where an activation puts the remote pointer (`FocusTarget`): `macPointer` (over the
+    /// picture), else the host's pointer, else the centre, over the stream shown. Nil without one.
+    func activationTarget(macPointer: (x: Double, y: Double)?) -> (x: Double, y: Double)? {
+        guard let stream = picture?.stream else { return nil }
+        return FocusTarget.target(
+            macPointer: macPointer, cursor: remotePointer.latest.map { ($0.x, $0.y) },
+            geometry: stream.pointerGeometry)
     }
 
     /// A virtual screen fills the screen; a mirror is sized for its first view within its

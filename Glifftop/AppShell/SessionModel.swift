@@ -187,6 +187,8 @@ import os
     /// The current session's latest cursor shape, which the video view shows while captured. A
     /// new one per session, as `slot` is.
     private(set) var cursor = CursorSlot()
+    /// Where the current session's host pointer is: an activation's target. A new one per session.
+    private(set) var remotePointer = RemotePointerSlot()
     #if DEBUG
         /// Debug ▸ Test Cursor Shape: the video view shows `TestCursor`'s crosshair instead.
         var testCursorShape = false
@@ -251,6 +253,7 @@ import os
         host = destination.value
         slot = PictureSlot()
         cursor = CursorSlot()
+        remotePointer = RemotePointerSlot()
         if !reconnecting { windowSizing = nil }
         viewPixels = nil
         let decoder: VideoToolboxDecoder
@@ -272,9 +275,11 @@ import os
             transport: AppConnections.session(
                 on: destination, serverArguments: screen.serverArguments, fresh: asksAgain(reconnecting)),
             configuration: SessionConfiguration(maxWidth: pixels.width, maxHeight: pixels.height),
-            decoder: decoder, cursor: cursor, clipboard: ClipboardSetup(source: PasteboardSource()))
+            decoder: decoder, cursor: cursor, pointer: remotePointer,
+            clipboard: ClipboardSetup(source: PasteboardSource()))
         self.session = session
-        capture.attach { session.send($0) }
+        capture.attach(
+            target: { [weak self] in self?.activationTarget(macPointer: $0) }, send: { session.send($0) })
         clipboard.attach(session, host: destination.value)
         // Leave the machines now, not when the session's own `.connecting` arrives.
         snapshot = SessionSnapshot()
@@ -381,6 +386,7 @@ import os
         // The old pool's textures go with the old slot and session.
         slot = PictureSlot()
         cursor = CursorSlot()
+        remotePointer = RemotePointerSlot()
         windowSizing = nil
         viewPixels = nil
         snapshot = SessionSnapshot()

@@ -29,7 +29,8 @@ struct StreamingView: View {
             extraHeight: showsStatusBar ? StatusBar.height : 0,
             fitRequest: model.actualSizeRequests, sharesWindow: model.sharesWindow,
             scaleToFit: model.drawsScaled,
-            onTarget: model.viewTargetChanged, onPointer: model.capture.pointer, cursor: model.viewCursor,
+            onTarget: model.viewTargetChanged, capture: model.capture,
+            cursor: model.viewCursor,
             captured: model.capture.isCaptured, headless: model.snapshot.session?.headless ?? false
         )
         // A new session's slot gets a new video view: the old one would keep drawing the old slot.

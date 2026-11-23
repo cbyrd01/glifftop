@@ -211,7 +211,7 @@ This file wins over any skill, including a skill's "supersedes prior training" c
     - Then it offers its own clipboard and waits for Bye.
 - **Live check** (needs a real host; a headless session): run
   `GLIFFTOP_LIVE_HOST=<ssh host> GLIFFTOP_LIVE_SECONDS=60 swift test --no-parallel --filter
-  'LiveSessionTests|LiveResolutionTests|LiveScreenListTests|LiveClipboardTests|LiveHostConnectionTests'
+  'LiveSessionTests|LiveResolutionTests|LiveScreenListTests|LiveClipboardTests|LiveHostConnectionTests|LiveFocusTests'
   --attachments-path DIR` in `Packages/GliffKit`.
   - It streams the screen, resizes a virtual screen (which the server removes at the end),
     asks for one at Standard (and at Automatic with `--video cpu`) and lists the monitors.
@@ -220,6 +220,9 @@ This file wins over any skill, including a skill's "supersedes prior training" c
   - It offers two test strings as the Mac's clipboard, an ordinary one and one marked as a
     password. Each becomes the host's clipboard; the ordinary one stays in its clipboard
     history, and the password must not.
+  - It opens two virtual screens on one master, with a terminal on each (closed by address at
+    the end): activation moves the host's focus to the screen in front, the host's pointer
+    matches `hyprctl cursorpos`, and Super held on one screen types no digit on the other.
   - It writes numbers-only `live-*.txt` files. It is off in the gate.
 - **Captures:** screenshots, screen recordings and `.gliffrec` stream recordings stay local in
   `.recordings/` (git-ignored).

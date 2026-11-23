@@ -23,8 +23,9 @@ struct VideoView: NSViewRepresentable {
     let scaleToFit: Bool
     /// The drawable's size in pixels and the backing scale, once fitted and on every change.
     let onTarget: (PixelSize, Double) -> Void
-    /// A pointer event over the picture, in remote coordinates: true when it was for the remote.
-    let onPointer: (PointerEvent) -> Bool
+    /// Takes the pointer events over the picture, in remote coordinates, and asks the view
+    /// where the Mac pointer is over it, for an activation.
+    let capture: CaptureController
     let cursor: CursorSlot
     let captured: Bool
     let headless: Bool
@@ -42,7 +43,8 @@ struct VideoView: NSViewRepresentable {
         nsView.fit = sizing.map { VideoNSView.Fit(sizing: $0, request: fitRequest) }
         nsView.scaleToFit = scaleToFit
         nsView.onTarget = onTarget
-        nsView.onPointer = onPointer
+        nsView.onPointer = capture.pointer
+        capture.macPointer = { [weak nsView] in nsView?.macPointerOverPicture() }
         nsView.updateCursor(slot: cursor, captured: captured, headless: headless)
     }
 }

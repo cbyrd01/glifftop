@@ -21,6 +21,13 @@ import Observation
     /// App, workspace and distributed observers, each with its centre: for the controller's life.
     @ObservationIgnored private var observers: [(NotificationCenter, any NSObjectProtocol)] = []
     @ObservationIgnored private var hintTimer: Task<Void, Never>?
+    /// The Mac pointer over the uncovered picture, in remote coordinates (`VideoNSView`): an
+    /// activation's first choice. Reset at each attach, until the session's view sets it.
+    @ObservationIgnored var macPointer: () -> (x: Double, y: Double)? = { nil }
+    /// Where an activation puts the remote pointer, given `macPointer`'s answer: the session's
+    /// (`attach`), nil without a stream, and then nothing is sent.
+    @ObservationIgnored private var target: ((x: Double, y: Double)?) -> (x: Double, y: Double)? = { _ in nil
+    }
 
     init() {
         let app = NotificationCenter.default
@@ -33,8 +40,13 @@ import Observation
         ] {
             observe(workspace, name) { $0.apply(.away) }
         }
+        // Back from sleep, a lock or another user: the host's focus again, if still captured.
+        for name in [NSWorkspace.screensDidWakeNotification, NSWorkspace.sessionDidBecomeActiveNotification] {
+            observe(workspace, name) { $0.reactivate() }
+        }
         let distributed = DistributedNotificationCenter.default()
         observe(distributed, Notification.Name("com.apple.screenIsLocked")) { $0.apply(.away) }
+        observe(distributed, Notification.Name("com.apple.screenIsUnlocked")) { $0.reactivate() }
         observe(distributed, InputSource.changed) { $0.keymapChanged() }
     }
 
@@ -47,10 +59,13 @@ import Observation
 
     /// A session started, its Hello with no keymap: `send` queues input for it, the Mac's
     /// layout first.
-    func attach(send: @escaping (InputMessage) -> Void) {
+    func attach(
+        target: @escaping ((x: Double, y: Double)?) -> (x: Double, y: Double)?,
+        send: @escaping (InputMessage) -> Void
+    ) {
         detach()
         controller = InputController(keymap: "")
-        self.send = send
+        (self.target, self.send, macPointer) = (target, send, { nil })
         keymapChanged()
         apply(.appActive(NSApplication.shared.isActive))
         apply(.windowKey(window?.isKeyWindow ?? false))
@@ -102,13 +117,25 @@ import Observation
         handle(result)
     }
 
+    /// Capture turning on is an activation: its nudge goes before anything else.
     private func handle(_ result: InputResult) {
+        let captured = controller?.isCaptured ?? false
+        if captured, !isCaptured { activate() }
         for message in result.messages { send?(message) }
         if result.showHint { flashHint() }
-        let captured = controller?.isCaptured ?? false
         if captured != isCaptured { isCaptured = captured }
         // The hint says how to release input: gone once it is released.
         if !captured { hideHint() }
+    }
+
+    /// Two motions onto the activation target, so the host's focus follows to this screen.
+    private func activate() {
+        guard let target = target(macPointer()), let result = controller?.activate(at: target) else { return }
+        for message in result.messages { send?(message) }
+    }
+
+    private func reactivate() {
+        if isCaptured { activate() }
     }
 
     private func keymapChanged() {

@@ -153,7 +153,12 @@ AppKit adapters for what SwiftUI can't do:
   feeds GliffInput's `InputController` the window, app, picture, link, sleep and lock
   changes, swallows the window's key events while captured (a local monitor, only while there
   is a picture), takes the pointer events `VideoNSView` hands it (`onPointer`), sends what it
-  says through `Session.send`, and shows the Shift+Esc hint for 3 s; `CaptureTracker` tells it
+  says through `Session.send`, and shows the Shift+Esc hint for 3 s. Capture turning on (the
+  window or tab coming to the front, the first picture, recapture) is an activation, as are a
+  wake, an unlock and a user switch back while captured: before anything else, two motions
+  onto `SessionModel.activationTarget` (`VideoNSView`'s Mac pointer over the uncovered picture, else the
+  session's `RemotePointerSlot`, else the centre: `FocusTarget`), so the host's focus follows
+  to the tab's screen. `CaptureTracker` tells it
   its window and the picture's state; `InputSource` reads the selected layout (HIToolbox's
   TIS) as the keymap text and whether the keyboard is ISO; `MacKeyEvent+NSEvent` and
   `PointerEvent+NSEvent` turn an `NSEvent` into values.
