@@ -85,8 +85,17 @@ import os
     var clipboardSharing: ClipboardSharing? {
         didSet { clipboardSharingChanged() }
     }
-    /// The saved machines, kept in `UserDefaults`.
-    let machines = MachineStore()
+    /// The window chose a clipboard sharing its machine doesn't keep yet (none saved, or set
+    /// with a connection's options): the session's record keeps it.
+    @ObservationIgnored var clipboardUnsaved = false
+    /// The session's screen is this tab's own: it started while its machine was open in
+    /// another tab or window (`TabPlanning`), so the machine never keeps it.
+    @ObservationIgnored var screenIsOwn = false
+    /// The window's number and its tab group's, in tab order (`WindowTabbing`): the tab's
+    /// title numbers same-machine tabs from it.
+    var tabGroup: (window: Int, tabs: [Int])?
+    /// The saved machines, kept in `UserDefaults`: the app's, shared by every window.
+    let machines = MachineStore.shared
     /// Set while a connection sets the window's options from a machine's: not changes to keep.
     @ObservationIgnored var applyingOptions = false
     /// The machine sheet (New Machine…, Edit…, Connection ▸ Edit Machine…), while shown.
@@ -181,14 +190,6 @@ import os
         /// Debug ▸ Test Cursor Shape: the video view shows `TestCursor`'s crosshair instead.
         var testCursorShape = false
     #endif
-
-    /// The shapes the video view shows: the session's, or (Debug) the test crosshair.
-    var viewCursor: CursorSlot {
-        #if DEBUG
-            if testCursorShape { return TestCursor.slot }
-        #endif
-        return cursor
-    }
     /// Draws pictures into the video view: made on the first connect, then kept.
     private(set) var renderer: PictureRenderer?
     /// Connection Info's popover (⌘I, the toolbar's ⓘ); closed at each session's start and at
@@ -327,14 +328,6 @@ import os
             ViewTarget(
                 width: UInt32(clamping: viewPixels.width), height: UInt32(clamping: viewPixels.height),
                 backingScale: backingScale, textFactor: textSize.factor, resolution: resolution))
-    }
-
-    /// A virtual screen fills the screen; a mirror is sized for its first view within its
-    /// monitor (`SessionSnapshot.mirrorSize`). Nil until one is known.
-    private static func windowSizing(for snapshot: SessionSnapshot) -> WindowSizing? {
-        if snapshot.session?.headless == true { return .fillScreen }
-        guard snapshot.phase == .streaming, let size = snapshot.mirrorSize else { return nil }
-        return .monitor(size)
     }
 
     /// Stops any reconnect, then ends the session (`endSession`), the window staying where it

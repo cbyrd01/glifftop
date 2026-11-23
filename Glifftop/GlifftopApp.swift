@@ -2,28 +2,31 @@ import SwiftUI
 
 @main
 struct GlifftopApp: App {
-    @State private var model = SessionModel()
     @NSApplicationDelegateAdaptor private var appDelegate: AppDelegate
 
     var body: some Scene {
-        Window("Glifftop", id: "main") {
-            RootView(model: model)
+        // Each window or tab its own session (`SessionWindow`); none comes back at launch.
+        WindowGroup(for: TabRequest.self) { $request in
+            SessionWindow(request: request)
                 .onAppear {
-                    appDelegate.beforeQuit = { [model] in
-                        await model.shutdown()
+                    appDelegate.beforeQuit = {
+                        await OpenSessions.shared.shutdownAll()
                         await AppConnections.closeAll()
                     }
                 }
+        } defaultValue: {
+            TabRequest()
         }
+        .restorationBehavior(.disabled)
         .windowResizability(.contentSize)
         // A remote desktop's height is the picture's: the toolbar takes as little as it can.
         .windowToolbarStyle(.unifiedCompact)
         .commands {
-            ConnectionCommands(model: model)
-            ViewCommands(model: model)
-            InputCommands(model: model)
+            ConnectionCommands()
+            ViewCommands()
+            InputCommands()
             #if DEBUG
-                DebugCommands(model: model)
+                DebugCommands()
             #endif
         }
         Settings {

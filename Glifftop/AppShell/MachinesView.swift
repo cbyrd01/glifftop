@@ -163,7 +163,7 @@ struct MachinesView: View {
         model.screenList.forget(unless: host)
         let saved = model.machines.list.machine(for: host)?.options
         if options == filled {
-            filled = saved ?? AppSettings.defaultOptions
+            filled = model.tabOptions(saved ?? AppSettings.defaultOptions, for: host)
             if options != filled { options = filled }
         }
         if !model.screenList.allows(options.screen, host: host), options.screen != saved?.screen {
@@ -194,7 +194,8 @@ struct MachinesView: View {
 
     private func connect(_ machine: Machine) {
         do {
-            try model.connect(to: machine.destination, options: machine.options)
+            try model.connect(
+                to: machine.destination, options: model.tabOptions(machine.options, for: machine.destination))
         } catch {
             target = machine.destination
             refused = (machine.destination, error.message)

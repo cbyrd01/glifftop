@@ -25,16 +25,26 @@ extension SessionModel {
         let destination = try SSHTarget(target)
         guard !quitting else { return }
         cancelReconnect()
+        screenIsOwn = isOpenElsewhere(destination.value)
         apply(options)
+        // A choice made in the form, not the machine's own, is the session's to keep.
+        clipboardUnsaved =
+            options.clipboard != machines.list.machine(for: destination.value)?.options.clipboard
         start(destination, screen: options.screen)
     }
 
     /// The session streamed: its machine, added if new, now has the window's options and the
-    /// date. A reconnect's try repeats the session's screen, and leaves the machine's be (the
-    /// sheet may have changed it).
+    /// date. A reconnect's try, or a tab on a screen of its own, leaves the machine's screen
+    /// be (the sheet may have changed it); the machine's clipboard stays unless the window
+    /// chose one since it was last kept.
     func recordConnection() {
         var options = currentOptions
-        if keepsWindow, let kept = machine { options = options.keeping(kept.options) }
+        if let kept = machine {
+            options = options.recorded(
+                over: kept.options, keepsScreen: keepsWindow || screenIsOwn,
+                keepsClipboard: keepsWindow || !clipboardUnsaved)
+        }
+        clipboardUnsaved = false
         machines.connected(host, options: options)
     }
 
@@ -43,6 +53,7 @@ extension SessionModel {
     func machineSaved(_ saved: Machine) {
         guard machine?.id == saved.id else { return }
         apply(saved.options)
+        clipboardUnsaved = false
         sheetScreen = saved.options.screen == screenChoice ? nil : saved.options.screen
     }
 
@@ -56,6 +67,15 @@ extension SessionModel {
     func newMachine() {
         machineEdit = MachineEdit(
             machine: Machine(name: "", destination: "", options: AppSettings.defaultOptions), isNew: true)
+    }
+
+    /// Whether `host` is open in another tab or window.
+    func isOpenElsewhere(_ host: String) -> Bool { OpenSessions.shared.isOpen(host, besides: self) }
+
+    /// The options a connection to `host` starts with: `options`, on a virtual screen when the
+    /// host is open in another tab or window (`TabPlanning`).
+    func tabOptions(_ options: MachineOptions, for host: String) -> MachineOptions {
+        TabPlanning.options(options, openElsewhere: isOpenElsewhere(host))
     }
 
     /// An option changed during the session: kept on the session's machine, if it has one.

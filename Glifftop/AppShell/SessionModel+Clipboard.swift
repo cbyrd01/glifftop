@@ -15,6 +15,7 @@ extension SessionModel {
     /// even when it equals the window's last choice, as another window may have changed the
     /// machine's since.
     func clipboardSharingChanged() {
+        if !applyingOptions { clipboardUnsaved = machine == nil }
         updateMachine { $0.clipboard = clipboardSharing }
         clipboard.sharingChanged()
     }

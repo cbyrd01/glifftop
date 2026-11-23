@@ -29,7 +29,7 @@ struct RootView: View {
         // One view tree either way: a SessionView swapped for another would disappear, which
         // stops the session.
         .fixedSize(horizontal: isCompact, vertical: isCompact)
-        .navigationTitle(model.title)
+        .navigationTitle(model.tabTitle)
         .navigationSubtitle(model.subtitle)
         .toolbar { SessionToolbar(model: model) }
         .windowToolbarFullScreenVisibility(.onHover)

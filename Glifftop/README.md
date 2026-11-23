@@ -34,22 +34,30 @@ list), a virtual screen's Text Size and Resolution, Scale to Fit and Reconnect a
 from Settings, or from the saved machine the field names; then the saved machines: name, host
 and screen, when last connected and a favourite's star, double-click or Return connecting, and
 a menu of Connect, Edit…, Favourite and Remove, which asks), the machine sheet
-(`EditMachineView`: Name, Host and the options; New Machine… ⌘N and the + button add one and
-can Connect, Connection ▸ Edit Machine… ⌘E edits the session's), the session view, the streaming view (the picture below
+(`EditMachineView`: Name, Host and the options; New Machine… ⌥⌘N and the + button add one and
+can Connect, Connection ▸ Edit Machine… ⌘E edits the session's; a machine shown in any window
+keeps its host), the windows and tabs (`SessionWindow`: each window or native tab its own
+`SessionModel` and session, opened from a `TabRequest`; File ▸ New Tab ⌘T joins the key
+window's tab group, New Window ⌘N opens one alone, Close Window ⇧⌘W closes every tab, and
+closing a tab ends its session as Disconnect does; `OpenSessions`, the open windows' models;
+a host already open elsewhere starts on a virtual screen, which its machine never keeps
+(`TabPlanning`); the menus act on the key window's model, `FocusedSession.swift`), the session view, the streaming view (the picture below
 the toolbar, never under it; `InterruptionView`, a dimmed picture under a glass panel, while
 the server is quiet, with Disconnect and Reconnect Now; `ReconnectingView`, the last picture
 dimmed under a glass panel while a lost session is tried again: why it ended, the countdown
 and the try, Reconnect Now and Disconnect; the "Shift+Esc releases input" hint for a few seconds after capture; and
 under the picture, with View ▸ Show Status Bar, `StatusBar`: the state, fps, Mbit/s, round
 trip, chroma · encoder and the clipboard read, on the bar material, its height counted when
-a mirror's window is fitted), the window's title (the machine's name, else the host) and subtitle ("Virtual Screen ·
+a mirror's window is fitted), the window's title (the machine's name, else the host; numbered from a machine's second tab
+in the window, "omarchy 2") and subtitle ("Virtual Screen ·
 Connected", `SessionModel+Chrome.swift`), the toolbar (`SessionToolbar`, while a session is
 shown, shown on hover in full screen: Screen and, on a virtual screen, Text Size; the
 clipboard (`ClipboardToolbarItem`: one button stepping through Not shared, Shared and Shared
 including passwords, each step up asking first as Settings does, with the clipboard read
 beside it); Connection Info, a popover of `StatsView`'s numbers and "The host draws W × H",
 and Disconnect), the Connection menu (`ConnectionCommands`: Disconnect ⇧⌘D, Reconnect ⇧⌘R,
-Connection Info ⌘I, Edit Machine… ⌘E), the View menu (Actual Size ⌘0, disabled on a virtual
+Connection Info ⌘I, Edit Machine… ⌘E; and File's New Tab, New Window, New Machine… and Close
+Window), the View menu (Actual Size ⌘0, disabled on a virtual
 screen, turning Scale to Fit off; Scale to Fit ⌥⌘0; Show Status Bar ⌘/, app-wide, off by default; `ScreenMenus.swift`: Text Size, a virtual screen only, its steps
 showing the remote scale on the window's display and the ones that change nothing off;
 Resolution, a virtual screen only: Automatic, Retina and Standard, Standard off on a display
@@ -112,8 +120,14 @@ AppKit adapters for what SwiftUI can't do:
 - committing what a field holds before a form reads it, text still being composed or put
   there by AutoFill (`TextComposition`: commits the composition in place, tells the input
   method, and returns the field's own value; the SwiftUI binding may update later);
-- quitting that waits for a session's Bye (`AppDelegate`, which knows only a `beforeQuit`
-  closure; `GlifftopApp` hands it `SessionModel.shutdown`, then `AppConnections.closeAll`);
+- quitting that waits for the sessions' Bye (`AppDelegate`, which knows only a `beforeQuit`
+  closure; `GlifftopApp` hands it `OpenSessions.shutdownAll`, then `AppConnections.closeAll`),
+  and closing the last window quits;
+- native tabs (`WindowTabbing`): a SwiftUI window is already ordered in when its content
+  reaches it, so a new tab joins its group with `addTabbedWindow`, after the group's last tab,
+  and a window opened alone that macOS tabbed anyway leaves its group; it reports the window's
+  number and its group's in tab order (KVO on the group's windows) and the window's close;
+  Close Window closes every tab of the key window's group;
 - the video view: `VideoNSView`, a `CAMetalLayer` (sRGB, opaque) that a display link draws
   into through `PictureRenderer` only when there is a new picture, a new drawable size or a
   new view box for the picture on screen, or Scale to Fit toggled, and only while the window

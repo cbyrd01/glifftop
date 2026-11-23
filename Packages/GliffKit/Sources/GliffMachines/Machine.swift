@@ -70,11 +70,16 @@ extension MachineOptions {
         (saved.map(\.options.clipboard) ?? window) ?? settings
     }
 
-    /// These options, recorded by a reconnect: but for the screen and the clipboard, which the
-    /// machine keeps as saved (the sheet or another window may have changed them since).
-    public func keeping(_ saved: MachineOptions) -> MachineOptions {
+    /// These options, a window's, as a streamed session records them over its machine's
+    /// `saved`: but for the screen when `keepsScreen` (a reconnect's try, or a tab's own
+    /// screen: not the machine's to change) and the clipboard when `keepsClipboard` (the window
+    /// chose none since it was last kept, and another window may have changed the machine's).
+    public func recorded(over saved: MachineOptions, keepsScreen: Bool, keepsClipboard: Bool)
+        -> MachineOptions
+    {
         var options = self
-        (options.screen, options.clipboard) = (saved.screen, saved.clipboard)
+        if keepsScreen { options.screen = saved.screen }
+        if keepsClipboard { options.clipboard = saved.clipboard }
         return options
     }
 }

@@ -161,14 +161,16 @@ import Testing
         #expect(MachineOptions.clipboard(saved: nil, window: nil, settings: .shared) == .shared)
     }
 
-    /// A reconnect records the window's options but for the screen and clipboard the machine
-    /// keeps, which the sheet or another window may have changed since.
-    @Test func aReconnectKeepsTheMachinesScreenAndClipboard() {
+    /// A streamed session records the window's options, but keeps the machine's screen when
+    /// the window's isn't the machine's to change (a reconnect's try, a tab's own screen), and
+    /// the machine's clipboard unless the window chose one since it was last kept.
+    @Test func aRecordKeepsWhatTheMachineOwns() {
         let window = MachineOptions(screen: .virtual, scaleToFit: true, clipboard: .withPasswords)
         let saved = MachineOptions(screen: .named("DP-2"), clipboard: .off)
         #expect(
-            window.keeping(saved)
+            window.recorded(over: saved, keepsScreen: true, keepsClipboard: true)
                 == MachineOptions(screen: .named("DP-2"), scaleToFit: true, clipboard: .off))
+        #expect(window.recorded(over: saved, keepsScreen: false, keepsClipboard: false) == window)
     }
 
     @Test func saveTrimsTheDestination() {

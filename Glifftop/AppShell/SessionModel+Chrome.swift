@@ -8,6 +8,16 @@ extension SessionModel {
     /// otherwise, and when the session never started (no host left to name).
     var title: String { isActive && !host.isEmpty ? machine?.name ?? host : "Glifftop" }
 
+    /// The title among the window's tabs: a machine open in an earlier tab is numbered
+    /// ("omarchy 2").
+    var tabTitle: String {
+        guard let tabGroup else { return title }
+        let models = OpenSessions.shared.models
+        let tabs = tabGroup.tabs.compactMap { number in models.first { $0.tabGroup?.window == number } }
+        let titles = TabPlanning.titles(tabs.map { ($0.machine?.id, $0.title) })
+        return tabs.firstIndex { $0 === self }.map { titles[$0] } ?? title
+    }
+
     /// "Virtual Screen · Connected": the screen and the state, while a session is shown.
     var subtitle: String { isActive ? "\(screenChoice.label) · \(stateWord)" : "" }
 
