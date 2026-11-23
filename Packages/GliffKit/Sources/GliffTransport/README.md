@@ -17,6 +17,15 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   proxy (`SSHConnectTimeout`), `--` before the target, server arguments
   shell-quoted for the remote login shell), and `SSHErrorClassifier` turns ssh's stderr
   into a `ConnectFailure` with a plain-language `message`.
+- **Shared connections:** `HostConnection` is one signed-in connection to a host that runs
+  shell commands as channels (`ByteConnection`s); a system ssh ControlMaster or an embedded ssh
+  can each be one. `HostConnections` (an actor) keeps one per destination as typed, held by
+  `HostLease`s: everyone asking while one opens waits for that one sign-in; it closes 10 s after
+  its last lease ends; a failed sign-in answers that destination for 10 s unless a connection
+  there has room; a connection takes at most 10 leases (sshd's `MaxSessions`), and one that
+  refuses a channel takes no more, its lease moving to a further connection; a lost connection is
+  forgotten at once, so the next lease opens anew; `closeAll()` ends them all and cancels anyone
+  waiting.
 - **Screens:** `ScreenChoice` is what a session shows (the focused monitor, one by name,
   or a virtual screen) as gliff-server's arguments. `ScreenListParser` reads the host's
   `hyprctl -j monitors` as untrusted input into `RemoteScreen`s: at most 1 MiB, names only

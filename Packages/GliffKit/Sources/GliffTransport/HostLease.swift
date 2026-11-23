@@ -1,0 +1,70 @@
+import Synchronization
+
+/// One user's hold on a host's shared connection (a tab's session, a Get Screens): the
+/// connection stays open while any lease does, and for a grace after the last one ends.
+public final class HostLease: Sendable {
+    private let owner: HostConnections
+    let target: SSHTarget
+    var key: String { target.value }
+    private struct State {
+        var id: Int
+        var connection: any HostConnection
+        var ended = false
+    }
+    private let state: Mutex<State>
+
+    init(owner: HostConnections, target: SSHTarget, id: Int, connection: any HostConnection) {
+        self.owner = owner
+        self.target = target
+        state = Mutex(State(id: id, connection: connection))
+    }
+
+    /// The connection this lease is on, and its number among the host's connections.
+    var current: (id: Int, connection: any HostConnection) {
+        state.withLock { ($0.id, $0.connection) }
+    }
+
+    /// Takes the lease off its connection for a move: its place, or nil once it has ended. Until
+    /// `moved` it counts nowhere, so ending it meanwhile releases nothing.
+    func beginMove() -> (id: Int, connection: any HostConnection)? {
+        state.withLock { state in
+            guard !state.ended else { return nil }
+            defer { state.id = 0 }
+            return (state.id, state.connection)
+        }
+    }
+
+    /// Puts the lease on its new place; false when it ended during the move, and the place is
+    /// the caller's to give back.
+    func moved(to id: Int, _ connection: any HostConnection) -> Bool {
+        state.withLock { state in
+            guard !state.ended else { return false }
+            (state.id, state.connection) = (id, connection)
+            return true
+        }
+    }
+
+    public func channel(command: String) async throws(TransportError) -> any ByteConnection {
+        try await current.connection.channel(command: command)
+    }
+
+    /// The host refused a channel on this connection (sshd's `MaxSessions`): no new lease goes
+    /// to it, and this lease moves to a further connection, which may mean a sign-in.
+    public func channelRefused() async throws(TransportError) {
+        try await owner.move(self)
+    }
+
+    /// A new channel gave no first byte in time: the link is dead, so the connection ends.
+    public func channelSilent() async {
+        await current.connection.invalidate()
+    }
+
+    /// Lets go of the connection; safe to call more than once.
+    public func end() async {
+        let first = state.withLock { state in
+            defer { state.ended = true }
+            return !state.ended
+        }
+        if first { await owner.release(self) }
+    }
+}

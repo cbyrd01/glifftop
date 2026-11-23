@@ -35,7 +35,8 @@ let package = Package(
         ),
         .target(name: "GliffTransport", exclude: ["README.md"], swiftSettings: strictSettings),
         .testTarget(
-            name: "GliffTransportTests", dependencies: ["GliffTransport"], swiftSettings: strictSettings),
+            name: "GliffTransportTests", dependencies: ["GliffTransport", "GliffTestSupport"],
+            swiftSettings: strictSettings),
         .target(
             name: "GliffVideo", dependencies: ["GliffProtocol"], exclude: ["README.md"],
             resources: [.process("Shaders")], swiftSettings: strictSettings),
