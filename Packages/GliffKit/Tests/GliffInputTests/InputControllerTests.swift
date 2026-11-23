@@ -176,4 +176,31 @@ import Testing
         #expect(controller.keymap("k2") == nil)
         #expect(controller.keymap("") == nil)
     }
+
+    // MARK: The focus nudge
+
+    @Test func activationSendsTwoMotionsOnePixelApart() {
+        var controller = captured()
+        #expect(
+            controller.activate(at: (x: 100, y: 50)).messages == [
+                .pointerMotion(x: 99, y: 50), .pointerMotion(x: 100, y: 50),
+            ])
+        #expect(
+            controller.activate(at: (x: 0.5, y: 7)).messages == [
+                .pointerMotion(x: 1.5, y: 7), .pointerMotion(x: 0.5, y: 7),
+            ])
+    }
+
+    @Test func noNudgeWithoutCapture() {
+        var controller = InputController(keymap: "k1")
+        #expect(controller.activate(at: (x: 100, y: 50)).messages.isEmpty)
+    }
+
+    @Test func aClickAfterActivationAtTheSamePlaceSendsNoMotion() throws {
+        var controller = captured()
+        _ = controller.activate(at: (x: 100, y: 50))
+        let left = try #require(PointerButtons.code(forButtonNumber: 0))
+        let click = controller.pointer(.button(number: 0, pressed: true, x: 100, y: 50))
+        #expect(click.messages == [.pointerButton(code: left, pressed: true)])
+    }
 }

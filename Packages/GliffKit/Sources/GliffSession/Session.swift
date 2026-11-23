@@ -352,7 +352,13 @@ public actor Session {
         inputs.close()
         await closeClipboard()
         await writer?.drain(within: Self.drainLimit)
-        if linkLost { await connection?.abandon() } else { await connection?.close() }
+        // A link found dead, or quiet when the session ends (Reconnect Now while interrupted),
+        // is abandoned: the next try mustn't wait on it.
+        if linkLost || liveness.isInterrupted {
+            await connection?.abandon()
+        } else {
+            await connection?.close()
+        }
         await recorder?.finish()
         recorder = nil
         pointer.publish(nil)

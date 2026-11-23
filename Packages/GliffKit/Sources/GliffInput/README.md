@@ -44,6 +44,14 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
 - **`PointerMapper`, `PictureRect`, `PictureGeometry`:** a point over the drawn picture to the
   remote's logical coordinates (upstream `to_remote`): undo the fit, stretch the view box to
   the stream, clamp to its edges, divide by the remote scale.
+- **`FocusTarget`:** where a window's activation puts the remote pointer, in logical
+  coordinates: the Mac pointer over the uncovered picture, else the remote cursor's last
+  position, hidden or not (capture-buffer pixels, converted and clamped), else the centre;
+  none before there is a picture.
+  `InputController.activate(at:)` sends it while captured as two motions a pixel apart, so the
+  host's focus follows.
+- **`TabChord`:** ⌘⇧[ and ⌘⇧] (no ⌃ or ⌥), the previous and next Glifftop tab, once per
+  press; `isChordKey` names the chord's key-up and repeats, swallowed with it.
 - **`PointerButtons`:** `NSEvent.buttonNumber` 0–7 to evdev `BTN_LEFT`, `BTN_RIGHT`,
   `BTN_MIDDLE`, then `BTN_SIDE` (back) on to `BTN_TASK`; other buttons send nothing.
 - **`ScrollEvent`, `ScrollPhase`, `ScrollTranslator`:** Mac scrolling to Gliff's axes

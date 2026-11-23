@@ -63,6 +63,22 @@
             #expect(spy.abandoned == 1)
         }
 
+        /// Reconnect Now on an interrupted link: the session it ends abandons its connection,
+        /// so the next try doesn't wait on the same dead link.
+        @Test func aDisconnectWhileInterruptedAbandons() async throws {
+            let spy = try #require(AbandonSpy(["stall", "20000"]))
+            let session = Session(
+                transport: spy, configuration: SessionConfiguration(maxWidth: 4096, maxHeight: 4096),
+                decoder: SpyDecoder())
+            let runner = Task { await session.run() }
+            for await status in session.status {
+                if case .interrupted(true) = status { break }
+            }
+            await session.disconnect()
+            await runner.value
+            #expect(spy.abandoned == 1)
+        }
+
         @Test func aDisconnectClosesWithoutAbandoning() async throws {
             let spy = try #require(AbandonSpy(["stream", "--frames", "2", "--expect-bye"]))
             let decoder = SpyDecoder()

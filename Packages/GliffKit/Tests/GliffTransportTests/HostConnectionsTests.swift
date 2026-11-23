@@ -1,4 +1,5 @@
 import GliffTestSupport
+import Synchronization
 import Testing
 
 @testable import GliffTransport
@@ -215,12 +216,35 @@ import Testing
         opener.hold()
         let leasing = Task { try await hosts.lease(for: target) }
         #expect(await eventually { opener.waitingCount == 1 })
-        await hosts.closeAll()
+        let closing = Task { await hosts.closeAll() }
         await #expect(throws: TransportError.cancelled) { try await leasing.value }
         #expect(opener.calls == 1)
-        opener.release()
         #expect(await eventually { opener.cancelledCount == 1 })
-        #expect(await eventually { opener.made.first?.closeCount == 1 })
+        opener.release()
+        await closing.value
+        #expect(opener.made.first?.closeCount == 1)
+    }
+
+    /// Quitting during a sign-in: closeAll returns only once the open it cancelled has ended,
+    /// so no master outlives the app.
+    @Test func closeAllWaitsForTheOpenItCancels() async throws {
+        let hosts = connections()
+        let target = try omarchy()
+        opener.hold()
+        let leasing = Task { try await hosts.lease(for: target) }
+        #expect(await eventually { opener.waitingCount == 1 })
+        let closed = Mutex(false)
+        let closing = Task {
+            await hosts.closeAll()
+            closed.withLock { $0 = true }
+        }
+        #expect(await eventually { opener.cancelledCount == 1 })
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(!closed.withLock { $0 })
+        opener.release()
+        await closing.value
+        #expect(opener.made.first?.closeCount == 1)
+        _ = try? await leasing.value
     }
 
     @Test func anIdleHostIsForgotten() async throws {

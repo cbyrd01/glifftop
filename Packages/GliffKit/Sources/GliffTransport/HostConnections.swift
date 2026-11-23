@@ -73,13 +73,16 @@ public actor HostConnections {
         return HostLease(owner: self, target: target, place: try await acquire(target))
     }
 
-    /// Ends every connection, in use or in its grace; a later lease opens anew.
+    /// Ends every connection, in use or in its grace, and every open under way (returning once
+    /// each has ended, so no sign-in outlives the app); a later lease opens anew.
     public func closeAll() async {
         generation += 1
         var connections: [any HostConnection] = []
+        var opens: [Task<Void, Never>] = []
         for host in hosts.values {
             host.forget?.cancel()
             host.openTask?.cancel()
+            if let open = host.openTask { opens.append(open) }
             host.dropOpen?.cancel()
             for live in host.live {
                 live.grace?.cancel()
@@ -91,6 +94,7 @@ public actor HostConnections {
         hosts = [:]
         await withTaskGroup { group in
             for connection in connections { group.addTask { await connection.close() } }
+            for open in opens { group.addTask { await open.value } }
         }
     }
 
