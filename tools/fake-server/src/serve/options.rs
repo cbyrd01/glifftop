@@ -62,6 +62,9 @@ pub struct Options {
     pub expect_keys: u64,
     /// `input`: fewer pointer messages (motion, button, axis) than this fails (`--expect-pointer`).
     pub expect_pointer: u64,
+    /// `input`: two motions 1 apart on x, at the same y, must come before any key, button or
+    /// scroll (`--expect-nudge`).
+    pub expect_nudge: bool,
     /// `cursor`: only the valid shape (`--valid-only`).
     pub valid_only: bool,
     /// `resize`: the session is a virtual screen (`--headless`).
@@ -152,6 +155,7 @@ pub fn parse(args: &[String]) -> Result<Options, String> {
         keymap_first: false,
         expect_keys: 0,
         expect_pointer: 0,
+        expect_nudge: false,
         valid_only: false,
         headless: false,
         expect_resizes: 0,
@@ -196,6 +200,10 @@ pub fn parse(args: &[String]) -> Result<Options, String> {
                 let n = value()?;
                 options.expect_pointer = n.parse().map_err(|_| format!("bad pointer count {n}"))?;
             }
+            "--expect-nudge" => {
+                options.expect_nudge = true;
+                input_flags = true;
+            }
             "--valid-only" => options.valid_only = true,
             "--hostile" => options.hostile = true,
             "--headless" => options.headless = true,
@@ -210,7 +218,9 @@ pub fn parse(args: &[String]) -> Result<Options, String> {
         return Err("--streams and --size work with the stream scenario only".into());
     }
     if input_flags && options.scenario != Scenario::Input {
-        return Err("--keymap-first, --expect-keys and --expect-pointer work with the input scenario only".into());
+        return Err(
+            "--keymap-first, --expect-keys, --expect-pointer and --expect-nudge work with the input scenario only".into()
+        );
     }
     if options.valid_only && options.scenario != Scenario::Cursor {
         return Err("--valid-only works with the cursor scenario only".into());

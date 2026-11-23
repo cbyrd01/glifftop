@@ -25,11 +25,26 @@ import Testing
         #expect(TabChord(event(31, .down(isRepeat: false), commandShift)) == nil)
     }
 
+    /// The chord's repeats and key-up are swallowed with it, whatever is still held by then.
     @Test func theChordsUpAndRepeatsAreItsToo() {
-        #expect(TabChord.isChordKey(event(30, .up, commandShift)))
-        #expect(TabChord.isChordKey(event(33, .down(isRepeat: true), commandShift)))
-        #expect(!TabChord.isChordKey(event(30, .up, [.command, .leftCommand])))
-        #expect(!TabChord.isChordKey(event(30, .down(isRepeat: false), commandShift)))
-        #expect(!TabChord.isChordKey(event(31, .up, commandShift)))
+        var keys = TabChordKeys()
+        #expect(keys.take(event(30, .down(isRepeat: false), commandShift)) == .chord(.next))
+        #expect(keys.take(event(30, .down(isRepeat: true), commandShift)) == .swallowed)
+        #expect(keys.take(event(30, .up, [.command, .leftCommand])) == .swallowed)
+        #expect(keys.take(event(30, .up, commandShift)) == .passed)
+    }
+
+    /// A bracket pressed before ⌘⇧ went to the remote: its release must reach it too.
+    @Test func aBracketHeldBeforeTheChordIsReleasedToTheRemote() {
+        var keys = TabChordKeys()
+        #expect(keys.take(event(30, .down(isRepeat: false), [])) == .passed)
+        #expect(keys.take(event(30, .down(isRepeat: true), commandShift)) == .passed)
+        #expect(keys.take(event(30, .up, commandShift)) == .passed)
+    }
+
+    @Test func otherKeysPass() {
+        var keys = TabChordKeys()
+        #expect(keys.take(event(31, .down(isRepeat: false), commandShift)) == .passed)
+        #expect(keys.take(event(56, .flagsChanged, commandShift)) == .passed)
     }
 }

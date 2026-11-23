@@ -51,7 +51,8 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   `InputController.activate(at:)` sends it while captured as two motions a pixel apart, so the
   host's focus follows.
 - **`TabChord`:** ⌘⇧[ and ⌘⇧] (no ⌃ or ⌥), the previous and next Glifftop tab, once per
-  press; `isChordKey` names the chord's key-up and repeats, swallowed with it.
+  press. `TabChordKeys` follows them as they come: the chord's own repeats and key-up are
+  swallowed with it; a bracket pressed before ⌘⇧ passes, its release too.
 - **`PointerButtons`:** `NSEvent.buttonNumber` 0–7 to evdev `BTN_LEFT`, `BTN_RIGHT`,
   `BTN_MIDDLE`, then `BTN_SIDE` (back) on to `BTN_TASK`; other buttons send nothing.
 - **`ScrollEvent`, `ScrollPhase`, `ScrollTranslator`:** Mac scrolling to Gliff's axes

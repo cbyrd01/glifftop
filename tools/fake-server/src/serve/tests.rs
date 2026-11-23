@@ -639,3 +639,34 @@ fn clean_mode_matches_upstream() {
     assert_eq!(resize::clean_mode(1366, 768, 1.4), (1358, 756));
     assert_eq!(resize::clean_mode(1366, 768, 1.8), (1350, 756));
 }
+
+#[test]
+fn nudge_accepted() {
+    let messages = [keymap("k"), motion(99.0, 50.0), motion(100.0, 50.0), key(30, true), key(30, false), ClientMsg::Bye];
+    input(&["input", "--expect-nudge", "--expect-keys", "2"], &messages).unwrap();
+    assert!(options(&["input", "--expect-nudge"]).expect_nudge);
+    assert!(try_options(&["stream", "--expect-nudge"]).is_err());
+}
+
+#[test]
+fn a_single_motion_fails() {
+    let error = input(&["input", "--expect-nudge"], &[motion(100.0, 50.0), ClientMsg::Bye]).unwrap_err();
+    assert!(error.contains("expected a two-motion nudge first"), "{error}");
+    let apart = [motion(10.0, 50.0), motion(100.0, 50.0), ClientMsg::Bye];
+    let error = input(&["input", "--expect-nudge"], &apart).unwrap_err();
+    assert!(error.contains("expected a two-motion nudge first"), "{error}");
+}
+
+#[test]
+fn a_key_before_the_nudge_fails() {
+    let messages = [key(30, true), key(30, false), motion(99.0, 50.0), motion(100.0, 50.0)];
+    let error = input(&["input", "--expect-nudge"], &messages).unwrap_err();
+    assert!(error.contains("expected a two-motion nudge first"), "{error}");
+}
+
+#[test]
+fn a_nudge_off_the_left_edge_is_accepted() {
+    // The client adds 1 to 0.001: the difference back isn't exactly 1 in f64.
+    let messages = [motion(0.001 + 1.0, 7.0), motion(0.001, 7.0), ClientMsg::Bye];
+    input(&["input", "--expect-nudge"], &messages).unwrap();
+}

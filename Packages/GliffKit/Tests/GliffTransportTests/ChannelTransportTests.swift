@@ -155,15 +155,35 @@ import Testing
         #expect(opener.made.first?.invalidateCount == 0)
     }
 
+    /// A link found dead before the first byte is tried once more on a new connection; dead
+    /// there too, it ends as a shared connection lost.
     @Test func aLinkFoundDeadEndsAsASharedConnectionLost() async throws {
         let connection = try await transport().connect()
-        #expect(await clock.waitForSleepers(1))
-        clock.advance(by: .seconds(15))
-        #expect(await eventually { opener.made.first?.invalidateCount == 1 })
-        try #require(channels.first).fail(.exited(status: 255, failure: .other("ssh exited with status 255")))
+        for made in 1...2 {
+            #expect(await clock.waitForSleepers(1))
+            clock.advance(by: .seconds(15))
+            #expect(await eventually { opener.made.count == made && opener.made.last?.invalidateCount == 1 })
+            try #require(channels.last).fail(
+                .exited(status: 255, failure: .other("ssh exited with status 255")))
+        }
         await #expect(throws: TransportError.exited(status: 255, failure: .sharedConnectionLost)) {
             for try await _ in connection.incoming {}
         }
+        #expect(opener.calls == 2)
+    }
+
+    /// A session started on a connection whose master just died (after a wake, say) tries a
+    /// new one rather than failing.
+    @Test func aChannelOnADeadConnectionIsReplayed() async throws {
+        let connection = try await transport().connect()
+        try await connection.write([1, 2, 3])
+        try #require(channels.first).fail(.exited(status: 255, failure: .sharedConnectionLost))
+        #expect(await eventually { channels.count == 2 })
+        let second = try #require(channels.last)
+        #expect(await eventually { second.written == [1, 2, 3] })
+        second.send([9])
+        var chunks = connection.incoming.makeAsyncIterator()
+        #expect(try await chunks.next() == [9])
     }
 
     /// A session found its link dead (an unanswered probe), and nothing else on the connection

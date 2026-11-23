@@ -44,7 +44,8 @@ extension SessionModel {
     func reconnectNow() {
         if let run = reconnectRun {
             run.asked = true
-            Task { await run.reconnector?.reconnectNow() }
+            // During a try it does nothing: the next automatic try isn't the person's.
+            Task { if await run.reconnector?.reconnectNow() == false { run.asked = false } }
         } else if phase == .ended {
             tryAgain()
         } else if phase == .streaming, !quitting {

@@ -3,12 +3,14 @@ import Synchronization
 /// A session's byte stream as one channel on the host's shared connection.
 ///
 /// - `connect()` takes a lease; the stream ends it when closed or finished.
-/// - Bytes written before the first byte arrives are kept. A channel the host refuses before
-///   then (`ConnectFailure.channelRefused`) moves the lease to a further connection, once, and
-///   the kept bytes are written there first; the reader never sees that refusal.
+/// - Bytes written before the first byte arrives are kept. A channel that ends before then,
+///   refused (`ConnectFailure.channelRefused`, its connection full) or with its connection lost
+///   (`sharedConnectionLost`), moves the lease to another connection, once, and the kept bytes
+///   are written there first; the reader never sees that first end.
 /// - A channel that gives no first byte within `silenceLimit`, while no other channel on the
 ///   connection was heard from either, means the link is dead: the connection is invalidated,
-///   which ends its channels, and this one ends as `sharedConnectionLost`.
+///   which ends its channels, and this one ends as `sharedConnectionLost` (so is moved, if it
+///   was the first channel to end).
 /// - `abandon()` (the session found the link dead) invalidates the connection too, unless
 ///   another channel on it was heard from after this one's last byte: then only its own server
 ///   is silent.
@@ -115,7 +117,7 @@ final class LeasedChannel: ByteConnection {
     private func pump() async {
         var channel = state.withLock { $0.channel }
         var failure = await relay(channel)
-        if case TransportError.exited(_, .channelRefused)? = failure, state.withLock({ $0.kept != nil }) {
+        if Self.movable(failure), state.withLock({ $0.kept != nil }) {
             await channel.close()
             do throws(TransportError) {
                 channel = try await replay()
@@ -130,6 +132,14 @@ final class LeasedChannel: ByteConnection {
             continuation.finish(throwing: failure)
         }
         await close()
+    }
+
+    /// A channel that ended this way before its first byte is opened again elsewhere: refused
+    /// (its connection is full), or its connection was lost (a master that died after a wake,
+    /// before anyone noticed).
+    private static func movable(_ failure: (any Error)?) -> Bool {
+        guard case TransportError.exited(_, let why)? = failure else { return false }
+        return why == .channelRefused || why == .sharedConnectionLost
     }
 
     /// Passes `channel`'s bytes on until it ends: nil when it finished, else why it failed.
