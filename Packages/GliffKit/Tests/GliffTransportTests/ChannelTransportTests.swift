@@ -115,6 +115,36 @@ import Testing
         #expect(channels.allSatisfy { $0.isClosed })
     }
 
+    /// Disconnect while the move waits for a new connection (a sign-in prompt, say): nobody
+    /// waits for that open any more, so it is dropped.
+    @Test func closingDuringAMoveDropsItsOpen() async throws {
+        let connection = try await transport().connect()
+        opener.hold()
+        try #require(channels.first).fail(.exited(status: 255, failure: .channelRefused))
+        #expect(await eventually { opener.waitingCount == 1 })
+        await connection.close()
+        #expect(await hostClock.waitForSleepers(2))
+        hostClock.advance(by: .seconds(1))
+        #expect(await eventually { opener.cancelledCount == 1 })
+        opener.release()
+    }
+
+    /// The watchdog moved a silent channel; the replayed one then fails for a reason of its own,
+    /// which is what the session hears.
+    @Test func aReplayedChannelsOwnFailureIsReported() async throws {
+        let connection = try await transport().connect()
+        #expect(await clock.waitForSleepers(1))
+        clock.advance(by: .seconds(15))
+        #expect(await eventually { opener.made.first?.invalidateCount == 1 })
+        try #require(channels.first).fail(.exited(status: 255, failure: .other("ssh exited with status 255")))
+        #expect(await eventually { channels.count == 2 })
+        let denied = TransportError.exited(status: 255, failure: .permissionDenied)
+        try #require(channels.last).fail(denied)
+        await #expect(throws: denied) {
+            for try await _ in connection.incoming {}
+        }
+    }
+
     @Test func aSecondRefusalEndsTheStream() async throws {
         let connection = try await transport().connect()
         let refused = TransportError.exited(status: 255, failure: .channelRefused)

@@ -68,6 +68,9 @@ final class LeasedChannel: ByteConnection {
         var linkDead = false
         /// The connection's activity mark just after this channel's last byte.
         var lastHeard: Int
+        /// Relays the channel's bytes; cancelled at `close()`, so a move waiting for a new
+        /// connection stops waiting.
+        var pump: Task<Void, Never>?
     }
     private let state: Mutex<State>
 
@@ -82,7 +85,8 @@ final class LeasedChannel: ByteConnection {
 
     func start() {
         continuation.onTermination = { _ in Task { await self.close() } }
-        Task { await self.pump() }
+        let pump = Task { await self.pump() }
+        state.withLock { $0.pump = pump }
     }
 
     func write(_ bytes: [UInt8]) async throws(TransportError) {
@@ -98,12 +102,13 @@ final class LeasedChannel: ByteConnection {
     }
 
     func close() async {
-        let channel = state.withLock { state -> (any ByteConnection)? in
+        let ending = state.withLock { state -> (channel: any ByteConnection, pump: Task<Void, Never>?)? in
             guard !state.closed else { return nil }
             state.closed = true
-            return state.channel
+            return (state.channel, state.pump)
         }
-        guard let channel else { return }
+        guard let (channel, pump) = ending else { return }
+        pump?.cancel()
         await channel.close()
         await lease.end()
     }
@@ -179,7 +184,12 @@ final class LeasedChannel: ByteConnection {
     /// Moves the lease, opens the command again, and writes what was kept before anything new.
     private func replay() async throws(TransportError) -> any ByteConnection {
         try await lease.channelRefused()
-        if state.withLock({ $0.closed }) { throw .cancelled }
+        // A new connection: what the watchdog found was the old one's.
+        let closed = state.withLock { state in
+            state.linkDead = false
+            return state.closed
+        }
+        if closed { throw .cancelled }
         let channel = try await lease.channel(command: command)
         var sent = 0
         while true {

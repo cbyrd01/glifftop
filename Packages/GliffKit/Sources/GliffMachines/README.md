@@ -12,6 +12,8 @@ name) and reads and writes them as JSON.
   default. Saving a machine with another's destination replaces that one. A stored monitor name must be one Get Screens would offer
   and not a session's virtual screen (`ScreenChoice`'s decoding), as it becomes a server
   argument.
+- `TabPlanning`: a new tab to a machine open elsewhere starts as a virtual screen, and a
+  window's tabs are titled with their machine's name, numbered from its second tab.
 - It has no storage of its own: the app keeps the data (in `UserDefaults`).
 - Imports Foundation, GliffTransport, GliffSession and GliffClipboard only. Must not import AppKit, UIKit,
   SwiftUI, Observation or GliffVideo.
