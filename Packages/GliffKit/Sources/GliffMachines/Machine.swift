@@ -1,23 +1,26 @@
 public import Foundation
+public import GliffClipboard
 public import GliffSession
 public import GliffTransport
 
 /// How a machine connects: the screen, and for a virtual screen its text size and resolution;
-/// Scale to Fit; and whether a dropped link is tried again.
+/// Scale to Fit; whether a dropped link is tried again; and its clipboard sharing (nil: as
+/// Settings says).
 public struct MachineOptions: Codable, Equatable, Sendable {
     public var screen: ScreenChoice
     public var textSize: TextSize
     public var resolution: VirtualResolution
     public var scaleToFit: Bool
     public var reconnects: Bool
+    public var clipboard: ClipboardSharing?
 
     public init(
         screen: ScreenChoice = .focused, textSize: TextSize = .mac,
         resolution: VirtualResolution = .automatic,
-        scaleToFit: Bool = false, reconnects: Bool = true
+        scaleToFit: Bool = false, reconnects: Bool = true, clipboard: ClipboardSharing? = nil
     ) {
-        (self.screen, self.textSize, self.resolution, self.scaleToFit, self.reconnects) = (
-            screen, textSize, resolution, scaleToFit, reconnects
+        (self.screen, self.textSize, self.resolution, self.scaleToFit, self.reconnects, self.clipboard) = (
+            screen, textSize, resolution, scaleToFit, reconnects, clipboard
         )
     }
 
@@ -32,7 +35,8 @@ public struct MachineOptions: Codable, Equatable, Sendable {
             screen: value(.screen, defaults.screen), textSize: value(.textSize, defaults.textSize),
             resolution: value(.resolution, defaults.resolution),
             scaleToFit: value(.scaleToFit, defaults.scaleToFit),
-            reconnects: value(.reconnects, defaults.reconnects))
+            reconnects: value(.reconnects, defaults.reconnects),
+            clipboard: value(.clipboard, defaults.clipboard))
     }
 }
 
@@ -53,5 +57,24 @@ public struct Machine: Codable, Equatable, Identifiable, Sendable {
         (self.id, self.name, self.destination, self.options, self.isFavorite, self.lastConnected) = (
             id, name, destination, options, isFavorite, lastConnected
         )
+    }
+}
+
+extension MachineOptions {
+    /// The clipboard sharing in force for a window: its saved machine's (so every window to it
+    /// follows a change made in any one), else the window's own before the machine is saved;
+    /// nil in either follows Settings'.
+    public static func clipboard(saved: Machine?, window: ClipboardSharing?, settings: ClipboardSharing)
+        -> ClipboardSharing
+    {
+        (saved.map(\.options.clipboard) ?? window) ?? settings
+    }
+
+    /// These options, recorded by a reconnect: but for the screen and the clipboard, which the
+    /// machine keeps as saved (the sheet or another window may have changed them since).
+    public func keeping(_ saved: MachineOptions) -> MachineOptions {
+        var options = self
+        (options.screen, options.clipboard) = (saved.screen, saved.clipboard)
+        return options
     }
 }

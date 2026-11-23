@@ -5,7 +5,7 @@ import GliffTransport
 
 /// The session's machine: connecting with a machine's options, recording it when a session
 /// streams, and keeping the options changed during a session (View ▸ Text Size, Resolution,
-/// Scale to Fit, Screen) on it.
+/// Scale to Fit, Screen, the toolbar's clipboard sharing) on it.
 extension SessionModel {
     /// The session's saved machine: the one kept for its destination, whatever the sheet
     /// changed since. Nil without a session, and for a host that hasn't streamed yet.
@@ -15,7 +15,7 @@ extension SessionModel {
     var currentOptions: MachineOptions {
         MachineOptions(
             screen: screenChoice, textSize: textSize, resolution: resolution, scaleToFit: scaleToFit,
-            reconnects: reconnects)
+            reconnects: reconnects, clipboard: clipboardSharing)
     }
 
     /// Starts a session with `target` (as typed) and `options`; its machine is added when it
@@ -34,7 +34,7 @@ extension SessionModel {
     /// sheet may have changed it).
     func recordConnection() {
         var options = currentOptions
-        if keepsWindow, let kept = machine { options.screen = kept.options.screen }
+        if keepsWindow, let kept = machine { options = options.keeping(kept.options) }
         machines.connected(host, options: options)
     }
 
@@ -75,5 +75,6 @@ extension SessionModel {
         textSize = options.textSize
         resolution = options.resolution
         reconnects = options.reconnects
+        clipboardSharing = options.clipboard
     }
 }

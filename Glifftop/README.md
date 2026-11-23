@@ -64,7 +64,9 @@ lost), the Input menu (Release Input, ⇧⎋), Settings (`SettingsView`: the opt
 new host or machine starts from (`AppSettings.defaultOptions`: the screen, the virtual
 screen's text size (`TextSize`) and resolution, Scale to Fit, Reconnect automatically) and
 the clipboard (`ClipboardSharing`: Not shared by default, Shared, or Shared including passwords; a
-step up asks first; at once for an open session), in `UserDefaults` through
+step up asks first; at once for an open session following Settings. A machine may have its
+own, which the options form and the toolbar's button set; Settings' doesn't override it, and
+every window to the machine follows it), in `UserDefaults` through
 `AppSettings`) and (Debug builds) the Debug menu: Record 5 Seconds
 and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes).
 
@@ -172,7 +174,9 @@ AppKit adapters for what SwiftUI can't do:
   maps them to mime types (text, HTML, PNG or TIFF as `image/png`; a Finder copy only as its
   names in text) and finds password managers' concealed and transient marks: such a copy is
   offered only while it's Shared including passwords, and then with KDE's `x-kde-passwordManagerHint`, so the host's
-  clipboard history skips it.
+  clipboard history skips it. A host's copy one window put on the Mac (`ClipboardOrigin`
+  remembers which destination's) is never offered back to that destination by another
+  window; another host's window offers it, host to host.
   `PasteboardSource` reads the data when the remote pastes, only from the copy the offer was
   made from, a TIFF converted to PNG with ImageIO, at most 32 MiB.
 

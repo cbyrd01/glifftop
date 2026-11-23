@@ -80,6 +80,11 @@ import os
     var reconnects = true {
         didSet { reconnectsChanged() }
     }
+    /// Share the clipboard, the machine's own as this window chose it (nil: as Settings says),
+    /// kept on the machine. Once saved, the machine's is in force (`clipboardInForce`).
+    var clipboardSharing: ClipboardSharing? {
+        didSet { clipboardSharingChanged() }
+    }
     /// The saved machines, kept in `UserDefaults`.
     let machines = MachineStore()
     /// Set while a connection sets the window's options from a machine's: not changes to keep.
@@ -113,9 +118,10 @@ import os
     private(set) var clipboardActivity: ClipboardActivity?
     /// Input capture (keys and pointer) for this window's session.
     let capture = CaptureController()
-    /// The shared clipboard for this window's session, as the app's `ClipboardSharing` says.
-    let clipboard = ClipboardController(
-        sharing: { AppSettings.shareClipboard }, includePasswords: { AppSettings.includePasswords })
+    /// The shared clipboard for this window's session, as `clipboardInForce` says.
+    @ObservationIgnored private(set) lazy var clipboard = ClipboardController { [weak self] in
+        self?.clipboardInForce ?? .off
+    }
     /// The stream on screen, set only when it changes: the stats change `snapshot` every
     /// second, and what reads `picture` (the window's size, the menus) needn't follow them. A
     /// View menu rebuilt every second loses the Enter Full Screen item macOS adds to it.
@@ -384,12 +390,6 @@ import os
         windowSizing = nil
         viewPixels = nil
         snapshot = SessionSnapshot()
-    }
-
-    /// Cancel on the host's read of the Mac clipboard: what is being served is aborted.
-    func cancelClipboardServing() {
-        guard let bridge = session?.clipboard else { return }
-        Task { await bridge.cancelServing() }
     }
 
     #if DEBUG

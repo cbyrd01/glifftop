@@ -38,8 +38,12 @@ file request refused; GliffProtocol still reads and writes both.
     after 1 s.
   - Remote → Mac: the remote's offer (its file list dropped) and `fetch` of a type into memory
     (32 MiB at most).
+- **`ClipboardSharing`:** Share the clipboard, one setting of three (Not shared, Shared,
+  Shared including passwords), in order of what each sends; Settings holds one, and a machine
+  may hold its own.
 - **`ClipboardPolicy`:** when to offer, withdraw, or put the remote's offer on the Mac,
   as a pure struct whose actions the app carries out. A Mac copy may be offered if it has types to
-  forward, a password manager's only while passwords are shared (`offerable`); a `recheck`
+  forward, a password manager's only while passwords are shared, and never one this host's
+  own session put on the Mac (another host's is offered, as a Mac copy) (`offerable`); a `recheck`
   when that changes withdraws our offer the clipboard no longer allows, in front or not, and
   in front offers one it now allows (never over a newer host copy).

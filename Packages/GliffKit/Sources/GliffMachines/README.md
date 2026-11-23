@@ -2,7 +2,8 @@
 
 Owns the saved machines and their options: `Machine` (a name, the ssh destination, whether
 it's a favourite, when it last connected) and `MachineOptions` (the screen, a virtual screen's
-text size and resolution, Scale to Fit, reconnect), and `MachineList`, which keeps each
+text size and resolution, Scale to Fit, reconnect, and the clipboard's sharing: nil follows
+Settings'), and `MachineList`, which keeps each
 destination once in the order the list shows (favourites, then the most recent, then by
 name) and reads and writes them as JSON.
 
@@ -12,5 +13,5 @@ name) and reads and writes them as JSON.
   and not a session's virtual screen (`ScreenChoice`'s decoding), as it becomes a server
   argument.
 - It has no storage of its own: the app keeps the data (in `UserDefaults`).
-- Imports Foundation, GliffTransport and GliffSession only. Must not import AppKit, UIKit,
+- Imports Foundation, GliffTransport, GliffSession and GliffClipboard only. Must not import AppKit, UIKit,
   SwiftUI, Observation or GliffVideo.
