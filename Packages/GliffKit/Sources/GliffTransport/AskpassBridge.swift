@@ -173,13 +173,18 @@
                 close(socket)
                 return
             }
-            guard !state.withLock(\.revoked) else { return await fail(.cancelled, socket, "revoked") }
             guard peer.accepts(socket) else { return await fail(.cancelled, socket, "peer refused") }
             guard let request = await blocking({ Self.readRequest(socket) }) else {
                 return await fail(.cancelled, socket, "unreadable request")
             }
             guard Self.matches(request.token, token) else {
                 return await fail(.cancelled, socket, "wrong token")
+            }
+            if state.withLock(\.revoked) {
+                // A notice ssh showed as its sign-in finished needs no answer; a question does.
+                guard request.kind == .notice else { return await fail(.cancelled, socket, "revoked") }
+                close(socket)
+                return
             }
             guard
                 let question = AskpassPrompt.classify(

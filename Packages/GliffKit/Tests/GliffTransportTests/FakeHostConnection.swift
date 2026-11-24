@@ -125,6 +125,9 @@ final class FakeOpener: Sendable {
         var writesFail = false
         var cancelled = 0
         var closeGate: CloseGate?
+        var questions: [SignInQuestion] = []
+        var askedWith: [Bool] = []
+        var answers: [String] = []
     }
 
     private let state = Mutex(State())
@@ -149,6 +152,14 @@ final class FakeOpener: Sendable {
 
     func failNext(_ error: TransportError) { state.withLock { $0.failures.append(error) } }
 
+    /// Each open from now on asks these, as ssh would: Cancel fails it as `signInCancelled`,
+    /// Deny as `hostKeyDenied`.
+    func ask(_ questions: [SignInQuestion]) { state.withLock { $0.questions = questions } }
+    /// Whether each open was given someone to ask.
+    var askedWith: [Bool] { state.withLock { $0.askedWith } }
+    /// What each question was answered: allow, deny, secret or cancel.
+    var answers: [String] { state.withLock { $0.answers } }
+
     /// Closes of connections opened from now on wait until `gate` opens.
     func holdCloses(_ gate: CloseGate) { state.withLock { $0.closeGate = gate } }
 
@@ -156,11 +167,14 @@ final class FakeOpener: Sendable {
     func failChannelWrites() { state.withLock { $0.writesFail = true } }
 
     var open: HostConnections.Open {
-        { [self] _ throws(TransportError) in try await self.open() }
+        { [self] _, asker throws(TransportError) in try await self.open(asker) }
     }
 
-    private func open() async throws(TransportError) -> any HostConnection {
-        state.withLock { $0.calls += 1 }
+    private func open(_ asker: (any SignInAsker)?) async throws(TransportError) -> any HostConnection {
+        state.withLock { state in
+            state.calls += 1
+            state.askedWith.append(asker != nil)
+        }
         await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
                 let goOn = state.withLock { state in
@@ -174,6 +188,19 @@ final class FakeOpener: Sendable {
         }
         if let failure = state.withLock({ $0.failures.isEmpty ? nil : $0.failures.removeFirst() }) {
             throw failure
+        }
+        for question in state.withLock({ $0.questions }) {
+            guard let asker else { throw .exited(status: 255, failure: .permissionDenied) }
+            let answer: String =
+                switch await asker.ask(question) {
+                case .allow: "allow"
+                case .deny: "deny"
+                case .secret: "secret"
+                case .cancel: "cancel"
+                }
+            state.withLock { $0.answers.append(answer) }
+            if answer == "cancel" { throw .exited(status: 255, failure: .signInCancelled) }
+            if answer == "deny" { throw .exited(status: 255, failure: .hostKeyDenied) }
         }
         let (writesFail, closeGate) = state.withLock { ($0.writesFail, $0.closeGate) }
         let connection = FakeHostConnection(writesFail: writesFail, closeGate: closeGate)

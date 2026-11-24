@@ -35,7 +35,7 @@
         deinit { unlink(path) }
 
         func bridge(
-            accepting: Bool = true, ioLimit: Duration = .seconds(10),
+            accepting: Bool = true, ioLimit: Duration = .seconds(10), serving: Bool = true,
             ask: @escaping @Sendable (SignInQuestion) async -> SignInAnswer
         ) throws -> AskpassBridge {
             let record = record
@@ -50,7 +50,8 @@
                     try? await Task.sleep(for: .milliseconds(200))
                     record.add("end")
                 }, ioLimit: ioLimit)
-            try bridge.start()
+            try bridge.listen()
+            if serving { bridge.serve() }
             return bridge
         }
 
@@ -148,6 +149,18 @@
             bridge.revoke()
             _ = await shown
             while bridge.questionOpen { try await Task.sleep(for: .milliseconds(10)) }
+            try await Task.sleep(for: .milliseconds(300))
+            #expect(bridge.outcome == nil && !record.events.withLock { $0.contains("end") })
+        }
+
+        /// A notice that ssh showed just before its sign-in finished, served after the revoke.
+        @Test func aNoticeWaitingAtRevokeLeavesTheMasterAlone() async throws {
+            let bridge = try bridge(serving: false) { _ in .cancel }
+            async let shown = helper("Confirm user presence for key ED25519-SK", notice: true)
+            try await Task.sleep(for: .milliseconds(200))
+            bridge.revoke()
+            bridge.serve()
+            _ = await shown
             try await Task.sleep(for: .milliseconds(300))
             #expect(bridge.outcome == nil && !record.events.withLock { $0.contains("end") })
         }

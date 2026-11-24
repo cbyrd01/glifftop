@@ -27,10 +27,11 @@
         }
 
         /// On `connections`' shared connection to `target`, as the person's own try (it asks
-        /// for a sign-in again). The list comes only at the script's end, so the channel's
+        /// for a sign-in again, `asker` answering its questions). The list comes only at the script's end, so the channel's
         /// first-byte watchdog waits past the listing's own limit: a slow listing ends alone.
         public init(
-            connections: HostConnections, target: SSHTarget, timeout: Duration = .seconds(60),
+            connections: HostConnections, target: SSHTarget, asker: (any SignInAsker)? = nil,
+            timeout: Duration = .seconds(60),
             clock: any Clock<Duration> = ContinuousClock()
         ) {
             let command = ScreenListCommand(target: target).remoteCommand
@@ -38,7 +39,7 @@
                 ChannelTransport(
                     connections: connections, target: target, command: command,
                     silenceLimit: timeout + .seconds(5),
-                    fresh: true, clock: clock))
+                    fresh: true, asker: asker, clock: clock))
             self.timeout = timeout
         }
 

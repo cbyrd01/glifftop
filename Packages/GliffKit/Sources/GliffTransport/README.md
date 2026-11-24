@@ -47,8 +47,14 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   can each be one. `HostConnections` (an actor) keeps one per destination as typed, held by
   `HostLease`s: everyone asking while one opens waits for that one sign-in; it closes 10 s after
   its last lease ends; a sign-in that asked and failed (the agent or the key refused, no
-  approval in a minute) answers that destination for 10 s unless a connection there has room,
-  and a `fresh` lease (an attempt the person starts) asks again; an open nobody has waited for
+  approval in a minute, the person's Cancel, a denied key, too many questions) answers that
+  destination for 10 s unless a connection there has room, and a `fresh` lease (an attempt the
+  person starts) asks again; an open started by a lease with an asker (a window) asks its
+  sign-in questions through `SignInRouter`: each goes to the oldest waiting lease with an
+  asker, a question about a host key (`.hostKey`, `.confirm`) only to a `fresh` one (with
+  none, it is denied and the open fails as `hostKeyUnchecked`), and a waiter that leaves hands
+  its question to the next; with none, it waits 1 s for one, then cancels it, a cancel not
+  remembered; an open nobody has waited for
   in 1 s is cancelled (so a session that starts as a listing stops shares its sign-in); a connection takes at most 10 leases (sshd's `MaxSessions`), and one that
   refuses a channel takes no more, its lease moving to a further connection; a lost connection is
   forgotten at once, so the next lease opens anew; `closeAll()` ends them all and cancels anyone
@@ -83,7 +89,7 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   Without them, or when the probe fails, the master runs in batch mode. Each channel is one ssh
   through the socket; the master's own exit, even a clean one, is a lost connection, and
   `close()` ends it with `-O exit`. `SystemSSH.opener(helper:)` is the app's opener for
-  `HostConnections`; every opener shares one socket directory and one numbering.
+  `HostConnections`, asking through the asker `HostConnections` gives it; every opener shares one socket directory and one numbering.
 - **Screens:** `ScreenChoice` is what a session shows (the focused monitor, one by name,
   or a virtual screen) as gliff-server's arguments. `ScreenListParser` reads the host's
   `hyprctl -j monitors` as untrusted input into `RemoteScreen`s: at most 1 MiB, names only

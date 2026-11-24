@@ -22,6 +22,16 @@ import Testing
     /// The channels handed out so far, oldest first, across every connection.
     var channels: [FakeChannel] { opener.made.flatMap(\.channels) }
 
+    @Test func aChannelsAskerReachesTheLease() async throws {
+        opener.ask([HostConnectionsAskingTests.password])
+        let asker = HostConnectionsAskingTests.secret()
+        _ = try await ChannelTransport(
+            connections: connections, target: SSHTarget("omarchy"), command: "gliff-server --stdio",
+            asker: asker, clock: clock
+        ).connect()
+        #expect(asker.questions == [HostConnectionsAskingTests.password])
+    }
+
     @Test func connectLeasesAndOpensTheCommand() async throws {
         _ = try await transport().connect()
         #expect(opener.calls == 1)

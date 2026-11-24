@@ -8,12 +8,12 @@
         /// Prepares the sockets' directory now, ending stale masters: at the app's launch.
         public static func prepare() async { await SystemSSHSockets.shared.prepare() }
 
-        /// Opens with `helper`, the app's askpass helper. It passes no `SignInAsker` yet, so its
-        /// masters run in batch mode.
+        /// Opens with `helper`, the app's askpass helper, asking through the asker
+        /// `HostConnections` gives; without either, the master runs in batch mode.
         public static func opener(helper: URL? = nil) -> HostConnections.Open {
-            { target throws(TransportError) in
+            { target, asker throws(TransportError) in
                 try await SystemSSHConnection.open(
-                    target: target, socket: SystemSSHSockets.shared.next(), helper: helper)
+                    target: target, socket: SystemSSHSockets.shared.next(), questions: asker, helper: helper)
             }
         }
     }

@@ -19,6 +19,9 @@ public enum ConnectFailure: Equatable, Sendable {
     case signInTimedOut
     /// The person didn't allow the host's key.
     case hostKeyDenied
+    /// A reconnect met a host key this Mac doesn't know: only a connection the person starts
+    /// asks about one.
+    case hostKeyUnchecked
     /// The person cancelled a sign-in question.
     case signInCancelled
     /// The sign-in asked more questions than any honest one does.
@@ -54,6 +57,9 @@ public enum ConnectFailure: Equatable, Sendable {
             "The sign-in didn't finish within a minute. If your ssh agent asked for approval (for "
                 + "example, 1Password), approve it and try again."
         case .hostKeyDenied: "You didn't allow the host's key."
+        case .hostKeyUnchecked:
+            "This Mac doesn't know the host's key yet, and reconnecting never accepts one. "
+                + "Connect again to check and accept its key."
         case .signInCancelled: "Sign-in cancelled."
         case .tooManyQuestions: "The host asked too many questions."
         case .other(let text): text
