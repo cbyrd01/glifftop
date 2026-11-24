@@ -5,6 +5,7 @@ import SwiftUI
 /// dimmed, while reconnecting), and why it ended.
 struct SessionView: View {
     let model: SessionModel
+    @AppStorage(AppSettings.showsStatusBarKey) private var showsStatusBar = false
 
     var body: some View {
         // A container, not a Group: a Group would hand onDisappear to each branch, and the
@@ -17,6 +18,15 @@ struct SessionView: View {
             } else {
                 status
                     .padding(24)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // A virtual screen's size goes with its session, before the picture's view exists.
+        .background {
+            if model.awaitsVirtualPicture {
+                SessionAreaTracker(
+                    fills: !model.keepsWindow && !model.sharesWindow,
+                    extraHeight: showsStatusBar ? StatusBar.height : 0, onTarget: model.viewTargetChanged)
             }
         }
         .onDisappear(perform: model.stopSession)

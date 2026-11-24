@@ -149,15 +149,18 @@ AppKit adapters for what SwiftUI can't do:
 - `FullScreenTracker`: the window's full-screen state for `RootView`, which keeps its content
   resizable while full screen (fixed-size content makes the window ignore
   `toggleFullScreen`), and leaving full screen when the picture goes (not while View ▸ Screen
-  or a lost session reconnects), so the compact end screen isn't a box on black;
+  or a lost session reconnects, nor while a virtual screen's session awaits its picture), so the compact end screen isn't a box on black;
 - `WindowSizer`: for a mirror (`WindowSizing.monitor`), the window at 1:1 for the monitor
   when that fits the screen, else the largest fitting size (`VideoFit.contentSize`), when
   streaming starts and on View ▸ Actual Size, never for a later view (the server shrinks a
-  mirror to the window); for a virtual screen (`.fillScreen`), the screen's visible area when
-  streaming starts. A full-screen window keeps its screen. A window with other tabs keeps the
+  mirror to the window); for a virtual screen (`.fillScreen`), the screen's visible area as
+  the session starts (`SessionAreaTracker`), and again when streaming starts. A full-screen window keeps its screen. A window with other tabs keeps the
   group's size: no session sizes it, a mirror draws fitted (`SessionModel.sharesWindow`), the
   machines stay resizable and Actual Size is off; a mirror left alone (torn off) is fitted
   again;
+- `SessionAreaTracker`: a virtual screen's window before its picture, filled once and
+  measured as the video view will be (`NSView.backingPixels`, less the status bar), so the
+  remote screen is asked for that size while the session connects;
 - input capture, keys and pointer together: `CaptureController` (one per window's session)
   feeds GliffInput's `InputController` the window, app, picture, link, sleep and lock
   changes, swallows the window's key events while captured (a local monitor, only while there

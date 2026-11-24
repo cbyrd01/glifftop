@@ -280,10 +280,7 @@ final class VideoNSView: NSView {
     }
 
     /// The drawable's size: the view's bounds in backing pixels.
-    private func drawableSize() -> PixelSize {
-        let backing = convertToBacking(bounds).size
-        return PixelSize(width: Int(backing.width.rounded()), height: Int(backing.height.rounded()))
-    }
+    private func drawableSize() -> PixelSize { backingPixels() }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()

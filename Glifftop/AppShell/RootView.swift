@@ -22,7 +22,8 @@ struct RootView: View {
         // The window (contentSize resizability) takes its limits from the content. Without the
         // picture, the content is fixed at its ideal size in both directions: the window fits
         // each phase, taller ones aren't clipped, and a window macOS restores at a stream's
-        // width comes back to the form's. The picture lets the window resize freely, and so
+        // width comes back to the form's. The picture lets the window resize freely, as does a
+        // virtual screen's session until it ends (its window is sized as it starts), and so
         // does full screen until the window has left it (`FullScreenTracker`). Free needs the
         // unbounded maximum: the end screen alone is no bigger than its text, and a window
         // whose content can't grow can't use full screen, not even to leave it.
@@ -44,7 +45,8 @@ struct RootView: View {
         .background {
             FullScreenTracker(
                 isFullScreen: $isFullScreen,
-                wanted: model.picture != nil || model.isSwitching || model.isReconnecting)
+                wanted: model.picture != nil || model.awaitsVirtualPicture || model.isSwitching
+                    || model.isReconnecting)
         }
         .background {
             CaptureTracker(
@@ -61,8 +63,11 @@ struct RootView: View {
         #endif
     }
 
-    /// A window shared with other tabs keeps the group's size: its content stays resizable.
-    private var isCompact: Bool { model.picture == nil && !isFullScreen && !model.sharesWindow }
+    /// A window shared with other tabs keeps the group's size: its content stays resizable. So
+    /// does a virtual screen's until it ends: its window is sized as it starts.
+    private var isCompact: Bool {
+        model.picture == nil && !isFullScreen && !model.sharesWindow && !model.awaitsVirtualPicture
+    }
     /// The machines' own width; a session's window before its picture sizes it.
     private var idealWidth: CGFloat { model.isActive ? 420 : MachinesView.width }
 }

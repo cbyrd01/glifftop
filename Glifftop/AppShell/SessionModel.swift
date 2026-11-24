@@ -39,7 +39,8 @@ import os
         }
     }
     /// How this session's window is sized, set once per session: a later view from
-    /// the server never resizes the window. Nil until known (always known once streaming).
+    /// the server never resizes the window. Nil until known (from the start for a virtual
+    /// screen, always once streaming).
     private(set) var windowSizing: WindowSizing?
     /// Whether the session is a virtual screen (the window drives it). Follows `windowSizing`,
     /// so the View menu that reads it doesn't follow the stats.
@@ -263,7 +264,8 @@ import os
         remotePointer = RemotePointerSlot()
         // A reconnect's try keeps the window's size: a tab in the background draws nothing, so
         // its view wouldn't report it again until selected.
-        if !reconnecting { (windowSizing, viewPixels) = (nil, nil) }
+        // A virtual screen's window is sized at once, so its size can go with the session.
+        if !reconnecting { (windowSizing, viewPixels) = (screen == .virtual ? .fillScreen : nil, nil) }
         let decoder: VideoToolboxDecoder
         do throws(VideoError) {
             decoder = try makeDecoder()
