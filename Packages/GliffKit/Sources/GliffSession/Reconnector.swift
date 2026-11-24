@@ -37,6 +37,8 @@ public actor Reconnector {
     private var isRunning = false
     /// A `reconnectNow()` for the coming wait: it ends at once.
     private var skipWait = false
+    /// A try is under way: Reconnect Now has nothing to cut short.
+    private var trying = false
     /// The wait in progress, and the sleep that ends it.
     private var waiter: CheckedContinuation<Wake, Never>?
     private var sleeper: Task<Void, Never>?
@@ -80,7 +82,10 @@ public actor Reconnector {
             // A cancel can land after the wait ended and before this resumes.
             if await wait(delay, attempt: number) == .cancelled || Task.isCancelled { return .cancelled }
             statesContinuation.yield(.trying(attempt: number))
-            switch await attempt() {
+            trying = true
+            let outcome = await attempt()
+            trying = false
+            switch outcome {
             case .streaming:
                 memory.reconnected(with: count)
                 return .reconnected
@@ -93,10 +98,13 @@ public actor Reconnector {
     }
 
     /// Ends the current wait now, offline too (the network's state may be wrong: a VPN, say).
-    /// Pressed during a try, it does nothing.
-    public func reconnectNow() {
+    /// Pressed during a try, it does nothing: false.
+    @discardableResult
+    public func reconnectNow() -> Bool {
+        guard !trying else { return false }
         skipWait = true
         wake(.now)
+        return true
     }
 
     /// While false, the countdown stops and no try is spent; true starts it again.

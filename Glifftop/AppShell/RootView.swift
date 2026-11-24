@@ -7,7 +7,6 @@ import UniformTypeIdentifiers
 struct RootView: View {
     @Bindable var model: SessionModel
     @State private var isFullScreen = false
-    @StoredClipboardSharing private var clipboardSharing
 
     var body: some View {
         Group {
@@ -30,12 +29,12 @@ struct RootView: View {
         // One view tree either way: a SessionView swapped for another would disappear, which
         // stops the session.
         .fixedSize(horizontal: isCompact, vertical: isCompact)
-        .navigationTitle(model.title)
+        .navigationTitle(model.tabTitle)
         .navigationSubtitle(model.subtitle)
         .toolbar { SessionToolbar(model: model) }
         .windowToolbarFullScreenVisibility(.onHover)
         .clipboardSharingConfirmation($model.askingClipboard) {
-            clipboardSharing = $0
+            model.clipboardSharing = $0
         }
         .sheet(item: $model.machineEdit) {
             EditMachineView(model: model, machine: $0.machine, isNew: $0.isNew)
@@ -62,7 +61,8 @@ struct RootView: View {
         #endif
     }
 
-    private var isCompact: Bool { model.picture == nil && !isFullScreen }
+    /// A window shared with other tabs keeps the group's size: its content stays resizable.
+    private var isCompact: Bool { model.picture == nil && !isFullScreen && !model.sharesWindow }
     /// The machines' own width; a session's window before its picture sizes it.
     private var idealWidth: CGFloat { model.isActive ? 420 : MachinesView.width }
 }

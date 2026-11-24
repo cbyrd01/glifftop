@@ -1,3 +1,4 @@
+import GliffClipboard
 import GliffMachines
 import GliffSession
 import GliffTransport
@@ -35,8 +36,13 @@ enum AppSettings {
             scaleToFit: defaults.bool(forKey: scaleToFitKey),
             reconnects: defaults.object(forKey: reconnectsKey) as? Bool ?? true)
     }
-    static var shareClipboard: Bool { UserDefaults.standard.bool(forKey: shareClipboardKey) }
-    static var includePasswords: Bool { UserDefaults.standard.bool(forKey: includePasswordsKey) }
+    /// Settings' Share the clipboard, which a machine with no setting of its own follows.
+    static var clipboardSharing: ClipboardSharing {
+        let defaults = UserDefaults.standard
+        return ClipboardSharing(
+            share: defaults.bool(forKey: shareClipboardKey),
+            includePasswords: defaults.bool(forKey: includePasswordsKey))
+    }
 }
 
 /// Settings ▸ General: the options each new host or machine starts from, and the clipboard.
@@ -67,6 +73,9 @@ struct SettingsView: View {
             Picker("Clipboard", selection: .askingFirst($clipboardSharing, asking: $askingClipboard)) {
                 ForEach(ClipboardSharing.allCases, id: \.self) { Text($0.label).tag($0) }
             }
+            Text("A machine with its own Clipboard setting keeps it.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
         }
         .formStyle(.grouped)
         .clipboardSharingConfirmation($askingClipboard) {

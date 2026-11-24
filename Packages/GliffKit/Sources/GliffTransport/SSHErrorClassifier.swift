@@ -8,6 +8,25 @@ public enum SSHErrorClassifier {
         "Timeout, server ",
     ]
 
+    /// A channel on the shared connection: ssh runs it through the master's socket. Refused
+    /// there, the master took no more sessions; anything of ssh's own connecting means the
+    /// socket was gone and ssh tried a direct connection, which `ProxyCommand=/usr/bin/false`
+    /// ends at once.
+    public static func classifyChannel(exitStatus: Int32, stderr: String) -> ConnectFailure {
+        func has(_ text: String) -> Bool { stderr.contains(text) }
+        if exitStatus == 255 {
+            if has("administratively prohibited") || has("Session open refused by peer") {
+                return .channelRefused
+            }
+            if has("Control socket connect(") || has("kex_exchange_identification") || has("UNKNOWN port")
+                || has("mux_client_") || has("read from master failed")
+            {
+                return .sharedConnectionLost
+            }
+        }
+        return classify(exitStatus: exitStatus, stderr: stderr)
+    }
+
     public static func classify(exitStatus: Int32, stderr: String) -> ConnectFailure {
         func has(_ text: String) -> Bool { stderr.contains(text) }
 

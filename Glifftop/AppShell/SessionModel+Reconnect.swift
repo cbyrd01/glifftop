@@ -12,6 +12,8 @@ final class ReconnectRun {
     var waiter: CheckedContinuation<ReconnectAttempt, Never>?
     /// Reconnect Now before the first countdown began: it is cut short as it starts.
     var skipsFirstWait = false
+    /// Reconnect Now was asked for: the next try asks for a sign-in again, as the person's own.
+    var asked = false
     let network: AsyncStream<Bool>
     let networkChanges: AsyncStream<Bool>.Continuation
 
@@ -41,15 +43,27 @@ extension SessionModel {
     /// ends the session and tries at once; after an end, Try Again.
     func reconnectNow() {
         if let run = reconnectRun {
-            Task { await run.reconnector?.reconnectNow() }
+            run.asked = true
+            // During a try it does nothing: the next automatic try isn't the person's.
+            Task { if await run.reconnector?.reconnectNow() == false { run.asked = false } }
         } else if phase == .ended {
             tryAgain()
         } else if phase == .streaming, !quitting {
             // Asked for: it counts afresh.
             reconnectMemory.forget()
-            endSession()
+            endSession(abandoningAQuietLink: true)
             beginReconnect(after: .connectionLost, now: true)
         }
+    }
+
+    /// Whether a session starting asks for a sign-in again (`HostConnections`' fresh lease):
+    /// one the person started does, a reconnect's try only after Reconnect Now, a revived one
+    /// never.
+    func asksAgain(_ reconnecting: Bool) -> Bool {
+        guard reconnecting else { return true }
+        guard let run = reconnectRun else { return false }
+        defer { run.asked = false }
+        return run.asked
     }
 
     /// Whether Reconnect has something to do.
@@ -66,13 +80,22 @@ extension SessionModel {
         start(destination, screen: sheetScreen ?? screenChoice)
     }
 
+    /// Another window's session to this destination streams again after this one's reconnect
+    /// gave up: a try on the connection now up, keeping the window's size, as a reconnect's
+    /// would. One that fails still says the reconnect gave up, and is revived again.
+    func revive() {
+        guard gaveUp, canTryAgain, let destination else { return }
+        start(destination, screen: screenChoice, reconnecting: true)
+    }
+
     /// The session's phase changed: a try's session streamed or ended, or a session that may
     /// be tried again ended.
     func sessionPhaseChanged() {
         switch phase {
         case .streaming:
-            heldPicture = nil
+            (heldPicture, gaveUp) = (nil, false)
             resumeAttempt(.streaming)
+            if let destination { OpenSessions.shared.reached(destination, by: self) }
         case .ended:
             let end = snapshot.end ?? .connectionLost
             if reconnectRun?.waiter != nil {
@@ -135,7 +158,7 @@ extension SessionModel {
             return await self?.attempt(for: run) ?? .ended(.disconnected)
         }
         run.reconnector = reconnector
-        run.skipsFirstWait = now
+        (run.skipsFirstWait, run.asked) = (now, now)
         reconnectRun = run
         refreshHasPicture()
         run.networkChanges.yield(networkUsable)

@@ -34,22 +34,30 @@ list), a virtual screen's Text Size and Resolution, Scale to Fit and Reconnect a
 from Settings, or from the saved machine the field names; then the saved machines: name, host
 and screen, when last connected and a favourite's star, double-click or Return connecting, and
 a menu of Connect, Edit…, Favourite and Remove, which asks), the machine sheet
-(`EditMachineView`: Name, Host and the options; New Machine… ⌘N and the + button add one and
-can Connect, Connection ▸ Edit Machine… ⌘E edits the session's), the session view, the streaming view (the picture below
+(`EditMachineView`: Name, Host and the options; New Machine… ⌥⌘N and the + button add one and
+can Connect, Connection ▸ Edit Machine… ⌘E edits the session's; a machine shown in any window
+keeps its host), the windows and tabs (`SessionWindow`: each window or native tab its own
+`SessionModel` and session, opened from a `TabRequest`; File ▸ New Tab ⌘T joins the key
+window's tab group, New Window ⌘N opens one alone, Close Window ⇧⌘W closes every tab, and
+closing a tab ends its session as Disconnect does; `OpenSessions`, the open windows' models;
+a host already open elsewhere starts on a virtual screen, which its machine never keeps
+(`TabPlanning`); the menus act on the key window's model, `FocusedSession.swift`), the session view, the streaming view (the picture below
 the toolbar, never under it; `InterruptionView`, a dimmed picture under a glass panel, while
 the server is quiet, with Disconnect and Reconnect Now; `ReconnectingView`, the last picture
 dimmed under a glass panel while a lost session is tried again: why it ended, the countdown
 and the try, Reconnect Now and Disconnect; the "Shift+Esc releases input" hint for a few seconds after capture; and
 under the picture, with View ▸ Show Status Bar, `StatusBar`: the state, fps, Mbit/s, round
 trip, chroma · encoder and the clipboard read, on the bar material, its height counted when
-a mirror's window is fitted), the window's title (the machine's name, else the host) and subtitle ("Virtual Screen ·
+a mirror's window is fitted), the window's title (the machine's name, else the host; numbered from a machine's second tab
+in the window, "omarchy 2") and subtitle ("Virtual Screen ·
 Connected", `SessionModel+Chrome.swift`), the toolbar (`SessionToolbar`, while a session is
 shown, shown on hover in full screen: Screen and, on a virtual screen, Text Size; the
 clipboard (`ClipboardToolbarItem`: one button stepping through Not shared, Shared and Shared
 including passwords, each step up asking first as Settings does, with the clipboard read
 beside it); Connection Info, a popover of `StatsView`'s numbers and "The host draws W × H",
 and Disconnect), the Connection menu (`ConnectionCommands`: Disconnect ⇧⌘D, Reconnect ⇧⌘R,
-Connection Info ⌘I, Edit Machine… ⌘E), the View menu (Actual Size ⌘0, disabled on a virtual
+Connection Info ⌘I, Edit Machine… ⌘E; and File's New Tab, New Window, New Machine… and Close
+Window), the View menu (Actual Size ⌘0, disabled on a virtual
 screen, turning Scale to Fit off; Scale to Fit ⌥⌘0; Show Status Bar ⌘/, app-wide, off by default; `ScreenMenus.swift`: Text Size, a virtual screen only, its steps
 showing the remote scale on the window's display and the ones that change nothing off;
 Resolution, a virtual screen only: Automatic, Retina and Standard, Standard off on a display
@@ -64,8 +72,14 @@ lost), the Input menu (Release Input, ⇧⎋), Settings (`SettingsView`: the opt
 new host or machine starts from (`AppSettings.defaultOptions`: the screen, the virtual
 screen's text size (`TextSize`) and resolution, Scale to Fit, Reconnect automatically) and
 the clipboard (`ClipboardSharing`: Not shared by default, Shared, or Shared including passwords; a
-step up asks first; at once for an open session), in `UserDefaults` through
-`AppSettings`) and (Debug builds) the Debug menu: Record 5 Seconds
+step up asks first; at once for an open session following Settings. A machine may have its
+own, which the options form and the toolbar's button set; Settings' doesn't override it, and
+every window to the machine follows it), in `UserDefaults` through
+`AppSettings`) and (Debug builds) the Debug menu: Protocol Inspector (⌥⌘I: `InspectorView`, a
+section per open window titled as its tab, with each message type's count, bytes, last seen
+and rate per direction, and the last 200 messages, refreshed once a second, with Pause and
+Clear; `InspectorModel` holds a `ProtocolTally` per window behind a `Mutex`, filled by the
+session's `ProtocolObserver`: types and sizes only, never a body), Record 5 Seconds
 and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes).
 
 - **Owns:** `MachineStore` (the saved machines in `UserDefaults`, key `machines`, as
@@ -86,8 +100,10 @@ and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes
   another connection or Reconnect automatically turned off stops it (the last, with why it was
   lost on the end screen); `SessionEndedView` after
   an end the person didn't choose, with Try Again, Edit Machine… and Close: Disconnect and
-  Cancel go straight back to the machines), `ScreenList`
-  (the host's monitors, listed through a lister closure, ssh by default, and never saved:
+  Cancel go straight back to the machines), `AppConnections` (the app's one `HostConnections`:
+  each session and Get Screens is a channel on its host's one signed-in ssh), `ScreenList`
+  (the host's monitors, listed through a lister closure, by default on the host's shared
+  connection, and never saved:
   one listing at a time, stopped (its error dismissed) when a session starts; a refresh keeps the list until the
   new one arrives; the list belongs to its host and is forgotten when the field names
   another, and a monitor is chosen only from its own host's list), the
@@ -108,8 +124,19 @@ AppKit adapters for what SwiftUI can't do:
 - committing what a field holds before a form reads it, text still being composed or put
   there by AutoFill (`TextComposition`: commits the composition in place, tells the input
   method, and returns the field's own value; the SwiftUI binding may update later);
-- quitting that waits for a session's Bye (`AppDelegate`, which knows only a `beforeQuit`
-  closure; `GlifftopApp` hands it `SessionModel.shutdown`);
+- quitting that waits for the sessions' Bye (`AppDelegate`, which knows only a `beforeQuit`
+  closure; `GlifftopApp` hands it `OpenSessions.shutdownAll`, then `AppConnections.closeAll`),
+  and closing the last window quits;
+- native tabs (`WindowTabbing`): a SwiftUI window is already ordered in when its content
+  reaches it, so a new tab joins its group with `addTabbedWindow`, after the group's last tab,
+  and a window opened alone that macOS tabbed anyway leaves its group; it reports the window's
+  number and its group's in tab order (KVO on the group's windows) and the window's close;
+  Close Window closes every tab of the key window's group;
+- switching tabs (`TabSwitcher`): Window ▸ Previous Tab and Next Tab (⇧⌘[, ⇧⌘]), and the same
+  chord over the picture, taken by `CaptureController`'s key monitor before the remote (while
+  captured, too), select the window's previous or next tab; in a window of one tab, the
+  previous or next session window in opening order (a group once, as its selected tab), whose
+  Space comes forward;
 - the video view: `VideoNSView`, a `CAMetalLayer` (sRGB, opaque) that a display link draws
   into through `PictureRenderer` only when there is a new picture, a new drawable size or a
   new view box for the picture on screen, or Scale to Fit toggled, and only while the window
@@ -127,12 +154,20 @@ AppKit adapters for what SwiftUI can't do:
   when that fits the screen, else the largest fitting size (`VideoFit.contentSize`), when
   streaming starts and on View ▸ Actual Size, never for a later view (the server shrinks a
   mirror to the window); for a virtual screen (`.fillScreen`), the screen's visible area when
-  streaming starts. A full-screen window keeps its screen;
+  streaming starts. A full-screen window keeps its screen. A window with other tabs keeps the
+  group's size: no session sizes it, a mirror draws fitted (`SessionModel.sharesWindow`), the
+  machines stay resizable and Actual Size is off; a mirror left alone (torn off) is fitted
+  again;
 - input capture, keys and pointer together: `CaptureController` (one per window's session)
   feeds GliffInput's `InputController` the window, app, picture, link, sleep and lock
   changes, swallows the window's key events while captured (a local monitor, only while there
   is a picture), takes the pointer events `VideoNSView` hands it (`onPointer`), sends what it
-  says through `Session.send`, and shows the Shift+Esc hint for 3 s; `CaptureTracker` tells it
+  says through `Session.send`, and shows the Shift+Esc hint for 3 s. Capture turning on (the
+  window or tab coming to the front, the first picture, recapture) is an activation, as are a
+  wake, an unlock and a user switch back while captured: before anything else, two motions
+  onto `SessionModel.activationTarget` (`VideoNSView`'s Mac pointer over the uncovered picture, else the
+  session's `RemotePointerSlot`, else the centre: `FocusTarget`), so the host's focus follows
+  to the tab's screen. `CaptureTracker` tells it
   its window and the picture's state; `InputSource` reads the selected layout (HIToolbox's
   TIS) as the keymap text and whether the keyboard is ISO; `MacKeyEvent+NSEvent` and
   `PointerEvent+NSEvent` turn an `NSEvent` into values.
@@ -170,7 +205,9 @@ AppKit adapters for what SwiftUI can't do:
   maps them to mime types (text, HTML, PNG or TIFF as `image/png`; a Finder copy only as its
   names in text) and finds password managers' concealed and transient marks: such a copy is
   offered only while it's Shared including passwords, and then with KDE's `x-kde-passwordManagerHint`, so the host's
-  clipboard history skips it.
+  clipboard history skips it. A host's copy one window put on the Mac (`ClipboardOrigin`
+  remembers which destination's) is never offered back to that destination by another
+  window; another host's window offers it, host to host.
   `PasteboardSource` reads the data when the remote pastes, only from the copy the offer was
   made from, a TIFF converted to PNG with ImageIO, at most 32 MiB.
 

@@ -25,7 +25,7 @@ the feature seam.
   bytes 1 s or more after it, arrive within 3 s; bytes sooner may predate the sleep, so they
   don't answer it. `withdrawProbe()` (the network went away) drops a probe waiting; the
   next probe decides. The handshake isn't probed. Closing waits up to 1 s for queued frames (Bye), then closes the
-  connection. Cancelling `run()` is a disconnect. A run of decode failures logs each
+  connection, or abandons it (`ByteConnection.abandon()`) after an unanswered probe or when it ends while interrupted. Cancelling `run()` is a disconnect. A run of decode failures logs each
   reason once; the next picture ends the run.
 - **Input:** `Session.send(_:)` queues an `InputMessage` from any thread (`InputQueue`, in
   order); the session sends what `InputGate` admits: a key or button press, motion and
@@ -50,8 +50,11 @@ the feature seam.
   published to the `CursorSlot` the session was made with (latest wins, a generation per
   publish, like `PictureSlot`: a shape can be 4 MB). One that can't be shown is published as
   nil, so the arrow replaces the old shape (upstream `set_remote_cursor`), and logged once per
-  session. CursorPos is ignored, as upstream's
-  client does. A shape before the first StreamConfig is a protocol error (upstream).
+  session. A CursorPos is published to the session's `RemotePointerSlot` (capture-buffer
+  pixels, which can exceed a shrunk stream's, and whether the host shows a pointer; one that
+  isn't a number is dropped), cleared by a StreamConfig that brings a new picture and by the
+  session's end. A shape
+  or a position before the first StreamConfig is a protocol error (upstream).
 - **`SessionSnapshot`:** the statuses folded into what a window shows (phase, the server's
   session (headless or not), its own output from HelloAck (`output`; nil when HelloAck lists
   none, or its size is impossible, outside 1–16384 a side), `mirrorSize` (what a mirror's
@@ -60,6 +63,11 @@ the feature seam.
   clears); nothing after the end changes it.
 - **Recording:** `StreamRecorder` writes the raw frames, wire-exact, to a `.gliffrec` file:
   the StreamConfig, then video frames from the first keyframe. Nothing else.
+- **Protocol observer:** a session made with a `ProtocolObserver` tells it of each frame
+  written (once written, by the writer) and read (once framed and decoded): its direction,
+  message type, whole size and time, never its body or payload (`ProtocolEvent`).
+  `ProtocolTally` folds the events into the Debug inspector's table: per direction and type,
+  the count, bytes, last time and the last second's count, and the latest 200 events.
 - **Ends:** `SessionEnd` says why a session ended, with the message the app shows and
   whether a reconnect may help (`mayReconnect`). Before HelloAck any failure is a failure to
   connect (a write error waits for ssh's classified exit); after it, a lost connection. A

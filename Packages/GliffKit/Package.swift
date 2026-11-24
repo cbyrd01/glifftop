@@ -35,7 +35,8 @@ let package = Package(
         ),
         .target(name: "GliffTransport", exclude: ["README.md"], swiftSettings: strictSettings),
         .testTarget(
-            name: "GliffTransportTests", dependencies: ["GliffTransport"], swiftSettings: strictSettings),
+            name: "GliffTransportTests", dependencies: ["GliffTransport", "GliffTestSupport"],
+            swiftSettings: strictSettings),
         .target(
             name: "GliffVideo", dependencies: ["GliffProtocol"], exclude: ["README.md"],
             resources: [.process("Shaders")], swiftSettings: strictSettings),
@@ -70,10 +71,12 @@ let package = Package(
             ],
             swiftSettings: strictSettings),
         .target(
-            name: "GliffMachines", dependencies: ["GliffTransport", "GliffSession"], exclude: ["README.md"],
+            name: "GliffMachines", dependencies: ["GliffTransport", "GliffSession", "GliffClipboard"],
+            exclude: ["README.md"],
             swiftSettings: strictSettings),
         .testTarget(
-            name: "GliffMachinesTests", dependencies: ["GliffMachines", "GliffTransport", "GliffSession"],
+            name: "GliffMachinesTests",
+            dependencies: ["GliffMachines", "GliffTransport", "GliffSession", "GliffClipboard"],
             swiftSettings: strictSettings),
         // Test doubles shared by the test targets (a clock tests move by hand); not in the product.
         .target(name: "GliffTestSupport", exclude: ["README.md"], swiftSettings: strictSettings),

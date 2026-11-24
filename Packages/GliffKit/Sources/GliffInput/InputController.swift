@@ -146,6 +146,18 @@ public struct InputController: Sendable {
         return InputResult(consumed: true, messages: move(event.position.x, event.position.y) + messages)
     }
 
+    /// The window came to the front: while captured, two motions, the first a pixel off and
+    /// the second on `target`, so the host sees the pointer arrive and its focus follows.
+    /// Released, nothing (motion isn't sent while released).
+    public mutating func activate(at target: (x: Double, y: Double)) -> InputResult {
+        guard capture.isCaptured else { return InputResult() }
+        let nudge = target.x < 1 ? target.x + 1 : target.x - 1
+        remoteAt = target
+        return InputResult(messages: [
+            .pointerMotion(x: nudge, y: target.y), .pointerMotion(x: target.x, y: target.y),
+        ])
+    }
+
     /// A motion to (x, y), unless the remote pointer is there already.
     private mutating func move(_ x: Double, _ y: Double) -> [InputMessage] {
         if let remoteAt, remoteAt == (x, y) { return [] }

@@ -7,7 +7,8 @@
 
     /// Input through a whole session against `fake-server serve input`, which fails on a key or
     /// button pressed twice, released but not held, still held at the end, motion off the
-    /// output, or (with its flags) a key before the keymap or too few keys or pointer messages.
+    /// output, or (with its flags) a key before the keymap, input before the activation nudge, or
+    /// too few keys or pointer messages.
     extension SessionIntegrationTests {
         private static func press(_ code: UInt32) -> InputMessage { .key(code: code, pressed: true) }
         private static func release(_ code: UInt32) -> InputMessage { .key(code: code, pressed: false) }
@@ -28,6 +29,24 @@
                 ["--keymap-first", "--expect-keys", "2"], [.keymap("k2"), Self.press(30), Self.release(30)])
             #expect(outcome.serverFailure == nil)
             #expect(outcome.end == .disconnected)
+        }
+
+        /// A window coming to the front nudges the remote pointer before anything else it sends.
+        @Test func activationNudgesFirst() async throws {
+            var controller = InputController(keymap: "k1")
+            for event: CaptureEvent in [.windowKey(true), .appActive(true), .picture(true)] {
+                _ = controller.capture(event)
+            }
+            let nudge = controller.activate(at: (x: 100, y: 50)).messages
+            let outcome = try await input(
+                ["--expect-nudge", "--expect-keys", "2"], nudge + [Self.press(30), Self.release(30)])
+            #expect(outcome.serverFailure == nil)
+            #expect(outcome.end == .disconnected)
+        }
+
+        @Test func keysWithoutTheNudgeFailTheCheck() async throws {
+            let outcome = try await input(["--expect-nudge"], [Self.press(30), Self.release(30)])
+            #expect(outcome.serverFailure?.contains("nudge") == true)
         }
 
         /// The app's order: Hello carries no keymap (one the server can't compile would fail

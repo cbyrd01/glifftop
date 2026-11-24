@@ -41,6 +41,7 @@ extension Session {
     /// Ends the session when a probe went unanswered (each tick).
     func checkProbe() async {
         guard !core.isFinished, liveness.probeFailed(at: Self.uptime()) else { return }
+        linkLost = true
         await perform(core.finish(.connectionLost))
     }
 }

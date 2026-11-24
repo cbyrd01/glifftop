@@ -76,12 +76,17 @@ struct EditMachineView: View {
         .onDisappear { screenList.stop() }
     }
 
-    /// Whether it's the machine of the window's session, running or ended: the window finds its
-    /// machine by host, so the host can't change until the session is closed.
-    private var isSessionMachine: Bool { !isNew && model.machine?.id == machine.id }
+    /// Whether it's the machine of a window's session, running or ended: a window finds its
+    /// machine by host, so the host can't change until each such session is closed.
+    private var isSessionMachine: Bool {
+        !isNew && OpenSessions.shared.models.contains { $0.machine?.id == machine.id }
+    }
 
     private var hostLockedHelp: String {
-        model.canDisconnect ? "Disconnect to change the host" : "Close the session to change the host"
+        guard model.machine?.id == machine.id else {
+            return "Close its other sessions to change the host"
+        }
+        return model.canDisconnect ? "Disconnect to change the host" : "Close the session to change the host"
     }
 
     /// Another machine with the host typed: saving this one replaces it.
@@ -116,12 +121,13 @@ struct EditMachineView: View {
         saved.name = saved.name.trimmingCharacters(in: .whitespacesAndNewlines)
         if saved.name.isEmpty { saved.name = saved.destination }
         model.machines.saveEdit(saved)
-        model.machineSaved(saved)
+        OpenSessions.shared.machineSaved(saved)
         dismiss()
         return saved
     }
 
     private func connect(_ saved: Machine) {
-        try? model.connect(to: saved.destination, options: saved.options)
+        try? model.connect(
+            to: saved.destination, options: model.tabOptions(saved.options, for: saved.destination))
     }
 }

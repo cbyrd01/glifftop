@@ -191,12 +191,41 @@ import Testing
 
     /// A copy with types to offer is offered; a password manager's only while passwords are shared.
     @Test func aPasswordIsNotOfferableUnlessIncluded() {
-        #expect(ClipboardPolicy.offerable(typeCount: 1, isPassword: false, includePasswords: false))
-        #expect(ClipboardPolicy.offerable(typeCount: 1, isPassword: false, includePasswords: true))
-        #expect(!ClipboardPolicy.offerable(typeCount: 1, isPassword: true, includePasswords: false))
-        #expect(ClipboardPolicy.offerable(typeCount: 1, isPassword: true, includePasswords: true))
-        #expect(!ClipboardPolicy.offerable(typeCount: 0, isPassword: false, includePasswords: true))
-        #expect(!ClipboardPolicy.offerable(typeCount: 0, isPassword: true, includePasswords: true))
+        #expect(
+            ClipboardPolicy.offerable(
+                typeCount: 1, isPassword: false, includePasswords: false, cameFromThisHost: false))
+        #expect(
+            ClipboardPolicy.offerable(
+                typeCount: 1, isPassword: false, includePasswords: true, cameFromThisHost: false))
+        #expect(
+            !ClipboardPolicy.offerable(
+                typeCount: 1, isPassword: true, includePasswords: false, cameFromThisHost: false))
+        #expect(
+            ClipboardPolicy.offerable(
+                typeCount: 1, isPassword: true, includePasswords: true, cameFromThisHost: false))
+        #expect(
+            !ClipboardPolicy.offerable(
+                typeCount: 0, isPassword: false, includePasswords: true, cameFromThisHost: false))
+        #expect(
+            !ClipboardPolicy.offerable(
+                typeCount: 0, isPassword: true, includePasswords: true, cameFromThisHost: false))
+    }
+
+    /// A copy this host's own session put on the Mac (another tab to it) never goes back there.
+    @Test func aCopyFromThisHostIsNeverOffered() {
+        #expect(
+            !ClipboardPolicy.offerable(
+                typeCount: 2, isPassword: false, includePasswords: true, cameFromThisHost: true))
+    }
+
+    /// One from another host is offered as a Mac copy would be: host to host.
+    @Test func aCopyFromAnotherHostIsLikeAMacCopy() {
+        #expect(
+            ClipboardPolicy.offerable(
+                typeCount: 2, isPassword: false, includePasswords: false, cameFromThisHost: false))
+        #expect(
+            !ClipboardPolicy.offerable(
+                typeCount: 2, isPassword: true, includePasswords: false, cameFromThisHost: false))
     }
 
     /// Passwords no longer shared: a password offered is withdrawn, as a Mac change would; on

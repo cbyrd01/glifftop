@@ -1,4 +1,5 @@
 public import GliffClipboard
+public import GliffInput
 public import GliffProtocol
 public import GliffTransport
 
@@ -36,6 +37,13 @@ public struct StreamInfo: Equatable, Sendable {
         viewHeight = config.viewHeight
         fpsCap = config.fpsCap
         scaleMilli = config.scaleMilli
+    }
+
+    /// What `PointerMapper` maps over: the stream's size, its view box and scale.
+    public var pointerGeometry: PictureGeometry {
+        PictureGeometry(
+            streamWidth: Int(width), streamHeight: Int(height), viewWidth: Int(viewWidth),
+            viewHeight: Int(viewHeight), scaleMilli: scaleMilli)
     }
 
     /// `scaleMilli` with the stream's downscale from the view undone: the output's scale times
@@ -129,7 +137,9 @@ public enum SessionEnd: Error, Equatable, Sendable {
     public var mayReconnect: Bool {
         switch self {
         // serverError is only ever a code outside 1–255, which upstream says a retry may fix.
-        case .connectionLost, .serverSetupFailed, .serverError, .connectFailed(.unreachable): true
+        case .connectionLost, .serverSetupFailed, .serverError, .connectFailed(.unreachable),
+            .connectFailed(.channelRefused), .connectFailed(.sharedConnectionLost):
+            true
         default: false
         }
     }

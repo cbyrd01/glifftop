@@ -6,6 +6,8 @@ import Observation
 /// written back after each change. Nothing about them is logged.
 @Observable final class MachineStore {
     static let key = "machines"
+    /// The app's machines, which every window shows and keeps.
+    static let shared = MachineStore()
 
     private(set) var list: MachineList
     @ObservationIgnored private let defaults: UserDefaults

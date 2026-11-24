@@ -13,6 +13,13 @@ public protocol ByteConnection: Sendable {
     func write(_ bytes: [UInt8]) async throws(TransportError)
     /// Ends the connection; safe to call more than once.
     func close() async
+    /// Ends the connection because its link seems dead (a probe went unanswered): as `close()`,
+    /// and a connection carried by a shared one may end that too.
+    func abandon() async
+}
+
+extension ByteConnection {
+    public func abandon() async { await close() }
 }
 
 public enum TransportError: Error, Equatable, Sendable {

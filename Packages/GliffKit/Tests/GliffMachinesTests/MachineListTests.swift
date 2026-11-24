@@ -1,4 +1,5 @@
 import Foundation
+import GliffClipboard
 import GliffSession
 import GliffTransport
 import Testing
@@ -96,7 +97,7 @@ import Testing
         var list = MachineList(data: nil)
         let options = MachineOptions(
             screen: .named("DP-2"), textSize: .f875, resolution: .standard, scaleToFit: true,
-            reconnects: false)
+            reconnects: false, clipboard: .withPasswords)
         var machine = list.connected("omarchy", options: options, at: day)
         machine.isFavorite = true
         list.save(machine)
@@ -126,6 +127,50 @@ import Testing
         let json = #"{"screen": {"virtual": {}}, "textSize": 3, "scaleToFit": true}"#
         let options = try JSONDecoder().decode(MachineOptions.self, from: Data(json.utf8))
         #expect(options == MachineOptions(screen: .virtual, scaleToFit: true))
+    }
+
+    /// A machine saved without a clipboard setting follows Settings'.
+    @Test func aMachineWithNoClipboardSettingIsSameAsSettings() throws {
+        let json = #"{"screen": {"virtual": {}}, "scaleToFit": true}"#
+        let options = try JSONDecoder().decode(MachineOptions.self, from: Data(json.utf8))
+        #expect(options.clipboard == nil)
+    }
+
+    @Test func theClipboardSettingRoundTrips() throws {
+        for sharing in [ClipboardSharing?.none, .off, .shared, .withPasswords] {
+            let options = MachineOptions(clipboard: sharing)
+            let data = try JSONEncoder().encode(options)
+            #expect(try JSONDecoder().decode(MachineOptions.self, from: data).clipboard == sharing)
+        }
+    }
+
+    /// A saved machine's clipboard is the one in force for every window to it, so one
+    /// window's change reaches the others; nil there follows Settings.
+    @Test func theSavedMachinesClipboardIsInForce() {
+        let saved = Machine(name: "", destination: "omarchy", options: MachineOptions(clipboard: .off))
+        #expect(MachineOptions.clipboard(saved: saved, window: .withPasswords, settings: .shared) == .off)
+        let following = Machine(name: "", destination: "omarchy", options: MachineOptions())
+        #expect(
+            MachineOptions.clipboard(saved: following, window: .withPasswords, settings: .shared) == .shared)
+    }
+
+    /// Before the machine is saved (its first stream), the window's choice counts.
+    @Test func withNoSavedMachineTheWindowsClipboardCounts() {
+        #expect(
+            MachineOptions.clipboard(saved: nil, window: .withPasswords, settings: .off) == .withPasswords)
+        #expect(MachineOptions.clipboard(saved: nil, window: nil, settings: .shared) == .shared)
+    }
+
+    /// A streamed session records the window's options, but keeps the machine's screen when
+    /// the window's isn't the machine's to change (a reconnect's try, a tab's own screen), and
+    /// the machine's clipboard unless the window chose one since it was last kept.
+    @Test func aRecordKeepsWhatTheMachineOwns() {
+        let window = MachineOptions(screen: .virtual, scaleToFit: true, clipboard: .withPasswords)
+        let saved = MachineOptions(screen: .named("DP-2"), clipboard: .off)
+        #expect(
+            window.recorded(over: saved, keepsScreen: true, keepsClipboard: true)
+                == MachineOptions(screen: .named("DP-2"), scaleToFit: true, clipboard: .off))
+        #expect(window.recorded(over: saved, keepsScreen: false, keepsClipboard: false) == window)
     }
 
     @Test func saveTrimsTheDestination() {

@@ -24,7 +24,12 @@ final class ClipboardWire: Sendable {
         guard let writer = writer.withLock({ $0 }) else { return }
         do {
             let frame = try Frame.encode(body: ClientMessage.clipboard(message).encoded, payload: payload)
-            if case .data = message { writer.sendBulk(frame) } else { writer.send(frame) }
+            let type = message.kind.rawValue
+            if case .data = message {
+                writer.sendBulk(frame, type: type)
+            } else {
+                writer.send(frame, type: type)
+            }
         } catch {
             Self.log.error("clipboard message not sent, over the frame limits")
         }

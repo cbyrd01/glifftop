@@ -32,18 +32,24 @@ public struct SSHCommand: Equatable, Sendable {
     }
 
     public var arguments: [String] {
-        Self.options(sshArguments, connectTimeout: connectTimeout) + [
-            "--", target.value, "gliff-server", "--stdio",
-        ]
-            + serverArguments.map(Self.shellQuoted)
+        Self.options(sshArguments, connectTimeout: connectTimeout) + ["--", target.value] + remoteWords
     }
 
-    /// Every option before `--`, the safety ones first; shared with `ScreenListCommand`.
-    static func options(_ sshArguments: [String], connectTimeout: Bool = false) -> [String] {
+    /// The command line run on the host, as ssh sends it: a channel on a shared connection
+    /// runs this.
+    public var remoteCommand: String { remoteWords.joined(separator: " ") }
+
+    private var remoteWords: [String] { ["gliff-server", "--stdio"] + serverArguments.map(Self.shellQuoted) }
+
+    /// Every option before `--`, the safety ones first, then `own` (which the extra arguments
+    /// can't change); shared with `ScreenListCommand` and `SSHMasterCommand`.
+    static func options(_ sshArguments: [String], connectTimeout: Bool = false, own: [String] = [])
+        -> [String]
+    {
         [
             "-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "Compression=no",
             "-o", "IPQoS=ef",
-        ] + sshArguments + ["-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=6"]
+        ] + own + sshArguments + ["-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=6"]
             + (connectTimeout ? SSHConnectTimeout.options : [])
     }
 

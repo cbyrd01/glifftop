@@ -129,4 +129,11 @@
             log.withLock { $0.append(.received(variant: variant, body: body, payload: payload)) }
         }
     }
+
+    /// Keeps every protocol event, in order.
+    final class RecordingObserver: ProtocolObserver {
+        private let kept = Mutex<[ProtocolEvent]>([])
+        var events: [ProtocolEvent] { kept.withLock { $0 } }
+        func observed(_ event: ProtocolEvent) { kept.withLock { $0.append(event) } }
+    }
 #endif

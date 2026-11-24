@@ -67,11 +67,12 @@ import os
             updateMachine { $0.resolution = resolution }
         }
     }
-    /// Whether the picture is drawn scaled to the window: Scale to Fit, or a virtual screen's
-    /// picture at Standard (half the window's pixels a side), as the picture shown (a held one
-    /// while reconnecting) shows it, so a change draws right until the server answers.
+    /// Whether the picture is drawn scaled to the window: Scale to Fit, a mirror in a window it
+    /// shares with other tabs, or a virtual screen's picture at Standard (half the window's
+    /// pixels a side), as the picture shown (a held one while reconnecting) shows it, so a
+    /// change draws right until the server answers.
     var drawsScaled: Bool {
-        guard !scaleToFit else { return true }
+        guard !scaleToFit, isVirtual || !sharesWindow else { return true }
         guard isVirtual, let backingScale, let stream = picture?.stream else { return false }
         return ViewTarget.isStandardPicture(
             screenScale: stream.screenScale, backingScale: backingScale, textFactor: textSize.factor)
@@ -80,8 +81,22 @@ import os
     var reconnects = true {
         didSet { reconnectsChanged() }
     }
-    /// The saved machines, kept in `UserDefaults`.
-    let machines = MachineStore()
+    /// Share the clipboard, the machine's own as this window chose it (nil: as Settings says),
+    /// kept on the machine. Once saved, the machine's is in force (`clipboardInForce`).
+    var clipboardSharing: ClipboardSharing? {
+        didSet { clipboardSharingChanged() }
+    }
+    /// The window chose a clipboard sharing its machine doesn't keep yet (none saved, or set
+    /// with a connection's options): the session's record keeps it.
+    @ObservationIgnored var clipboardUnsaved = false
+    /// The session's screen is this tab's own: it started while its machine was open in
+    /// another tab or window (`TabPlanning`), so the machine never keeps it.
+    @ObservationIgnored var screenIsOwn = false
+    /// The window's number and its tab group's, in tab order (`WindowTabbing`): the tab's
+    /// title numbers same-machine tabs from it.
+    var tabGroup: (window: Int, tabs: [Int])?
+    /// The saved machines, kept in `UserDefaults`: the app's, shared by every window.
+    let machines = MachineStore.shared
     /// Set while a connection sets the window's options from a machine's: not changes to keep.
     @ObservationIgnored var applyingOptions = false
     /// The machine sheet (New Machine…, Edit…, Connection ▸ Edit Machine…), while shown.
@@ -91,7 +106,7 @@ import os
     private(set) var outputName: String?
     /// The window's backing scale, from the video view, set only when it changes: View ▸ Text
     /// Size shows the remote scale for it.
-    private(set) var backingScale: Double?
+    var backingScale: Double?
     /// Set while View ▸ Screen's new session connects, until it streams or ends: the window
     /// stays in full screen meanwhile, though there's no picture. Set by `switchScreen`.
     var isSwitching = false
@@ -104,7 +119,7 @@ import os
     let screenList = ScreenList()
     /// The video view's drawable size in pixels, last reported (with `backingScale`). Changes
     /// every frame of a live resize, and no view reads it.
-    @ObservationIgnored private var viewPixels: PixelSize?
+    @ObservationIgnored var viewPixels: PixelSize?
     /// Whether the link is interrupted, set only when it changes (as `shownStream` is).
     private(set) var isInterrupted = false
     /// The session's phase, set only when it changes: the title, the toolbar and the menus read it.
@@ -113,15 +128,21 @@ import os
     private(set) var clipboardActivity: ClipboardActivity?
     /// Input capture (keys and pointer) for this window's session.
     let capture = CaptureController()
-    /// The shared clipboard for this window's session, as the app's `ClipboardSharing` says.
-    let clipboard = ClipboardController(
-        sharing: { AppSettings.shareClipboard }, includePasswords: { AppSettings.includePasswords })
+    /// This window's, never another's: the Debug inspector's key.
+    let windowID = UUID()
+    /// The shared clipboard for this window's session, as `clipboardInForce` says.
+    @ObservationIgnored private(set) lazy var clipboard = ClipboardController { [weak self] in
+        self?.clipboardInForce ?? .off
+    }
     /// The stream on screen, set only when it changes: the stats change `snapshot` every
     /// second, and what reads `picture` (the window's size, the menus) needn't follow them. A
     /// View menu rebuilt every second loses the Enter Full Screen item macOS adds to it.
     private var shownStream: StreamInfo?
     /// The ssh destination as typed (for "Connecting to user@host…").
     private(set) var host = ""
+    /// The machines' field until this window's first connection: the host of the tab it was
+    /// opened beside (File ▸ New Tab).
+    @ObservationIgnored var fieldHost: String?
     /// The session's destination, for View ▸ Screen's new session to the same host.
     private(set) var destination: SSHTarget?
     private(set) var session: Session?
@@ -171,18 +192,12 @@ import os
     /// The current session's latest cursor shape, which the video view shows while captured. A
     /// new one per session, as `slot` is.
     private(set) var cursor = CursorSlot()
+    /// Where the current session's host pointer is: an activation's target. A new one per session.
+    private(set) var remotePointer = RemotePointerSlot()
     #if DEBUG
         /// Debug ▸ Test Cursor Shape: the video view shows `TestCursor`'s crosshair instead.
         var testCursorShape = false
     #endif
-
-    /// The shapes the video view shows: the session's, or (Debug) the test crosshair.
-    var viewCursor: CursorSlot {
-        #if DEBUG
-            if testCursorShape { return TestCursor.slot }
-        #endif
-        return cursor
-    }
     /// Draws pictures into the video view: made on the first connect, then kept.
     private(set) var renderer: PictureRenderer?
     /// Connection Info's popover (⌘I, the toolbar's ⓘ); closed at each session's start and at
@@ -223,19 +238,21 @@ import os
     }
 
     /// Ends any session, then starts one with `destination` showing `screen`; a reconnect's
-    /// try keeps the window's size.
+    /// try (or a revival) keeps the window's size.
     func start(_ destination: SSHTarget, screen: ScreenChoice, reconnecting: Bool = false) {
         guard !quitting else {
             isSwitching = false
             return
         }
-        // A listing still running would ask for a second ssh approval beside the session's.
+        // A listing still running is the form's, which the session replaces.
         screenList.stop()
         if !reconnecting {
             cancelReconnect()
             (gaveUp, sheetScreen) = (false, nil)
         }
-        endSession()
+        // A new session to the same host (View ▸ Screen, a reconnect's try) mustn't wait on the
+        // old one's link if it is interrupted now.
+        endSession(abandoningAQuietLink: destination == self.destination)
         (showsConnectionInfo, dismissedClipboardRun, keepsWindow) = (false, nil, reconnecting)
         recorded = false
         self.destination = destination
@@ -243,8 +260,10 @@ import os
         host = destination.value
         slot = PictureSlot()
         cursor = CursorSlot()
-        if !reconnecting { windowSizing = nil }
-        viewPixels = nil
+        remotePointer = RemotePointerSlot()
+        // A reconnect's try keeps the window's size: a tab in the background draws nothing, so
+        // its view wouldn't report it again until selected.
+        if !reconnecting { (windowSizing, viewPixels) = (nil, nil) }
         let decoder: VideoToolboxDecoder
         do throws(VideoError) {
             decoder = try makeDecoder()
@@ -261,12 +280,15 @@ import os
         // its setup, where a Keymap that fails is ignored (it keeps US). The Mac's layout
         // goes as a Keymap straight after, queued before the session runs.
         let session = Session(
-            transport: SystemSSHTransport(
-                command: SSHCommand(target: destination, serverArguments: screen.serverArguments)),
+            transport: AppConnections.session(
+                on: destination, serverArguments: screen.serverArguments, fresh: asksAgain(reconnecting)),
             configuration: SessionConfiguration(maxWidth: pixels.width, maxHeight: pixels.height),
-            decoder: decoder, cursor: cursor, clipboard: ClipboardSetup(source: PasteboardSource()))
+            decoder: decoder, cursor: cursor, pointer: remotePointer,
+            clipboard: ClipboardSetup(source: PasteboardSource()), observer: protocolObserver)
         self.session = session
-        capture.attach { session.send($0) }
+        sendViewTarget()
+        capture.attach(
+            target: { [weak self] in self?.activationTarget(macPointer: $0) }, send: { session.send($0) })
         clipboard.attach(session, host: destination.value)
         // Leave the machines now, not when the session's own `.connecting` arrives.
         snapshot = SessionSnapshot()
@@ -308,29 +330,6 @@ import os
         actualSizeRequests += 1
     }
 
-    /// The video view's drawable (pixels) and backing scale: the remote screen follows it.
-    func viewTargetChanged(_ pixels: PixelSize, backingScale: Double) {
-        viewPixels = pixels
-        if backingScale != self.backingScale { self.backingScale = backingScale }
-        sendViewTarget()
-    }
-
-    private func sendViewTarget() {
-        guard let session, let viewPixels, let backingScale else { return }
-        session.setViewTarget(
-            ViewTarget(
-                width: UInt32(clamping: viewPixels.width), height: UInt32(clamping: viewPixels.height),
-                backingScale: backingScale, textFactor: textSize.factor, resolution: resolution))
-    }
-
-    /// A virtual screen fills the screen; a mirror is sized for its first view within its
-    /// monitor (`SessionSnapshot.mirrorSize`). Nil until one is known.
-    private static func windowSizing(for snapshot: SessionSnapshot) -> WindowSizing? {
-        if snapshot.session?.headless == true { return .fillScreen }
-        guard snapshot.phase == .streaming, let size = snapshot.mirrorSize else { return nil }
-        return .monitor(size)
-    }
-
     /// Stops any reconnect, then ends the session (`endSession`), the window staying where it
     /// is: for closing the window and quitting. Disconnect is `backToMachines()`.
     func stopSession() {
@@ -340,11 +339,12 @@ import os
 
     /// Says Bye and ends the session (no-op once it has ended), leaving a reconnect be. Keys the
     /// remote holds are let go first: their releases are queued ahead of the Bye.
-    func endSession() {
+    /// `abandoningAQuietLink`: Reconnect Now, whose next try mustn't wait on an interrupted link.
+    func endSession(abandoningAQuietLink: Bool = false) {
         capture.detach()
         clipboard.detach()
         guard let session else { return }
-        Task { await session.disconnect() }
+        Task { await session.disconnect(abandoningAQuietLink: abandoningAQuietLink) }
     }
 
     /// Says Bye and waits for the session to end and ssh to exit, for quitting. Bounded: the
@@ -381,15 +381,10 @@ import os
         // The old pool's textures go with the old slot and session.
         slot = PictureSlot()
         cursor = CursorSlot()
+        remotePointer = RemotePointerSlot()
         windowSizing = nil
         viewPixels = nil
         snapshot = SessionSnapshot()
-    }
-
-    /// Cancel on the host's read of the Mac clipboard: what is being served is aborted.
-    func cancelClipboardServing() {
-        guard let bridge = session?.clipboard else { return }
-        Task { await bridge.cancelServing() }
     }
 
     #if DEBUG

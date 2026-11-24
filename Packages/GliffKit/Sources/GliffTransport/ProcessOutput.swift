@@ -27,14 +27,25 @@
             } catch {
                 return .failure(.notStarted)
             }
-            let outcome = await read(connection, maxBytes: maxBytes, timeout: timeout)
+            let outcome = await collect(connection, maxBytes: maxBytes, timeout: timeout)
             if Task.isCancelled || (try? outcome.get()) == nil { connection.terminate() }
             await connection.close()
             return outcome
         }
 
-        /// stdout, or why there is none: whichever of the end, the limit and the timer comes first.
-        private static func read(_ connection: ProcessConnection, maxBytes: Int, timeout: Duration) async
+        /// Any connection's output, as a program's is read (a channel on a shared connection);
+        /// the connection is closed before the answer comes back.
+        static func read(_ connection: any ByteConnection, maxBytes: Int, timeout: Duration) async
+            -> Result<[UInt8], Failure>
+        {
+            let outcome = await collect(connection, maxBytes: maxBytes, timeout: timeout)
+            await connection.close()
+            return outcome
+        }
+
+        /// The output, or why there is none: whichever of the end, the limit and the timer comes
+        /// first.
+        private static func collect(_ connection: any ByteConnection, maxBytes: Int, timeout: Duration) async
             -> Result<[UInt8], Failure>
         {
             await withTaskGroup(of: Result<[UInt8], Failure>.self) { group in

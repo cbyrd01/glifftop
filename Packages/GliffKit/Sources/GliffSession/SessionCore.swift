@@ -178,11 +178,30 @@ struct SessionCore {
         case .videoFrame: "VideoFrame"
         case .cursorShape: "CursorShape"
         case .cursorPosition: "CursorPos"
-        case .clipboard: "a clipboard message"
+        case .clipboard(let message): message.kind.rawValue
         case .pong: "Pong"
         case .error: "Error"
         case .ping: "Ping"
         case .unknown(let variant): "message \(variant)"
         }
     }
+
+    static func name(of message: ClientMessage) -> String {
+        switch message {
+        case .hello: "Hello"
+        case .resize: "Resize"
+        case .key: "Key"
+        case .pointerMotion: "PointerMotion"
+        case .pointerButton: "PointerButton"
+        case .pointerAxis: "PointerAxis"
+        case .frameAck: "FrameAck"
+        case .requestKeyframe: "RequestKeyframe"
+        case .clipboard(let message): message.kind.rawValue
+        case .ping: "Ping"
+        case .bye: "Bye"
+        case .keymap: "Keymap"
+        case .pong: "Pong"
+        }
+    }
+
 }

@@ -5,7 +5,7 @@ import GliffTransport
 
 /// The session's machine: connecting with a machine's options, recording it when a session
 /// streams, and keeping the options changed during a session (View ▸ Text Size, Resolution,
-/// Scale to Fit, Screen) on it.
+/// Scale to Fit, Screen, the toolbar's clipboard sharing) on it.
 extension SessionModel {
     /// The session's saved machine: the one kept for its destination, whatever the sheet
     /// changed since. Nil without a session, and for a host that hasn't streamed yet.
@@ -15,8 +15,11 @@ extension SessionModel {
     var currentOptions: MachineOptions {
         MachineOptions(
             screen: screenChoice, textSize: textSize, resolution: resolution, scaleToFit: scaleToFit,
-            reconnects: reconnects)
+            reconnects: reconnects, clipboard: clipboardSharing)
     }
+
+    /// Where the last session started from any window: a new window's field starts there.
+    static let lastHostKey = "lastTarget"
 
     /// Starts a session with `target` (as typed) and `options`; its machine is added when it
     /// first streams. Throws, with the reason to show, when the target isn't a valid ssh
@@ -24,26 +27,45 @@ extension SessionModel {
     func connect(to target: String, options: MachineOptions) throws(SSHTargetError) {
         let destination = try SSHTarget(target)
         guard !quitting else { return }
+        UserDefaults.standard.set(destination.value, forKey: Self.lastHostKey)
+        fieldHost = nil
         cancelReconnect()
+        // The old session lets go of the clipboard before the new options' sharing applies.
+        clipboard.detach()
+        screenIsOwn = isOpenElsewhere(destination.value)
         apply(options)
+        // A choice made in the form, not the machine's own, is the session's to keep.
+        clipboardUnsaved =
+            options.clipboard != machines.list.machine(for: destination.value)?.options.clipboard
         start(destination, screen: options.screen)
     }
 
     /// The session streamed: its machine, added if new, now has the window's options and the
-    /// date. A reconnect's try repeats the session's screen, and leaves the machine's be (the
-    /// sheet may have changed it).
+    /// date. A reconnect's try records only the date: the window's changes were kept as they
+    /// were made, and another window may have changed the machine since. A tab on a screen of
+    /// its own leaves the machine's screen be; the machine's clipboard stays unless the window
+    /// chose one since it was last kept.
     func recordConnection() {
         var options = currentOptions
-        if keepsWindow, let kept = machine { options.screen = kept.options.screen }
+        if let kept = machine {
+            options =
+                keepsWindow
+                ? kept.options
+                : options.recorded(
+                    over: kept.options, keepsScreen: screenIsOwn, keepsClipboard: !clipboardUnsaved)
+        }
+        clipboardUnsaved = false
         machines.connected(host, options: options)
     }
 
     /// The sheet saved `saved`: if it's this session's machine, its options apply, but for the
-    /// screen, which takes a new session (the next connection, Try Again, or View ▸ Screen).
+    /// screen, which takes a new session (the next connection, Try Again, or View ▸ Screen); a
+    /// tab on a screen of its own keeps its own.
     func machineSaved(_ saved: Machine) {
         guard machine?.id == saved.id else { return }
         apply(saved.options)
-        sheetScreen = saved.options.screen == screenChoice ? nil : saved.options.screen
+        clipboardUnsaved = false
+        sheetScreen = screenIsOwn || saved.options.screen == screenChoice ? nil : saved.options.screen
     }
 
     /// Connection ▸ Edit Machine…: the session's machine in the sheet.
@@ -52,10 +74,19 @@ extension SessionModel {
         machineEdit = MachineEdit(machine: machine, isNew: false)
     }
 
-    /// New Machine… (⌘N, the + button): an empty machine with Settings' options in the sheet.
+    /// New Machine… (⌥⌘N, the + button): an empty machine with Settings' options in the sheet.
     func newMachine() {
         machineEdit = MachineEdit(
             machine: Machine(name: "", destination: "", options: AppSettings.defaultOptions), isNew: true)
+    }
+
+    /// Whether `host` is open in another tab or window.
+    func isOpenElsewhere(_ host: String) -> Bool { OpenSessions.shared.isOpen(host, besides: self) }
+
+    /// The options a connection to `host` starts with: `options`, on a virtual screen when the
+    /// host is open in another tab or window (`TabPlanning`).
+    func tabOptions(_ options: MachineOptions, for host: String) -> MachineOptions {
+        TabPlanning.options(options, openElsewhere: isOpenElsewhere(host))
     }
 
     /// An option changed during the session: kept on the session's machine, if it has one.
@@ -75,5 +106,6 @@ extension SessionModel {
         textSize = options.textSize
         resolution = options.resolution
         reconnects = options.reconnects
+        clipboardSharing = options.clipboard
     }
 }

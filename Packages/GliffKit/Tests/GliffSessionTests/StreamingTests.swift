@@ -165,12 +165,35 @@ import Testing
         #expect(core.receive(.cursorShape(bad), payloadLength: 15, now: 0) == [.cursor(bad)])
     }
 
-    /// CursorPos is ignored, as upstream's client does: the local pointer is where the hand is.
-    @Test func cursorPositionAndPongAreIgnoredWhileStreaming() {
+    @Test func aCursorPositionWhileStreamingIsPassedOn() {
         var core = streaming()
         #expect(
-            core.receive(.cursorPosition(x: 1, y: 2, shapeID: 1, visible: true), payloadLength: 0, now: 0)
+            core.receive(.cursorPosition(x: 10, y: 20, shapeID: 1, visible: true), payloadLength: 0, now: 0)
+                == [.cursorPosition(x: 10, y: 20, visible: true)])
+    }
+
+    @Test(arguments: [(Double.nan, 1.0), (1, .infinity), (-.infinity, 1)])
+    func aCursorPositionThatIsNoNumberIsDropped(x: Double, y: Double) {
+        var core = streaming()
+        #expect(
+            core.receive(.cursorPosition(x: x, y: y, shapeID: 1, visible: true), payloadLength: 0, now: 0)
                 == [])
+        #expect(!core.isFinished)
+    }
+
+    /// In capture-buffer pixels, which may be more than the stream's (a picture shrunk to the
+    /// Mac's display): the server's own `visible` says whether it is on the screen.
+    @Test func aCursorPositionPastTheStreamsSizeIsPassedOnAsSent() {
+        var core = streaming()
+        let width = Double(Self.config.width)
+        #expect(
+            core.receive(
+                .cursorPosition(x: width + 1, y: 2, shapeID: 1, visible: true), payloadLength: 0, now: 0)
+                == [.cursorPosition(x: width + 1, y: 2, visible: true)])
+    }
+
+    @Test func aPongIsNotPassedOn() {
+        var core = streaming()
         #expect(core.receive(.pong(t: 1, serverNowMilliseconds: 2), payloadLength: 0, now: 0) == [])
         #expect(!core.isFinished)
     }

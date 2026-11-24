@@ -2,7 +2,7 @@
 /// pure decision the app carries out.
 public struct ClipboardPolicy: Sendable {
     /// The Mac clipboard as the app sees it: its `changeCount`, and whether it may be offered
-    /// (`offerable(typeCount:isPassword:includePasswords:)`).
+    /// (`offerable(typeCount:isPassword:includePasswords:cameFromThisHost:)`).
     public struct MacClipboard: Equatable, Sendable {
         public var changeCount: Int
         public var offerable: Bool
@@ -26,11 +26,14 @@ public struct ClipboardPolicy: Sendable {
         case recheck(MacClipboard)
     }
 
-    /// Whether a Mac copy may be offered: it has types to forward, and a password manager's
-    /// (concealed or transient) only while passwords are shared. Offered, it carries KDE's
-    /// password hint.
-    public static func offerable(typeCount: Int, isPassword: Bool, includePasswords: Bool) -> Bool {
-        typeCount > 0 && (!isPassword || includePasswords)
+    /// Whether a Mac copy may be offered: it has types to forward, a password manager's
+    /// (concealed or transient) only while passwords are shared, and never one this host's own
+    /// session put on the Mac (no echo back to its source; another host's is offered, as a Mac
+    /// copy). Offered, it carries KDE's password hint.
+    public static func offerable(
+        typeCount: Int, isPassword: Bool, includePasswords: Bool, cameFromThisHost: Bool
+    ) -> Bool {
+        typeCount > 0 && (!isPassword || includePasswords) && !cameFromThisHost
     }
 
     public enum Action: Equatable, Sendable {

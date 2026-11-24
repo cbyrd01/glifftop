@@ -317,6 +317,21 @@ import Testing
         #expect(await second.value == .reconnected)
     }
 
+    /// Reconnect Now during a try does nothing, and says so: the app's "asked" mark mustn't
+    /// carry over to the next automatic try.
+    @Test func reconnectNowDuringATrySaysItDidNothing() async {
+        let script = Script([.hang])
+        let reconnector = Reconnector(clock: clock, attempt: script.next)
+        var states = reconnector.states.makeAsyncIterator()
+        let run = Task { await reconnector.run(after: .connectionLost) }
+        #expect(await states.next(isolation: #isolation) == .waiting(attempt: 1, delay: .seconds(1)))
+        #expect(await reconnector.reconnectNow())
+        #expect(await states.next(isolation: #isolation) == .trying(attempt: 1))
+        #expect(await !reconnector.reconnectNow())
+        run.cancel()
+        _ = await run.value
+    }
+
     /// One run at a time: a second while one is under way is refused, and the first goes on.
     @Test func aSecondRunIsRefused() async {
         let script = Script([.outcome(.streaming)])

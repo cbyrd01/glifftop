@@ -18,12 +18,18 @@ public actor Session {
     private let transport: any Transport
     private let decoder: any FrameDecoder
     private let cursor: CursorSlot
+    private let pointer: RemotePointerSlot
+    let observer: (any ProtocolObserver)?
     /// Whether an invalid cursor shape has been logged: a server sending them keeps doing so.
     private var loggedInvalidCursor = false
     private let features: [String: any SessionFeature]
     var core: SessionCore
     private var parser = FrameParser()
     private var connection: (any ByteConnection)?
+    /// A probe went unanswered: the connection is abandoned, not closed.
+    var linkLost = false
+    /// Reconnect Now: a link interrupted when the session ends is abandoned too.
+    private var abandonsQuietLink = false
     /// Connects, then reads; cancelled by a Disconnect while it is still connecting.
     private var reader: Task<Void, Never>?
     var writer: SessionWriter?
@@ -66,12 +72,13 @@ public actor Session {
     static let tickInterval = Duration.milliseconds(500)
     /// How long closing waits for queued frames (Bye) to be written.
     static let drainLimit = Duration.seconds(1)
-    private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "GliffSession")
+    static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "GliffSession")
 
     public init(
         transport: any Transport, configuration: SessionConfiguration, decoder: any FrameDecoder,
         features: [any SessionFeature] = [], cursor: CursorSlot = CursorSlot(),
-        clipboard: ClipboardSetup? = nil
+        pointer: RemotePointerSlot = RemotePointerSlot(), clipboard: ClipboardSetup? = nil,
+        observer: (any ProtocolObserver)? = nil
     ) {
         precondition(Set(features.map(\.name)).count == features.count, "two features have the same name")
         let claimed = features.flatMap(\.serverVariants)
@@ -79,6 +86,7 @@ public actor Session {
         self.transport = transport
         self.decoder = decoder
         self.cursor = cursor
+        (self.pointer, self.observer) = (pointer, observer)
         self.features = Dictionary(uniqueKeysWithValues: features.map { ($0.name, $0) })
         core = SessionCore(configuration: configuration, features: self.features.mapValues(\.serverVariants))
         (status, continuation) = AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(256))
@@ -109,7 +117,10 @@ public actor Session {
     }
 
     /// Says Bye and ends the session as `.disconnected`. Input sent before this goes first.
-    public func disconnect() async {
+    /// `abandoningAQuietLink`: Reconnect Now, whose next try mustn't wait on a link that is
+    /// interrupted now (`ByteConnection.abandon()`); a close or Disconnect closes only its own.
+    public func disconnect(abandoningAQuietLink: Bool = false) async {
+        if abandoningAQuietLink { abandonsQuietLink = true }
         // Still connecting: there's no Bye to send, so the connect (ssh -G, ssh) stops now.
         if connection == nil { reader?.cancel() }
         deliverInput(finishing: true)
@@ -152,7 +163,7 @@ public actor Session {
         // Installed before any await, so no frame or StreamConfig can slip past it.
         let previous = recorder
         recorder = StreamRecorder(directory: directory, duration: duration, now: .now, config: config)
-        if core.state == .streaming { send(.requestKeyframe) }
+        if core.state == .streaming { enqueue(.requestKeyframe) }
         await previous?.finish()
     }
 
@@ -173,7 +184,9 @@ public actor Session {
             return
         }
         self.connection = connection
-        writer = SessionWriter(connection: connection) { [weak self] error in await self?.writeFailed(error) }
+        writer = SessionWriter(connection: connection, observer: observer) { [weak self] error in
+            await self?.writeFailed(error)
+        }
         ticks = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: Self.tickInterval)
@@ -204,6 +217,7 @@ public actor Session {
 
     private func handle(_ frame: Frame) async throws {
         let message = try ServerMessage.decode(frame.body)
+        observed(frame, message)
         if case .pong(let t, _) = message { liveness.answered(ping: t) }
         if case .streamConfig = message { config = frame }
         // A record() during the await may have installed a new recorder: keep that one.
@@ -232,8 +246,9 @@ public actor Session {
             switch action {
             case .send(let message):
                 if case .ping = message { liveness.pinged(at: Self.uptime()) }
-                send(message)
+                enqueue(message)
             case .configureDecoder(let config):
+                pointer.publish(nil)
                 loggedDecodeFailures.removeAll()
                 do {
                     try await decoder.configure(config)
@@ -245,6 +260,8 @@ public actor Session {
                 if core.isFinished { return }
             case .updateDecoder(let config):
                 await decoder.update(config)
+            case .cursorPosition(let x, let y, let visible):
+                pointer.publish(.init(x: x, y: y, visible: visible))
             case .decode(let header):
                 guard let frame else { continue }
                 await decode(header, frame: frame)
@@ -265,7 +282,7 @@ public actor Session {
                 for name in names {
                     await features[name]?.activate(
                         FeatureContext { [weak self] body, payload in
-                            await self?.send(body: body, payload: payload)
+                            await self?.send(body: body, payload: payload, type: name)
                         })
                 }
             case .deliver(let name):
@@ -314,24 +331,11 @@ public actor Session {
         let streaming = core.state == .streaming
         for input in queued
         where inputGate.admits(input, streaming: streaming, interrupted: liveness.isInterrupted) {
-            send(input.clientMessage)
+            enqueue(input.clientMessage)
         }
         if let command {
             carryingOut = true
             Task { await self.carryOut(command) }
-        }
-    }
-
-    private func send(_ message: ClientMessage) {
-        send(body: message.encoded)
-    }
-
-    private func send(body: [UInt8], payload: [UInt8] = []) {
-        guard let writer else { return }
-        do {
-            writer.send(try Frame.encode(body: body, payload: payload))
-        } catch {
-            Self.log.error("not sent, over the frame limits: \(error)")
         }
     }
 
@@ -353,9 +357,16 @@ public actor Session {
         inputs.close()
         await closeClipboard()
         await writer?.drain(within: Self.drainLimit)
-        await connection?.close()
+        // A link found dead, or quiet when Reconnect Now ends the session, is abandoned: the
+        // next try mustn't wait on it.
+        if linkLost || abandonsQuietLink && liveness.isInterrupted {
+            await connection?.abandon()
+        } else {
+            await connection?.close()
+        }
         await recorder?.finish()
         recorder = nil
+        pointer.publish(nil)
         yield(.ended(end))
         continuation.finish()
     }

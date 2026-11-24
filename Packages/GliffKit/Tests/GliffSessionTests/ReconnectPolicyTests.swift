@@ -22,7 +22,7 @@ struct ReconnectPolicyTests {
 
     @Test(arguments: [
         SessionEnd.connectionLost, .serverSetupFailed("x"), .serverError(code: 300, message: "x"),
-        .connectFailed(.unreachable),
+        .connectFailed(.unreachable), .connectFailed(.channelRefused), .connectFailed(.sharedConnectionLost),
     ])
     func anEndThatMayReconnectRetries(_ end: SessionEnd) {
         var policy = ReconnectPolicy()

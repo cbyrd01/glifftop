@@ -17,14 +17,15 @@ desktop for Hyprland/Omarchy, written in Swift. Not affiliated with Gliff.
   - keyboard and pointer capture, and the remote cursor shape;
   - choosing the screen (a monitor, the focused one, or a virtual screen that follows the window);
   - the shared clipboard: text, HTML and images, both ways, off until turned on;
-  - saved machines with their options, and reconnecting by itself after a lost link.
+  - saved machines with their options, and reconnecting by itself after a lost link;
+  - tabs and windows, one session each, sharing one ssh connection per host, with input and
+    the host's focus following the window on top.
 - **Not yet:**
   - files over the clipboard;
-  - tabs;
   - an optional event tap for ⌘Space and ⌘Tab (they stay with the Mac);
   - signed releases.
-- **Known, upstream:** Hyprland 0.56.2 shares every cursor image fully transparent, so the
-  Mac arrow shows over the picture.
+- **Known, upstream:** Hyprland 0.56.2 shares every cursor image fully transparent, so over a
+  monitor the Mac arrow shows; a virtual screen's picture carries the host's own pointer.
 
 ## Engineering rules
 
@@ -172,14 +173,16 @@ This file wins over any skill, including a skill's "supersedes prior training" c
   client behaved, 1 with one `fake-server: ` line on stderr when it didn't, and 2 on bad usage.
   - `serve stream --streams DIR [--size WxH]` replays `NNN.main.h264` (and `NNN.aux.h264`
     under Dual420) from `DIR`, one file per frame, the first a keyframe.
-  - `serve input [--keymap-first] [--expect-keys N] [--expect-pointer N]` streams two frames,
-    then checks the client's input until Bye or EOF:
+  - `serve input [--keymap-first] [--expect-keys N] [--expect-pointer N] [--expect-nudge]`
+    streams two frames, then checks the client's input until Bye or EOF:
     - no key or button pressed twice, released unheld, or still held at the end;
     - motion inside the streamed 1280×720 output;
     - a scroll's value finite, and its stop after a scroll of that axis;
     - no empty keymap.
 
-    The flags require the Keymap first, at least N keys, and at least N pointer messages.
+    The flags require the Keymap first, at least N keys, and at least N pointer messages;
+    `--expect-nudge` requires a window activation's nudge before any other input: two motions
+    1 apart on x, at the same y.
   - `serve cursor [--valid-only]` sends three cursor shapes after the StreamConfig, then two
     frames:
     - a valid 2×2 shape (id 7), its frame four bytes longer than it declares;
@@ -209,13 +212,18 @@ This file wins over any skill, including a skill's "supersedes prior training" c
     - Then it offers its own clipboard and waits for Bye.
 - **Live check** (needs a real host; a headless session): run
   `GLIFFTOP_LIVE_HOST=<ssh host> GLIFFTOP_LIVE_SECONDS=60 swift test --no-parallel --filter
-  'LiveSessionTests|LiveResolutionTests|LiveScreenListTests|LiveClipboardTests' --attachments-path DIR` in
-  `Packages/GliffKit`.
+  'LiveSessionTests|LiveResolutionTests|LiveScreenListTests|LiveClipboardTests|LiveHostConnectionTests|LiveFocusTests'
+  --attachments-path DIR` in `Packages/GliffKit`.
   - It streams the screen, resizes a virtual screen (which the server removes at the end),
     asks for one at Standard (and at Automatic with `--video cpu`) and lists the monitors.
+  - It opens the app's own ControlMaster: two channels on one master, and a channel without its
+    master failing at once, with no second sign-in.
   - It offers two test strings as the Mac's clipboard, an ordinary one and one marked as a
     password. Each becomes the host's clipboard; the ordinary one stays in its clipboard
     history, and the password must not.
+  - It opens two virtual screens on one master, with a terminal on each (closed by address at
+    the end): activation moves the host's focus to the screen in front, the host's pointer
+    matches `hyprctl cursorpos`, and Super held on one screen types no digit on the other.
   - It writes numbers-only `live-*.txt` files. It is off in the gate.
 - **Captures:** screenshots, screen recordings and `.gliffrec` stream recordings stay local in
   `.recordings/` (git-ignored).
@@ -233,12 +241,15 @@ This file wins over any skill, including a skill's "supersedes prior training" c
 ```
 Glifftop.app   Glifftop/: AppShell (SwiftUI windows, settings) + MacPlatform (AppKit adapters)
 GliffKit       Packages/GliffKit/, platform-neutral, one target per module
-  GliffMachines   saved machines and their options, as JSON for the app to store
+  GliffMachines   saved machines and their options, as JSON for the app to store; a new tab's
+                  options and the tabs' titles
   GliffSession    per-window actor: handshake, reader/writer tasks, acks, resize, input order
   GliffClipboard  offer/request/data/ack/abort state machine, sharing policy (no pasteboard)
   GliffVideo      H.264 → VideoToolbox (2 sessions) → Metal recombine → BGRA texture
-  GliffInput      macOS keycode → evdev, key ledger, XKB keymap text, pointer mapping, cursor
-  GliffTransport  `Transport` protocol; SystemSSHTransport spawns /usr/bin/ssh … gliff-server --stdio
+  GliffInput      macOS keycode → evdev, key ledger, XKB keymap text, pointer mapping, cursor,
+                  focus target, the tab chord
+  GliffTransport  `Transport` protocol; HostConnections: one ssh ControlMaster per host, each
+                  session a channel on it (ChannelTransport) running gliff-server --stdio
   GliffProtocol   frame header, minimal CBOR, ClientMessage/ServerMessage; pure, no I/O
   GliffTestSupport  test doubles shared by the test targets (ManualClock); never in the product
 ```

@@ -1,3 +1,4 @@
+import GliffClipboard
 import GliffMachines
 import GliffSession
 import GliffTransport
@@ -5,13 +6,18 @@ import SwiftUI
 
 /// A machine's options, for the connect field's Options and the machine sheet: the screen (the
 /// host's monitors once Get Screens lists them; a machine's monitor though not listed), a
-/// virtual screen's text size and resolution, Scale to Fit, and reconnect.
+/// virtual screen's text size and resolution, Scale to Fit, reconnect, and the clipboard.
 struct MachineOptionsForm: View {
     @Binding var options: MachineOptions
     let screenList: ScreenList
     /// The host as its field shows it: the list shown is this host's.
     let host: String
     let getScreens: () -> Void
+    /// Settings' sharing, which Same as Settings follows.
+    @StoredClipboardSharing private var settingsSharing
+    @State private var askingClipboard: ClipboardQuestion?
+    /// The choice the question is about, set when it is asked.
+    @State private var askedClipboard: ClipboardSharing?
 
     var body: some View {
         HStack {
@@ -55,6 +61,28 @@ struct MachineOptionsForm: View {
         }
         Toggle("Scale smaller screens to fit", isOn: $options.scaleToFit)
         Toggle("Reconnect automatically", isOn: $options.reconnects)
+        Picker("Clipboard", selection: clipboard) {
+            Text("Same as Settings (\(settingsSharing.label))").tag(ClipboardSharing?.none)
+            Divider()
+            ForEach(ClipboardSharing.allCases, id: \.self) { Text($0.label).tag(Optional($0)) }
+        }
+        .clipboardSharingConfirmation($askingClipboard) { _ in options.clipboard = askedClipboard }
+    }
+
+    /// The machine's sharing, asking first when the choice sends more than the sharing it has
+    /// now (Same as Settings sends what Settings' does).
+    private var clipboard: Binding<ClipboardSharing?> {
+        Binding(
+            get: { options.clipboard },
+            set: { choice in
+                let (from, to) = (options.clipboard ?? settingsSharing, choice ?? settingsSharing)
+                if from.sendsLess(than: to) {
+                    askedClipboard = choice
+                    askingClipboard = ClipboardQuestion(level: to, from: from)
+                } else {
+                    options.clipboard = choice
+                }
+            })
     }
 
     /// The host's listed monitors, and the chosen one though not listed.

@@ -1,18 +1,27 @@
+import GliffClipboard
+import GliffMachines
 import SwiftUI
 
-/// The toolbar's clipboard sharing: one button that steps through the app's setting (Not
-/// shared, Shared, Shared including passwords, and back), asking first before each step that
-/// sends more (the window shows the question, as the toolbar may be hidden); beside it, the
-/// host's read of the Mac clipboard with Cancel while it runs.
+/// The toolbar's clipboard sharing: one button that steps the machine's own setting from the
+/// one in force (Not shared, Shared, Shared including passwords, and back), asking first before
+/// each step that sends more (the window shows the question, as the toolbar may be hidden);
+/// beside it, the host's read of the Mac clipboard with Cancel while it runs.
 struct ClipboardToolbarItem: View {
     @Bindable var model: SessionModel
-    @StoredClipboardSharing private var sharing
+    /// Settings', read here so the button follows a change there.
+    @StoredClipboardSharing private var settings
+
+    /// As `SessionModel.clipboardInForce`, with Settings' read through the view.
+    private var sharing: ClipboardSharing {
+        model.clipboardSharing(settings: settings)
+    }
 
     var body: some View {
         // No spacing of its own: with no read shown, the item's glass is the button's alone.
         HStack(spacing: 0) {
             Button {
-                Binding.askingFirst($sharing, asking: $model.askingClipboard).wrappedValue = sharing.next
+                let machine = Binding(get: { sharing }, set: { model.clipboardSharing = $0 })
+                Binding.askingFirst(machine, asking: $model.askingClipboard).wrappedValue = sharing.next
             } label: {
                 ClipboardSharingIcon(sharing: sharing)
             }

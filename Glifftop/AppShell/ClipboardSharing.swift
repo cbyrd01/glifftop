@@ -1,28 +1,10 @@
+import GliffClipboard
 import SwiftUI
 
-/// Share the clipboard, one setting of three: not shared, shared, or shared including passwords
-/// (copies a password manager marks as concealed). Stored as the two switches `AppSettings`
-/// names; Not Shared clears both, so sharing again never brings passwords back unasked.
-enum ClipboardSharing: Int, CaseIterable {
-    /// In order of what's sent: each sends more than the one before.
-    case off, shared, withPasswords
-
-    init(share: Bool, includePasswords: Bool) {
-        self = !share ? .off : includePasswords ? .withPasswords : .shared
-    }
-
-    /// The setting a click on the toolbar's button moves to.
-    var next: ClipboardSharing {
-        switch self {
-        case .off: .shared
-        case .shared: .withPasswords
-        case .withPasswords: .off
-        }
-    }
-
-    /// Whether moving to `level` sends more, and so asks first.
-    func sendsLess(than level: ClipboardSharing) -> Bool { rawValue < level.rawValue }
-
+/// Share the clipboard (`ClipboardSharing`), as the app shows it. Settings' is stored as the two
+/// switches `AppSettings` names; Not Shared clears both, so sharing again never brings
+/// passwords back unasked.
+extension ClipboardSharing {
     var label: String {
         switch self {
         case .off: "Not shared"

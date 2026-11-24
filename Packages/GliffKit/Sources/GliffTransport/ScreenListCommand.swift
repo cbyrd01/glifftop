@@ -15,10 +15,15 @@ public struct ScreenListCommand: Equatable, Sendable {
     }
 
     public var arguments: [String] {
-        SSHCommand.options(sshArguments, connectTimeout: connectTimeout) + [
-            "--", target.value, "sh", "-c", SSHCommand.shellQuoted(Self.script),
-        ]
+        SSHCommand.options(sshArguments, connectTimeout: connectTimeout) + ["--", target.value]
+            + Self.remoteWords
     }
+
+    /// The command line run on the host, as ssh sends it: a channel on a shared connection
+    /// runs this.
+    public var remoteCommand: String { Self.remoteWords.joined(separator: " ") }
+
+    private static let remoteWords = ["sh", "-c", SSHCommand.shellQuoted(script)]
 
     /// One line (csh and tcsh refuse a newline inside single quotes) and no single quote
     /// (`shellQuoted` wraps it in them). Each instance is tried, the session's own first, then

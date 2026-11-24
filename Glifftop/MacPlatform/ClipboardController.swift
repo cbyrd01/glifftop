@@ -11,16 +11,17 @@ import os
 /// remote pastes (`PasteboardSource`).
 final class ClipboardController {
     private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "clipboard")
-    /// Whether the clipboard is shared, read again whenever the app's defaults change.
-    private let sharingSetting: () -> Bool
-    /// Whether passwords are shared too, read again likewise.
-    private let includePasswordsSetting: () -> Bool
-    private var includePasswords: Bool
+    /// The sharing in force for this window, read again whenever the app's defaults change
+    /// (Settings, or a saved machine) and at `sharingChanged()`.
+    private let inForce: () -> ClipboardSharing
     private var session: Session?
     /// The ssh destination as typed, which the paste panel names.
     private var host = ""
     private var policy: ClipboardPolicy
-    private var sharing: Bool
+    /// The sharing as last read, which the policy was told.
+    private var current: ClipboardSharing
+    private var sharing: Bool { current != .off }
+    private var includePasswords: Bool { current == .withPasswords }
     private var front = false
     private weak var window: NSWindow?
     private var changeCount = NSPasteboard.general.changeCount
@@ -34,15 +35,14 @@ final class ClipboardController {
     private var windowObservers: [any NSObjectProtocol] = []
     private var observers: [any NSObjectProtocol] = []
 
-    init(sharing: @escaping () -> Bool, includePasswords: @escaping () -> Bool) {
-        (sharingSetting, includePasswordsSetting) = (sharing, includePasswords)
-        self.sharing = sharing()
-        self.includePasswords = includePasswords()
-        policy = ClipboardPolicy(sharing: self.sharing)
+    init(sharing inForce: @escaping () -> ClipboardSharing) {
+        self.inForce = inForce
+        current = inForce()
+        policy = ClipboardPolicy(sharing: current != .off)
         for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification] {
             observers.append(observe(name, object: nil) { $0.frontChanged() })
         }
-        observers.append(observe(UserDefaults.didChangeNotification, object: nil) { $0.settingsChanged() })
+        observers.append(observe(UserDefaults.didChangeNotification, object: nil) { $0.sharingChanged() })
     }
 
     isolated deinit {
@@ -54,7 +54,7 @@ final class ClipboardController {
     func attach(_ session: Session, host: String) {
         detach()
         (self.session, self.host) = (session, host)
-        (sharing, includePasswords) = (sharingSetting(), includePasswordsSetting())
+        current = inForce()
         policy = ClipboardPolicy(sharing: sharing)
         changeCount = NSPasteboard.general.changeCount
         front = isFront
@@ -97,6 +97,7 @@ final class ClipboardController {
         }
         guard let count = RemotePasteboard.write(offer, provider: provider) else { return }
         Self.log.info("remote clipboard put on the Mac")
+        ClipboardOrigin.record(changeCount: count, destination: host)
         (self.provider, written, changeCount) = (provider, count, count)
         carryOut(policy.handle(.wrote(changeCount: count)))
     }
@@ -125,16 +126,13 @@ final class ClipboardController {
         carryOut(policy.handle(.front(now, mac())))
     }
 
-    /// Both read before either is judged: a sharing change sees the passwords setting as it now is.
-    private func settingsChanged() {
-        let (on, include) = (sharingSetting(), includePasswordsSetting())
-        let includeChanged = include != includePasswords
-        includePasswords = include
-        if on != sharing {
-            sharing = on
-            carryOut(policy.handle(.sharing(on, mac())))
-        }
-        if includeChanged { carryOut(policy.handle(.recheck(mac()))) }
+    /// The sharing in force may have changed. Both switches change before either is judged: a
+    /// sharing change sees the passwords setting as it now is.
+    func sharingChanged() {
+        let (wasSharing, wasIncluding) = (sharing, includePasswords)
+        current = inForce()
+        if sharing != wasSharing { carryOut(policy.handle(.sharing(sharing, mac()))) }
+        if includePasswords != wasIncluding { carryOut(policy.handle(.recheck(mac()))) }
     }
 
     /// The host's clipboard changed: ours is no longer there, so withdrawing it later sends no
@@ -161,13 +159,15 @@ final class ClipboardController {
         } while pasteboard.changeCount != read.changeCount
         lastRead = read
         // The remote's copy we put there is never offered back as the Mac's (it is still there
-        // after a session's end while a paste is being answered).
+        // after a session's end while a paste is being answered), nor one another window's
+        // session to this host put there.
         return ClipboardPolicy.MacClipboard(
             changeCount: read.changeCount,
             offerable: read.changeCount != written
                 && ClipboardPolicy.offerable(
                     typeCount: PasteboardTypes.mimes(for: read.types).count,
-                    isPassword: PasteboardTypes.isPassword(read.types), includePasswords: includePasswords)
+                    isPassword: PasteboardTypes.isPassword(read.types), includePasswords: includePasswords,
+                    cameFromThisHost: ClipboardOrigin.destination(of: read.changeCount) == host)
         )
     }
 

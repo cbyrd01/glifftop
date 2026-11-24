@@ -15,7 +15,8 @@ import Observation
     /// so it compares equal to a session's `SSHTarget.value`.
     @ObservationIgnored private(set) var host: String?
     @ObservationIgnored private var listing: Task<Void, Never>?
-    /// Lists a host's monitors: over ssh (a closure, so another way of listing can replace it).
+    /// Lists a host's monitors on the app's shared connection to it (a closure, so another way
+    /// of listing can replace it).
     @ObservationIgnored private let lister:
         @Sendable (SSHTarget) async throws(ScreenListError) -> [RemoteScreen]
 
@@ -75,7 +76,7 @@ import Observation
         self.host = nil
     }
 
-    /// Stops a listing still running (its ssh ends), keeping the list but not its error: a
+    /// Stops a listing still running (its channel closes), keeping the list but not its error: a
     /// session is starting, and the form's error isn't the session's.
     func stop() {
         listing?.cancel()
@@ -105,8 +106,8 @@ import Observation
 
     private static func key(_ host: String) -> String { host.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    /// The ssh lister: one `ssh` running the host's list command.
+    /// The ssh lister: the host's list command, on the app's shared connection to it.
     static func overSSH(_ target: SSHTarget) async throws(ScreenListError) -> [RemoteScreen] {
-        try await ScreenLister(command: ScreenListCommand(target: target)).screens()
+        try await ScreenLister(connections: AppConnections.shared, target: target).screens()
     }
 }

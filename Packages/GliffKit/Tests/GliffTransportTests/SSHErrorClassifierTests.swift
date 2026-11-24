@@ -80,6 +80,52 @@ import Testing
         #expect(SSHErrorClassifier.classify(exitStatus: test.status, stderr: test.stderr) == test.failure)
     }
 
+    /// A channel on the shared connection: ssh tries the master's socket, and without it tries
+    /// a direct connection that `ProxyCommand=/usr/bin/false` ends at once.
+    static let channelCases: [Case] = [
+        Case(
+            stderr: "channel 0: open failed: administratively prohibited: open failed\n", status: 255,
+            failure: .channelRefused),
+        Case(
+            stderr: "mux_client_request_session: session request failed: Session open refused by peer\n",
+            status: 255, failure: .channelRefused),
+        Case(
+            stderr: "Control socket connect(/x): Connection refused\n"
+                + "kex_exchange_identification: Connection closed by remote host\n"
+                + "Connection closed by UNKNOWN port 65535\n", status: 255, failure: .sharedConnectionLost),
+        Case(
+            stderr: "kex_exchange_identification: Connection closed by remote host\n"
+                + "Connection closed by UNKNOWN port 65535\n", status: 255, failure: .sharedConnectionLost),
+        Case(
+            stderr: "mux_client_read_packet: read header failed: Broken pipe\n", status: 255,
+            failure: .sharedConnectionLost),
+        Case(
+            stderr: "mux_client_request_session: read from master failed: Broken pipe\n", status: 255,
+            failure: .sharedConnectionLost),
+        Case(
+            stderr: "bash: line 1: gliff-server: command not found\n", status: 127,
+            failure: .serverNotInstalled),
+    ]
+
+    @Test(arguments: channelCases)
+    func classifiesAChannel(_ test: Case) {
+        let failure = SSHErrorClassifier.classifyChannel(exitStatus: test.status, stderr: test.stderr)
+        #expect(failure == test.failure)
+    }
+
+    /// A ProxyJump host that forbids forwarding, or a stale ControlPath of the person's own, is
+    /// not this app's shared connection.
+    @Test func sharedConnectionWordsMeanNothingElsewhere() {
+        let jump =
+            "channel 0: open failed: administratively prohibited: open failed\n"
+            + "stdio forwarding failed\nkex_exchange_identification: Connection closed by remote host\n"
+        #expect(SSHErrorClassifier.classify(exitStatus: 255, stderr: jump) == .connectionRefused)
+        let stale =
+            "Control socket connect(/x): Connection refused\n"
+            + "@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\nHost key verification failed.\n"
+        #expect(SSHErrorClassifier.classify(exitStatus: 255, stderr: stale) == .changedHostKey)
+    }
+
     /// Network words from the remote program (not ssh, which exits 255) aren't ssh failures.
     @Test func remoteOutputIsNotMistakenForSSH() {
         #expect(
