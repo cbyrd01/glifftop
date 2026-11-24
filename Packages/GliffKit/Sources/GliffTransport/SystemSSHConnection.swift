@@ -40,7 +40,8 @@
         public static func open(target: SSHTarget, socket: String) async throws(TransportError)
             -> SystemSSHConnection
         {
-            let timeout = await SSHConnectTimeout.isWanted(sshArguments: [], target: target)
+            let config = await SSHResolvedConfig.probe(sshArguments: [], target: target)
+            let timeout = config.map(SSHConnectTimeout.isWanted) ?? false
             let command = SSHMasterCommand(target: target, socket: socket, connectTimeout: timeout)
             return try await open(command: command, executable: URL(filePath: SSHCommand.executable))
         }

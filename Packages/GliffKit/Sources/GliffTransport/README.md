@@ -14,8 +14,8 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   `SSHCommand` builds the argv (`BatchMode=yes`,
   `StrictHostKeyChecking=yes` first so nothing can relax it, `IPQoS=ef`, keepalives that
   end a dead link after about a minute, a 10 s `ConnectTimeout` for a host that drops
-  packets, added only when `ssh -G` shows the person's ssh_config sets no timeout and no
-  proxy (`SSHConnectTimeout`), `--` before the target, server arguments
+  packets, added only when `ssh -G` (`SSHResolvedConfig`, read once per open, never logged)
+  shows the person's ssh_config sets no timeout and no proxy (`SSHConnectTimeout`), `--` before the target, server arguments
   shell-quoted for the remote login shell), and `SSHErrorClassifier` turns ssh's stderr
   into a `ConnectFailure` with a plain-language `message` (for a changed host key, with the
   key ssh printed; the `ssh-keygen -R` name of the old key comes from the person's ssh config,
@@ -29,6 +29,11 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   matched against a template, and an unknown prompt is nil. A name ssh writes for the
   destination (its HostName or HostKeyAlias, from `ssh -G`) is shown as the host typed; any
   other is a jump host's.
+- **A master that may ask:** `MasterAsking`, from the resolved config (nil under `BatchMode
+  yes`), drops `BatchMode=yes` from the master only, gives ssh `-n`, keeps
+  `StrictHostKeyChecking=yes` when the config says so and asks otherwise (never `accept-new`
+  or `no`), and turns a config's `UpdateHostKeys ask` off. `check`, `exit` and channels keep
+  their guards.
 - **Shared connections:** `HostConnection` is one signed-in connection to a host that runs
   shell commands as channels (`ByteConnection`s); a system ssh ControlMaster or an embedded ssh
   can each be one. `HostConnections` (an actor) keeps one per destination as typed, held by

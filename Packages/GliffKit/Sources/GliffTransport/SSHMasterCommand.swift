@@ -6,6 +6,9 @@
 /// - `master`: `SSHCommand.options` with the master's own (`ControlMaster=yes`,
 ///   `ControlPersist=no`, `-S socket`, `-N`): a master with no command that ends with its
 ///   process.
+/// - With `asking`, the master may ask its questions through askpass: no `BatchMode=yes`,
+///   ssh's stdin `/dev/null` (`-n`), `StrictHostKeyChecking` from `MasterAsking` first, and
+///   `UpdateHostKeys=no` when it says so.
 /// - `check` and `exit` ask the master whether it is up, and to end; `channel` runs one command
 ///   through it. Each has `ControlMaster=no` (a config's `ControlMaster yes` would make ssh
 ///   ignore the socket and sign in), `ProxyCommand=/usr/bin/false` (which wins over any proxy
@@ -17,16 +20,20 @@ public struct SSHMasterCommand: Equatable, Sendable {
     public var sshArguments: [String]
     /// Whether `ConnectTimeout=10` is added to the master, as `SSHCommand.connectTimeout`.
     public var connectTimeout: Bool
+    /// How the master may ask its questions; nil: it never asks.
+    public var asking: MasterAsking?
 
-    public init(target: SSHTarget, socket: String, sshArguments: [String] = [], connectTimeout: Bool = false)
-    {
-        (self.target, self.socket, self.sshArguments, self.connectTimeout) =
-            (target, socket, sshArguments, connectTimeout)
+    public init(
+        target: SSHTarget, socket: String, sshArguments: [String] = [], connectTimeout: Bool = false,
+        asking: MasterAsking? = nil
+    ) {
+        (self.target, self.socket, self.sshArguments, self.connectTimeout, self.asking) =
+            (target, socket, sshArguments, connectTimeout, asking)
     }
 
     public var master: [String] {
         let own = ["-o", "ControlMaster=yes", "-o", "ControlPersist=no", "-S", socketArgument, "-N"]
-        return SSHCommand.options(sshArguments, connectTimeout: connectTimeout, own: own) + [
+        return SSHCommand.options(sshArguments, connectTimeout: connectTimeout, own: own, asking: asking) + [
             "--", target.value,
         ]
     }

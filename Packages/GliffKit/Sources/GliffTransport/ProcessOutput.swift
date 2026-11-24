@@ -16,14 +16,14 @@
         }
 
         static func read(
-            executable: URL, arguments: [String], maxBytes: Int, timeout: Duration,
+            executable: URL, arguments: [String], maxBytes: Int, timeout: Duration, logsStderr: Bool = true,
             classify: @escaping @Sendable (Int32, String) -> ConnectFailure = SSHErrorClassifier.classify
         ) async -> Result<[UInt8], Failure> {
             if Task.isCancelled { return .failure(.cancelled) }
             let connection: ProcessConnection
             do {
                 connection = try ProcessConnection.launch(
-                    executable: executable, arguments: arguments, classify: classify)
+                    executable: executable, arguments: arguments, logsStderr: logsStderr, classify: classify)
             } catch {
                 return .failure(.notStarted)
             }

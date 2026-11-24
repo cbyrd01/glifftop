@@ -42,14 +42,19 @@ public struct SSHCommand: Equatable, Sendable {
     private var remoteWords: [String] { ["gliff-server", "--stdio"] + serverArguments.map(Self.shellQuoted) }
 
     /// Every option before `--`, the safety ones first, then `own` (which the extra arguments
-    /// can't change); shared with `ScreenListCommand` and `SSHMasterCommand`.
-    static func options(_ sshArguments: [String], connectTimeout: Bool = false, own: [String] = [])
-        -> [String]
-    {
-        [
-            "-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "Compression=no",
-            "-o", "IPQoS=ef",
-        ] + own + sshArguments + ["-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=6"]
+    /// can't change); shared with `ScreenListCommand` and `SSHMasterCommand`. With `asking`
+    /// (a master that may ask), `-n` and its host-key rule replace BatchMode and strict checking.
+    static func options(
+        _ sshArguments: [String], connectTimeout: Bool = false, own: [String] = [],
+        asking: MasterAsking? = nil
+    ) -> [String] {
+        let safety =
+            asking.map {
+                ["-n", "-o", "StrictHostKeyChecking=\($0.strictHostKeyChecking)"]
+                    + ($0.updateHostKeysOff ? ["-o", "UpdateHostKeys=no"] : [])
+            } ?? ["-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes"]
+        return ["-T"] + safety + ["-o", "Compression=no", "-o", "IPQoS=ef"] + own + sshArguments
+            + ["-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=6"]
             + (connectTimeout ? SSHConnectTimeout.options : [])
     }
 

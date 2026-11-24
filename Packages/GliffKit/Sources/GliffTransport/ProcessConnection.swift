@@ -50,20 +50,27 @@
         private let process: Process
         private let continuation: AsyncThrowingStream<[UInt8], any Error>.Continuation
         private let classify: @Sendable (Int32, String) -> ConnectFailure
+        private let logsStderr: Bool
         private let queue = DispatchQueue(label: "me.cbyrd.Glifftop.process")
         private let stdin: DispatchIO
         private let stdout: DispatchIO
         private let stderr: DispatchIO
         private let state = Mutex(State())
 
+        /// `environment` adds to the app's own. `logsStderr: false` keeps the stderr tail out of
+        /// the log (a master that may ask: its stderr can hold the host's sign-in text).
         static func launch(
-            executable: URL, arguments: [String],
+            executable: URL, arguments: [String], environment: [String: String] = [:],
+            logsStderr: Bool = true,
             classify: @escaping @Sendable (Int32, String) -> ConnectFailure
         ) throws(TransportError) -> ProcessConnection {
             let process = Process()
             process.executableURL = executable
             process.arguments = arguments
-            let connection = ProcessConnection(process: process, classify: classify)
+            if !environment.isEmpty {
+                process.environment = ProcessInfo.processInfo.environment.merging(environment) { $1 }
+            }
+            let connection = ProcessConnection(process: process, logsStderr: logsStderr, classify: classify)
             do {
                 try process.run()
             } catch {
@@ -77,7 +84,10 @@
         }
 
         /// Wires the pipes and handlers; `launch` then runs the process.
-        private init(process: Process, classify: @escaping @Sendable (Int32, String) -> ConnectFailure) {
+        private init(
+            process: Process, logsStderr: Bool,
+            classify: @escaping @Sendable (Int32, String) -> ConnectFailure
+        ) {
             let (stdinPipe, stdoutPipe, stderrPipe) = (Pipe(), Pipe(), Pipe())
             process.standardInput = stdinPipe
             process.standardOutput = stdoutPipe
@@ -87,6 +97,7 @@
 
             self.process = process
             self.classify = classify
+            self.logsStderr = logsStderr
             (incoming, continuation) = AsyncThrowingStream.makeStream()
             stdin = Self.channel(stdinPipe.fileHandleForWriting, queue: queue)
             stdout = Self.channel(stdoutPipe.fileHandleForReading, queue: queue)
@@ -267,7 +278,7 @@
             if outcome.status == 0 || outcome.closing {
                 continuation.finish()
             } else {
-                Self.log.debug("stderr tail: \(outcome.stderr, privacy: .private)")
+                if logsStderr { Self.log.debug("stderr tail: \(outcome.stderr, privacy: .private)") }
                 let failure = classify(outcome.status, outcome.stderr)
                 continuation.finish(throwing: TransportError.exited(status: outcome.status, failure: failure))
             }

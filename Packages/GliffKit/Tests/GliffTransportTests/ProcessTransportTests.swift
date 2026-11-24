@@ -188,6 +188,18 @@
                     == .exited(status: -9, failure: .other("ssh was stopped by signal 9")))
         }
 
+        @Test func aLaunchedProcessSeesItsExtraEnvironment() async throws {
+            let connection = try ProcessConnection.launch(
+                executable: URL(filePath: "/bin/sh"),
+                arguments: ["-c", "printf '%s\\n%s\\n' \"$GLIFFTOP_TEST\" \"$PATH\""],
+                environment: ["GLIFFTOP_TEST": "1"], classify: SSHErrorClassifier.classify)
+            let (bytes, _) = await drain(connection)
+            let lines = String(decoding: bytes, as: UTF8.self).split(separator: "\n")
+            #expect(lines.first == "1")
+            // The app's own environment is kept.
+            #expect(lines.dropFirst().first.map(String.init) == ProcessInfo.processInfo.environment["PATH"])
+        }
+
         @Test func launchFailure() async {
             let transport = ProcessTransport(executable: URL(filePath: "/nonexistent"), arguments: [])
             await #expect {
