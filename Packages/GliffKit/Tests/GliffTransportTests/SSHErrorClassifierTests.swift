@@ -17,7 +17,7 @@ import Testing
         Case(
             stderr: "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n"
                 + "@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\n"
-                + "Host key verification failed.\n", status: 255, failure: .changedHostKey),
+                + "Host key verification failed.\n", status: 255, failure: .changedHostKey()),
         Case(
             stderr:
                 "sign_and_send_pubkey: signing failed for ED25519 \"key\" from agent: agent refused operation\n"
@@ -123,7 +123,75 @@ import Testing
         let stale =
             "Control socket connect(/x): Connection refused\n"
             + "@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\nHost key verification failed.\n"
-        #expect(SSHErrorClassifier.classify(exitStatus: 255, stderr: stale) == .changedHostKey)
+        #expect(SSHErrorClassifier.classify(exitStatus: 255, stderr: stale) == .changedHostKey())
+    }
+
+    /// OpenSSH 10.5p1's words for a changed key, from a spike against a loopback sshd.
+    static let changed = """
+        @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+        @    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @
+        @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+        IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!
+        Someone could be eavesdropping on you right now (man-in-the-middle attack)!
+        It is also possible that a host key has just been changed.
+        The fingerprint for the ED25519 key sent by the remote host is
+        SHA256:q4ZF+HF4XptmQp4na3G/A7RnJTFTaWmPzI4fM12BaJY.
+        Please contact your system administrator.
+        Add correct host key in /Users/person/.ssh/known_hosts to get rid of this message.
+        Offending ED25519 key in /Users/person/.ssh/known_hosts:3
+        Host key for [192.0.2.10]:2222 has changed and you have requested strict checking.
+        Host key verification failed.
+
+        """
+
+    @Test func aChangedKeysFingerprintIsRead() {
+        #expect(
+            SSHErrorClassifier.classify(exitStatus: 255, stderr: Self.changed)
+                == .changedHostKey(fingerprint: "SHA256:q4ZF+HF4XptmQp4na3G/A7RnJTFTaWmPzI4fM12BaJY"))
+    }
+
+    /// The text may be the host's (a remote command's stderr, a banner): the old key's name
+    /// for `ssh-keygen -R` comes from the person's own config instead.
+    @Test(arguments: [
+        changed, changed.replacing("Host key for [192.0.2.10]:2222 has", with: "Host key for has"),
+        changed.replacing("[192.0.2.10]:2222", with: "github.com"),
+    ])
+    func aChangedKeysNameIsNeverTakenFromItsText(_ stderr: String) {
+        guard case .changedHostKey(_, let name) = SSHErrorClassifier.classify(exitStatus: 255, stderr: stderr)
+        else {
+            Issue.record("not a changed key")
+            return
+        }
+        #expect(name == nil)
+    }
+
+    @Test func anMD5FingerprintIsRead() {
+        let md5 = Self.changed.replacing(
+            "SHA256:q4ZF+HF4XptmQp4na3G/A7RnJTFTaWmPzI4fM12BaJY.",
+            with: "MD5:12:34:56:78:9a:bc:de:f0:12:34:56:78:9a:bc:de:f0.")
+        #expect(
+            SSHErrorClassifier.classify(exitStatus: 255, stderr: md5)
+                == .changedHostKey(fingerprint: "MD5:12:34:56:78:9a:bc:de:f0:12:34:56:78:9a:bc:de:f0"))
+    }
+
+    @Test func aChangedKeysMessageSaysHowToRemoveTheOldKey() {
+        let message = ConnectFailure.changedHostKey(
+            fingerprint: "SHA256:q4ZF+HF4XptmQp4na3G/A7RnJTFTaWmPzI4fM12BaJY",
+            knownHostsName: "[192.0.2.10]:2222"
+        ).message
+        #expect(message.contains("SHA256:q4ZF+HF4XptmQp4na3G/A7RnJTFTaWmPzI4fM12BaJY"))
+        #expect(message.contains("ssh-keygen -R '[192.0.2.10]:2222'"))
+    }
+
+    @Test func aChangedKeysNameIsShownSafely() {
+        let failure = ConnectFailure.changedHostKey(fingerprint: nil, knownHostsName: "a'b\u{1B}[31m")
+        #expect(failure.message.contains("ssh-keygen -R 'a'\\''b[31m'"))
+    }
+
+    @Test func theNewFailuresSayWhatHappened() {
+        #expect(ConnectFailure.hostKeyDenied.message == "You didn't allow the host's key.")
+        #expect(ConnectFailure.signInCancelled.message == "Sign-in cancelled.")
+        #expect(ConnectFailure.tooManyQuestions.message == "The host asked too many questions.")
     }
 
     /// Network words from the remote program (not ssh, which exits 255) aren't ssh failures.
@@ -156,13 +224,16 @@ import Testing
 
     @Test func everyFailureHasAMessage() {
         let all: [ConnectFailure] = [
-            .unknownHostKey, .changedHostKey, .permissionDenied, .agentRefused, .hostNotFound,
-            .connectionRefused, .unreachable, .serverNotInstalled,
+            .unknownHostKey, .changedHostKey(), .permissionDenied, .agentRefused, .hostNotFound,
+            .connectionRefused, .unreachable, .serverNotInstalled, .hostKeyDenied, .signInCancelled,
+            .tooManyQuestions,
+            .changedHostKey(fingerprint: "SHA256:abc", knownHostsName: "omarchy"),
         ]
         for failure in all { #expect(!failure.message.isEmpty) }
         #expect(ConnectFailure.other("boom").message == "boom")
         #expect(ConnectFailure.hostNotFound.message == "That host name couldn't be found.")
         // Plain text: SwiftUI shows a String verbatim, so no Markdown or placeholders.
         for failure in all { #expect(!failure.message.contains("`") && !failure.message.contains("<")) }
+        #expect(!ConnectFailure.changedHostKey().message.contains("ssh-keygen"))
     }
 }

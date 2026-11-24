@@ -1,7 +1,9 @@
 /// Why ssh (or the remote command) failed, in terms a person can act on.
 public enum ConnectFailure: Equatable, Sendable {
     case unknownHostKey
-    case changedHostKey
+    /// The key ssh was sent, as ssh printed it, and the name the old key's known_hosts entry is
+    /// under (`[addr]:port` for a port other than 22), from the person's own ssh config.
+    case changedHostKey(fingerprint: String? = nil, knownHostsName: String? = nil)
     case permissionDenied
     case agentRefused
     case hostNotFound
@@ -15,6 +17,12 @@ public enum ConnectFailure: Equatable, Sendable {
     /// The shared connection's sign-in didn't finish in time, as when an agent's approval is
     /// never given.
     case signInTimedOut
+    /// The person didn't allow the host's key.
+    case hostKeyDenied
+    /// The person cancelled a sign-in question.
+    case signInCancelled
+    /// The sign-in asked more questions than any honest one does.
+    case tooManyQuestions
     /// Anything else: the last line ssh printed, or the exit status.
     case other(String)
 
@@ -23,9 +31,14 @@ public enum ConnectFailure: Equatable, Sendable {
         case .unknownHostKey:
             "This Mac doesn't know the host's key yet. Connect to the host once with ssh in "
                 + "Terminal to check and accept its key."
-        case .changedHostKey:
+        case .changedHostKey(let fingerprint, let name):
             "The host's key has changed. This could mean someone is intercepting the connection. "
                 + "Check with the host's owner before connecting again."
+                + (fingerprint.map { " The host sent the key \(SSHErrorClassifier.displayable($0))." } ?? "")
+                + (name.map {
+                    " Once you've checked, remove the old key in Terminal with: ssh-keygen -R "
+                        + SSHCommand.shellQuoted(SSHErrorClassifier.displayable($0))
+                } ?? "")
         case .permissionDenied:
             "The host refused the sign-in. Check that your ssh key is set up for this host."
         case .agentRefused:
@@ -40,6 +53,9 @@ public enum ConnectFailure: Equatable, Sendable {
         case .signInTimedOut:
             "The sign-in didn't finish within a minute. If your ssh agent asked for approval (for "
                 + "example, 1Password), approve it and try again."
+        case .hostKeyDenied: "You didn't allow the host's key."
+        case .signInCancelled: "Sign-in cancelled."
+        case .tooManyQuestions: "The host asked too many questions."
         case .other(let text): text
         }
     }

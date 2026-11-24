@@ -207,9 +207,10 @@ import Testing
         var core = Self.core()
         #expect(core.ended(by: TransportError.writeFailed("Broken pipe"), afterFrames: 0) == [])
         #expect(
-            core.ended(by: TransportError.exited(status: 255, failure: .changedHostKey), afterFrames: 0) == [
-                .finish(.connectFailed(.changedHostKey))
-            ])
+            core.ended(by: TransportError.exited(status: 255, failure: .changedHostKey()), afterFrames: 0)
+                == [
+                    .finish(.connectFailed(.changedHostKey()))
+                ])
         var streaming = Self.core()
         _ = streaming.receive(Self.helloAck(), payloadLength: 0, now: 0)
         #expect(

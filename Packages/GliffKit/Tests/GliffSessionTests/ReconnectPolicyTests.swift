@@ -10,7 +10,9 @@ struct ReconnectPolicyTests {
     }
 
     @Test(arguments: [
-        SessionEnd.disconnected, .connectFailed(.permissionDenied), .connectFailed(.changedHostKey),
+        SessionEnd.disconnected, .connectFailed(.permissionDenied),
+        .connectFailed(.changedHostKey(fingerprint: nil, knownHostsName: nil)),
+        .connectFailed(.hostKeyDenied), .connectFailed(.signInCancelled), .connectFailed(.tooManyQuestions),
         .connectFailed(.serverNotInstalled), .remoteNotGliff, .incompatible("x"), .protocolError("x"),
         .decoderFailed("x"),
     ])

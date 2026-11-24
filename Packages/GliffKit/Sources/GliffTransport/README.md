@@ -17,7 +17,13 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   packets, added only when `ssh -G` shows the person's ssh_config sets no timeout and no
   proxy (`SSHConnectTimeout`), `--` before the target, server arguments
   shell-quoted for the remote login shell), and `SSHErrorClassifier` turns ssh's stderr
-  into a `ConnectFailure` with a plain-language `message`.
+  into a `ConnectFailure` with a plain-language `message` (for a changed host key, with the
+  key ssh printed; the `ssh-keygen -R` name of the old key comes from the person's ssh config,
+  never from that text, which a host can write).
+- **Sign-in questions:** `SignInQuestion` (an unknown host key, a passphrase or PIN, a
+  password, the host's own question, a notice) and `SignInAnswer` are the same whichever ssh
+  asks them; a `SignInAsker` (the app's window) answers. A `SignInSecret` holds a typed secret
+  in memory of its own, cleared when it goes, and lends its bytes only to `withBytes`.
 - **Shared connections:** `HostConnection` is one signed-in connection to a host that runs
   shell commands as channels (`ByteConnection`s); a system ssh ControlMaster or an embedded ssh
   can each be one. `HostConnections` (an actor) keeps one per destination as typed, held by
