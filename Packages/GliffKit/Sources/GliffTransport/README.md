@@ -2,9 +2,9 @@
 
 Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
 
-- **Imports:** Foundation and GliffProtocol (`OutputName`), plus the platform layers under it:
-  `os` (Logger), `Synchronization` (Mutex, Swift's standard library); signals come through
-  Foundation. Must not import GliffSession,
+- **Imports:** Foundation, GliffProtocol (`OutputName`) and GliffAskpass (the helper's
+  wire), plus the platform layers under it: `os` (Logger), `Synchronization` (Mutex, Swift's
+  standard library); signals come through Foundation. Must not import GliffSession,
   GliffVideo, AppKit or UIKit.
 - **Seam:** `Transport.connect()` gives a `ByteConnection` (`incoming` chunks, `write`,
   `close`). The session only sees this, so tests run against `tools/fake-server` instead
@@ -24,6 +24,11 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   password, the host's own question, a notice) and `SignInAnswer` are the same whichever ssh
   asks them; a `SignInAsker` (the app's window) answers. A `SignInSecret` holds a typed secret
   in memory of its own, cleared when it goes, and lends its bytes only to `withBytes`.
+  `AskpassPrompt` tells ssh's questions apart by its own templates, anchored at the prompt's
+  first byte; a prompt starting "(" is the host's text after ssh's "(USER@HOST) ", never
+  matched against a template, and an unknown prompt is nil. A name ssh writes for the
+  destination (its HostName or HostKeyAlias, from `ssh -G`) is shown as the host typed; any
+  other is a jump host's.
 - **Shared connections:** `HostConnection` is one signed-in connection to a host that runs
   shell commands as channels (`ByteConnection`s); a system ssh ControlMaster or an embedded ssh
   can each be one. `HostConnections` (an actor) keeps one per destination as typed, held by

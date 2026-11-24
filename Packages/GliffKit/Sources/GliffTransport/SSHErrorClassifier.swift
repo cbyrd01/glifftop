@@ -64,7 +64,7 @@ public enum SSHErrorClassifier {
             index + 1 < lines.count
         else { return .changedHostKey() }
         let line = lines[index + 1]
-        guard line.hasPrefix("SHA256:") || line.hasPrefix("MD5:") else { return .changedHostKey() }
+        guard AskpassPrompt.isFingerprint(line) else { return .changedHostKey() }
         return .changedHostKey(fingerprint: line.hasSuffix(".") ? String(line.dropLast()) : line)
     }
 

@@ -43,10 +43,11 @@ let package = Package(
         .testTarget(
             name: "GliffAskpassTests", dependencies: ["GliffAskpass"], swiftSettings: strictSettings),
         .target(
-            name: "GliffTransport", dependencies: ["GliffProtocol"], exclude: ["README.md"],
+            name: "GliffTransport", dependencies: ["GliffProtocol", "GliffAskpass"], exclude: ["README.md"],
             swiftSettings: strictSettings),
         .testTarget(
-            name: "GliffTransportTests", dependencies: ["GliffTransport", "GliffTestSupport"],
+            name: "GliffTransportTests",
+            dependencies: ["GliffTransport", "GliffAskpass", "GliffTestSupport"],
             swiftSettings: strictSettings),
         .target(
             name: "GliffVideo", dependencies: ["GliffProtocol"], exclude: ["README.md"],
