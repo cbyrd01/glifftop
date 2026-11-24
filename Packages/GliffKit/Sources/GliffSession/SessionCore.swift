@@ -78,7 +78,7 @@ struct SessionCore {
             guard case .streamConfig(let config) = message else {
                 return finish(.protocolError("\(Self.name(of: message)) before StreamConfig"))
             }
-            return streamConfig(config)
+            return streamConfig(config, now: now)
         default:
             return finish(.protocolError("\(Self.name(of: message)) before HelloAck"))
         }

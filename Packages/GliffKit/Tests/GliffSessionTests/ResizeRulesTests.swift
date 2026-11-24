@@ -288,14 +288,45 @@ import Testing
         return core
     }
 
-    /// A target before the first StreamConfig waits for it.
-    @Test func aResizeGoesOnlyWhileStreaming() {
+    /// A target before the first StreamConfig waits for it, and goes with it.
+    @Test func aTargetBeforeStreamingGoesWithTheFirstStreamConfig() {
         var core = HandshakeTests.core()
         _ = core.receive(HandshakeTests.helloAck(), payloadLength: 0, now: 0)
         core.setViewTarget(Self.target, now: 0)
         #expect(core.resizeDue(now: 500).isEmpty)
-        _ = core.receive(.streamConfig(HandshakeTests.config), payloadLength: 0, now: 600)
-        #expect(core.resizeDue(now: 600) == [.send(.resize(width: 1600, height: 1000, scale: 2))])
+        let actions = core.receive(.streamConfig(HandshakeTests.config), payloadLength: 0, now: 600)
+        #expect(actions.contains(.send(.resize(width: 1600, height: 1000, scale: 2))))
+    }
+
+    /// The window's latest size is taken before the live-resize edges that came with it: a
+    /// drag's end with its last size sends that size at once.
+    @Test(arguments: [[false], [true, false]])
+    func aDragsEndTakenWithItsLastSizeGoesAtOnce(edges: [Bool]) {
+        var core = streaming()
+        core.takeWindow(
+            ViewTarget(width: 1400, height: 900, backingScale: 2, textFactor: 1), liveResizeEdges: [], now: 0)
+        _ = core.resizeDue(now: 0)
+        core.takeWindow(nil, liveResizeEdges: [true], now: 1000)
+        core.takeWindow(Self.target, liveResizeEdges: edges, now: 1900)
+        #expect(core.resizeDue(now: 1901) == [.send(.resize(width: 1600, height: 1000, scale: 2))])
+    }
+
+    /// The Resize goes ahead of the decoder's set-up, which awaits: a newer one can't pass it.
+    @Test func theFirstStreamConfigsResizeGoesBeforeTheDecoder() {
+        var core = HandshakeTests.core()
+        _ = core.receive(HandshakeTests.helloAck(), payloadLength: 0, now: 0)
+        core.setViewTarget(Self.target, now: 0)
+        let actions = core.receive(.streamConfig(HandshakeTests.config), payloadLength: 0, now: 600)
+        #expect(actions.first == .send(.resize(width: 1600, height: 1000, scale: 2)))
+    }
+
+    @Test func theCoreHoldsResizesDuringALiveResize() {
+        var core = streaming()
+        core.setLiveResize(true)
+        core.setViewTarget(Self.target, now: 0)
+        #expect(!core.tick(now: 2000).contains(.send(.resize(width: 1600, height: 1000, scale: 2))))
+        core.setLiveResize(false)
+        #expect(core.resizeDue(now: 2001) == [.send(.resize(width: 1600, height: 1000, scale: 2))])
     }
 
     /// Nothing after the end.

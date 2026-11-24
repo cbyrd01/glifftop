@@ -41,20 +41,22 @@ extension SessionCore {
 
     private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "GliffSession")
 
-    /// A StreamConfig once HelloAck is in, or a new one while streaming.
-    mutating func streamConfig(_ config: StreamConfig) -> [SessionAction] {
+    /// A StreamConfig once HelloAck is in, or a new one while streaming, with a Resize due now:
+    /// the window's size goes with the first, not at the next tick, and ahead of the decoder's
+    /// set-up (an await, during which a newer Resize could otherwise pass it).
+    mutating func streamConfig(_ config: StreamConfig, now: UInt64) -> [SessionAction] {
         if let reason = StreamRules.validate(config) { return finish(.protocolError(reason)) }
         let rebuild = stream.map { StreamRules.needsNewDecoder(from: $0, to: config) } ?? true
         enterStreaming(config)
         let status = SessionAction.status(.streaming(StreamInfo(config)))
-        return [rebuild ? .configureDecoder(config) : .updateDecoder(config), status]
+        return resizeDue(now: now) + [rebuild ? .configureDecoder(config) : .updateDecoder(config), status]
     }
 
     /// A message while streaming.
     mutating func streaming(_ message: ServerMessage, payloadLength: Int, now: UInt64) -> [SessionAction] {
         switch message {
         case .streamConfig(let config):
-            return streamConfig(config)
+            return streamConfig(config, now: now)
         case .videoFrame(let frame):
             video.pending.append(.init(frameID: frame.frameID, isKeyframe: frame.isKeyframe))
             // The window opens with the first frame, so a burst before the first tick counts.
@@ -122,9 +124,22 @@ extension SessionCore {
         return ping(now: now)
     }
 
-    /// The window's latest size and scale; sent by `resizeDue` once it settles.
+    /// The window's latest size and scale; sent by `resizeDue` when `ResizeRules` says.
     mutating func setViewTarget(_ target: ViewTarget, now: UInt64) {
         resize.set(target, now: now)
+    }
+
+    /// The window's live resize starts or ends (`ResizeRules`).
+    mutating func setLiveResize(_ on: Bool) {
+        resize.setLiveResize(on)
+    }
+
+    /// What the window reported since last taken: its latest size, if new, and its live
+    /// resize's starts and ends, in order.
+    mutating func takeWindow(_ target: ViewTarget?, liveResizeEdges: [Bool], now: UInt64) {
+        // The size first: the end of a drag that came with it marks that size as the drag's.
+        if let target { setViewTarget(target, now: now) }
+        for on in liveResizeEdges { setLiveResize(on) }
     }
 
     /// A Resize, when one is due and video is streaming.
