@@ -3,9 +3,23 @@ import GliffProtocol
 import GliffSession
 import GliffVideo
 
-/// The picture's window sizing, the cursor shapes the video view shows, the activation target and
-/// the view target the remote screen follows.
+/// The picture shown and its window sizing, the cursor shapes the video view shows, the
+/// activation target and the view target the remote screen follows.
 extension SessionModel {
+    /// What the picture is drawn from, while it is shown: streaming, with a stream and a
+    /// renderer. The one test for the picture, and for the freely resizable window.
+    var picture: (stream: StreamInfo, renderer: PictureRenderer)? {
+        guard let renderer else { return nil }
+        if let shownStream { return (shownStream, renderer) }
+        if let heldPicture { return (heldPicture.stream, renderer) }
+        return nil
+    }
+
+    /// Sets `hasPicture` when `picture` comes or goes.
+    func refreshHasPicture() {
+        if hasPicture != (picture != nil) { hasPicture = picture != nil }
+    }
+
     /// Whether the window has other tabs: its size is the group's, so the session never sizes
     /// it, and a mirror draws fitted to it.
     var sharesWindow: Bool { (tabGroup?.tabs.count ?? 1) > 1 }
@@ -44,6 +58,13 @@ extension SessionModel {
         viewPixels = pixels
         if backingScale != self.backingScale { self.backingScale = backingScale }
         sendViewTarget()
+    }
+
+    /// The window's live resize starts or ends: the session sends no Resize during one, and
+    /// the size it ended on at once. A session started during one is told so.
+    func liveResizeChanged(_ on: Bool) {
+        inLiveResize = on
+        session?.setLiveResize(on)
     }
 
     func sendViewTarget() {

@@ -54,6 +54,7 @@ struct RootView: View {
                 interrupted: model.isInterrupted)
         }
         .background { ClipboardTracker(controller: model.clipboard) }
+        .background { LiveResizeTracker(changed: model.liveResizeChanged) }
         #if DEBUG
             .fileImporter(isPresented: $model.choosingRecordingsDirectory, allowedContentTypes: [.folder]) {
                 result in

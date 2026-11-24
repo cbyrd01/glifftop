@@ -87,11 +87,14 @@ and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes
   when it starts; recorded, with the window's options and the date, when it first streams, so
   a host that never streams isn't saved; View-menu changes of screen, text size, resolution
   and Scale to Fit kept on it, `SessionModel+Machines.swift`), folded into a `SessionSnapshot`; the
-  session's `PictureSlot` and the app's one `PictureRenderer`; the window's sizing, set once
-  per session: `.fillScreen` for a virtual screen, else `.monitor` from the first view within
+  session's `PictureSlot` and the app's one `PictureRenderer`, the picture not shown while the
+  session holds it (`SessionSnapshot.holdsPicture`, "Waiting for video" meanwhile, or a
+  reconnect's last picture); the window's sizing, set once per session: `.fillScreen` for a
+  virtual screen (from the start), else `.monitor` from the first view within
   the monitor (`SessionSnapshot.mirrorSize`); the window's Scale to Fit, text size, resolution and reconnect, from the machine's
   options at each connection and kept when the screen is switched; the video view's drawable and
-  backing scale passed on as the session's `ViewTarget`; switching the session to another
+  backing scale passed on as the session's `ViewTarget`, with the window's live resize;
+  switching the session to another
   screen, a new session to the same host, in `SessionModel+Screens.swift`, the window staying
   in full screen meanwhile (`isSwitching`); a lost session tried again with backoff
   (`SessionModel+Reconnect.swift`, GliffSession's `Reconnector`): a session that streamed and
@@ -149,7 +152,8 @@ AppKit adapters for what SwiftUI can't do:
 - `FullScreenTracker`: the window's full-screen state for `RootView`, which keeps its content
   resizable while full screen (fixed-size content makes the window ignore
   `toggleFullScreen`), and leaving full screen when the picture goes (not while View ▸ Screen
-  or a lost session reconnects, nor while a virtual screen's session awaits its picture), so the compact end screen isn't a box on black;
+  or a lost session reconnects, nor while a virtual screen's session awaits its picture), so
+  the compact end screen isn't a box on black;
 - `WindowSizer`: for a mirror (`WindowSizing.monitor`), the window at 1:1 for the monitor
   when that fits the screen, else the largest fitting size (`VideoFit.contentSize`), when
   streaming starts and on View ▸ Actual Size, never for a later view (the server shrinks a
@@ -158,6 +162,9 @@ AppKit adapters for what SwiftUI can't do:
   group's size: no session sizes it, a mirror draws fitted (`SessionModel.sharesWindow`), the
   machines stay resizable and Actual Size is off; a mirror left alone (torn off) is fitted
   again;
+- `LiveResizeTracker`: the window's live resize (a drag of its edge), for
+  `SessionModel.liveResizeChanged`, which tells the session (no Resize during one) and any
+  session started during one; it reports the end when it leaves its window;
 - `SessionAreaTracker`: a virtual screen's window before its picture, filled once and
   measured as the video view will be (`NSView.backingPixels`, less the status bar), so the
   remote screen is asked for that size while the session connects;

@@ -14,9 +14,12 @@ import os
     private(set) var snapshot = SessionSnapshot() {
         didSet {
             let phaseChanged = snapshot.phase != phase
-            let stream = snapshot.phase == .streaming ? snapshot.stream : nil
-            if stream != shownStream { shownStream = stream }
-            if let stream { lastStream = stream }
+            // A held picture (the server's first view, before the window's size) isn't shown.
+            let stream = snapshot.phase == .streaming && !snapshot.holdsPicture ? snapshot.stream : nil
+            if stream != shownStream {
+                shownStream = stream
+                if let stream { showing(stream) }
+            }
             refreshHasPicture()
             if snapshot.isInterrupted != isInterrupted { isInterrupted = snapshot.isInterrupted }
             if snapshot.phase != phase { phase = snapshot.phase }
@@ -118,9 +121,10 @@ import os
     var sheetScreen: ScreenChoice?
     /// The host's monitors, from Get Screens (or View ▸ Screen's Refresh Screen List).
     let screenList = ScreenList()
-    /// The video view's drawable size in pixels, last reported (with `backingScale`). Changes
-    /// every frame of a live resize, and no view reads it.
+    /// The video view's drawable size in pixels, last reported (with `backingScale`), and
+    /// whether the window is in a live resize: no view reads them.
     @ObservationIgnored var viewPixels: PixelSize?
+    @ObservationIgnored var inLiveResize = false
     /// Whether the link is interrupted, set only when it changes (as `shownStream` is).
     private(set) var isInterrupted = false
     /// The session's phase, set only when it changes: the title, the toolbar and the menus read it.
@@ -138,7 +142,7 @@ import os
     /// The stream on screen, set only when it changes: the stats change `snapshot` every
     /// second, and what reads `picture` (the window's size, the menus) needn't follow them. A
     /// View menu rebuilt every second loses the Enter Full Screen item macOS adds to it.
-    private var shownStream: StreamInfo?
+    private(set) var shownStream: StreamInfo?
     /// The ssh destination as typed (for "Connecting to user@host…").
     private(set) var host = ""
     /// The machines' field until this window's first connection: the host of the tab it was
@@ -171,7 +175,8 @@ import os
     var heldPicture: (slot: PictureSlot, stream: StreamInfo)?
     /// The session is a reconnect's try: the window keeps its size.
     private(set) var keepsWindow = false
-    @ObservationIgnored var lastStream: StreamInfo?
+    /// The last picture shown, its slot and stream: what a reconnect holds.
+    @ObservationIgnored var lastPicture: (slot: PictureSlot, stream: StreamInfo)?
     @ObservationIgnored var networkUsable = true
     /// Wake and network changes, for the probe and the reconnect.
     private let wake = WakeObserver()
@@ -218,25 +223,12 @@ import os
     /// Whether there's a picture, set only when that flips: what the menus read. `picture`
     /// changes with each StreamConfig (every settled resize on a virtual screen), and a View
     /// menu rebuilt for it loses Enter Full Screen.
-    private(set) var hasPicture = false
+    /// Set only by `refreshHasPicture()`.
+    var hasPicture = false
 
     /// Whether a session has been started and not yet put away with `backToMachines()`; set
     /// only when it changes (as `shownStream` is), so the window and the Debug menu don't follow the stats.
     private(set) var isActive = false
-
-    /// What the picture is drawn from, while it is shown: streaming, with a stream and a
-    /// renderer. The one test for the picture, and for the freely resizable window.
-    var picture: (stream: StreamInfo, renderer: PictureRenderer)? {
-        guard let renderer else { return nil }
-        if let shownStream { return (shownStream, renderer) }
-        if let heldPicture { return (heldPicture.stream, renderer) }
-        return nil
-    }
-
-    /// Sets `hasPicture` when `picture` comes or goes.
-    func refreshHasPicture() {
-        if hasPicture != (picture != nil) { hasPicture = picture != nil }
-    }
 
     /// Ends any session, then starts one with `destination` showing `screen`; a reconnect's
     /// try (or a revival) keeps the window's size.
@@ -265,7 +257,9 @@ import os
         // A reconnect's try keeps the window's size: a tab in the background draws nothing, so
         // its view wouldn't report it again until selected.
         // A virtual screen's window is sized at once, so its size can go with the session.
-        if !reconnecting { (windowSizing, viewPixels) = (screen == .virtual ? .fillScreen : nil, nil) }
+        if !reconnecting {
+            (windowSizing, viewPixels, lastPicture) = (screen == .virtual ? .fillScreen : nil, nil, nil)
+        }
         let decoder: VideoToolboxDecoder
         do throws(VideoError) {
             decoder = try makeDecoder()
@@ -289,6 +283,7 @@ import os
             clipboard: ClipboardSetup(source: PasteboardSource()), observer: protocolObserver)
         self.session = session
         sendViewTarget()
+        if inLiveResize { session.setLiveResize(true) }
         capture.attach(
             target: { [weak self] in self?.activationTarget(macPointer: $0) }, send: { session.send($0) })
         clipboard.attach(session, host: destination.value)
@@ -381,7 +376,7 @@ import os
         (showsConnectionInfo, dismissedClipboardRun, gaveUp, showsVirtualNotice) = (false, nil, false, false)
         host = ""
         // The old pool's textures go with the old slot and session.
-        slot = PictureSlot()
+        (slot, lastPicture) = (PictureSlot(), nil)
         cursor = CursorSlot()
         remotePointer = RemotePointerSlot()
         windowSizing = nil
