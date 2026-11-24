@@ -226,7 +226,7 @@ import Testing
         let all: [ConnectFailure] = [
             .unknownHostKey, .changedHostKey(), .permissionDenied, .agentRefused, .hostNotFound,
             .connectionRefused, .unreachable, .serverNotInstalled, .hostKeyDenied, .signInCancelled,
-            .tooManyQuestions, .hostKeyUnchecked,
+            .tooManyQuestions, .hostKeyUnchecked, .unknownQuestion,
             .changedHostKey(fingerprint: "SHA256:abc", knownHostsName: "omarchy"),
         ]
         for failure in all { #expect(!failure.message.isEmpty) }

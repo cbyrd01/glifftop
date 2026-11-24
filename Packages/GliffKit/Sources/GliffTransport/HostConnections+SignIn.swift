@@ -34,7 +34,8 @@ extension HostConnections {
         return !waiter.leaving.isSet
     }
 
-    /// Returns once a waiter with an asker comes, or after `openGrace`.
+    /// Returns once a waiter with an asker comes, after `openGrace`, when the open ends, or
+    /// when the router is cancelled.
     func waitForAsker(key: String, generation: Int) async {
         guard generation == self.generation, hosts[key] != nil else { return }
         nextID += 1
@@ -43,8 +44,12 @@ extension HostConnections {
             try? await clock.sleep(for: openGrace)
             self.wakeAskerWait(key, id)
         }
-        await withCheckedContinuation { continuation in
-            self.assumeIsolated { $0.hosts[key]?.askerWaits[id] = continuation }
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                self.assumeIsolated { $0.hosts[key]?.askerWaits[id] = continuation }
+            }
+        } onCancel: {
+            Task { await self.wakeAskerWait(key, id) }
         }
         timer.cancel()
     }

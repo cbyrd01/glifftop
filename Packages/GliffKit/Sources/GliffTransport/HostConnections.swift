@@ -53,7 +53,8 @@ public actor HostConnections {
     enum Verdict {
         /// A host key, with no fresh window: the open's `hostKeyDenied` is `hostKeyUnchecked`.
         case deniedKey
-        /// Anything, with no window at all: not the person's cancel, so not remembered.
+        /// Anything, with no window at all, or the open dropped for want of waiters: not the
+        /// person's cancel, so not remembered.
         case cancelled
     }
 
@@ -208,6 +209,7 @@ public actor HostConnections {
         case .success(let connection): install(connection, key)
         case .failure(let error): if verdict != .cancelled { remember(error, key) }
         }
+        wakeAskerWaits(key)
         let waiters = hosts[key].map { Array($0.waiters.values) } ?? []
         hosts[key]?.waiters = [:]
         let failure: TransportError? =
@@ -243,7 +245,7 @@ public actor HostConnections {
     /// The failures of a sign-in that asked the person or their agent something.
     private static let asked: [ConnectFailure] = [
         .agentRefused, .permissionDenied, .signInTimedOut, .hostKeyDenied, .signInCancelled,
-        .tooManyQuestions,
+        .tooManyQuestions, .unknownQuestion,
     ]
 
     private func forgetFailure(_ key: String) {
@@ -256,7 +258,7 @@ public actor HostConnections {
     /// Drops a destination's record once nothing about it is left to remember.
     private func forgetIfIdle(_ key: String) {
         guard let host = hosts[key], host.live.isEmpty, !host.opening, host.waiters.isEmpty,
-            host.failure == nil
+            host.askerWaits.isEmpty, host.failure == nil
         else { return }
         hosts[key] = nil
     }
@@ -293,6 +295,8 @@ public actor HostConnections {
             hosts[key]?.dropOpen?.cancel()
             hosts[key]?.dropOpen = Task { [clock, openGrace] in
                 do { try await clock.sleep(for: openGrace) } catch { return }
+                // Nobody's cancel: however the open fails, it isn't remembered.
+                self.hosts[key]?.verdict = .cancelled
                 self.hosts[key]?.openTask?.cancel()
             }
         }

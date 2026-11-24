@@ -128,6 +128,8 @@ final class FakeOpener: Sendable {
         var questions: [SignInQuestion] = []
         var askedWith: [Bool] = []
         var answers: [String] = []
+        var detaching = false
+        var detachedFailure: TransportError?
     }
 
     private let state = Mutex(State())
@@ -155,6 +157,16 @@ final class FakeOpener: Sendable {
     /// Each open from now on asks these, as ssh would: Cancel fails it as `signInCancelled`,
     /// Deny as `hostKeyDenied`.
     func ask(_ questions: [SignInQuestion]) { state.withLock { $0.questions = questions } }
+    /// From now on each open asks its questions without waiting for answers, as ssh shows a
+    /// notice; at `release()` it ends them, as ssh kills a notice's helper, and fails with
+    /// `failure`.
+    func detachQuestions(then failure: TransportError) {
+        state.withLock { state in
+            state.detaching = true
+            state.detachedFailure = failure
+        }
+    }
+
     /// Whether each open was given someone to ask.
     var askedWith: [Bool] { state.withLock { $0.askedWith } }
     /// What each question was answered: allow, deny, secret or cancel.
@@ -189,6 +201,7 @@ final class FakeOpener: Sendable {
         if let failure = state.withLock({ $0.failures.isEmpty ? nil : $0.failures.removeFirst() }) {
             throw failure
         }
+        if state.withLock(\.detaching) { try await askDetached(asker) }
         for question in state.withLock({ $0.questions }) {
             guard let asker else { throw .exited(status: 255, failure: .permissionDenied) }
             let answer: String =
@@ -203,6 +216,20 @@ final class FakeOpener: Sendable {
             if answer == "deny" { throw .exited(status: 255, failure: .hostKeyDenied) }
         }
         let (writesFail, closeGate) = state.withLock { ($0.writesFail, $0.closeGate) }
+        return made(writesFail: writesFail, closeGate: closeGate)
+    }
+
+    private func askDetached(_ asker: (any SignInAsker)?) async throws(TransportError) {
+        let questions = state.withLock { $0.questions }
+        guard !questions.isEmpty else { return }
+        let tasks = questions.map { question in Task { _ = await asker?.ask(question) } }
+        await withCheckedContinuation { continuation in state.withLock { $0.waiting.append(continuation) } }
+        for task in tasks { task.cancel() }
+        for task in tasks { await task.value }
+        if let failure = state.withLock(\.detachedFailure) { throw failure }
+    }
+
+    private func made(writesFail: Bool, closeGate: CloseGate?) -> any HostConnection {
         let connection = FakeHostConnection(writesFail: writesFail, closeGate: closeGate)
         state.withLock { $0.made.append(connection) }
         return connection

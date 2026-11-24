@@ -10,7 +10,8 @@ import Synchronization
 /// - A waiter that stops waiting has its question cancelled and its answer ignored; the
 ///   question goes to the next. With nobody to ask, it waits up to the open's grace for a
 ///   window (a listing's sign-in passes to the session it starts), then is cancelled, a cancel
-///   that isn't remembered as the person's. A cancelled open cancels it at once.
+///   that isn't remembered as the person's. Ended by ssh or the open, it is cancelled at once,
+///   and the open's failure is remembered as usual.
 final class SignInRouter: SignInAsker {
     private let connections: HostConnections
     private let key: String
@@ -40,7 +41,10 @@ final class SignInRouter: SignInAsker {
                 if stillWaiting, !Task.isCancelled, let answer = slot.take() { return answer }
             }
         }
-        await connections.cancelledForNobody(key: key, generation: generation)
+        // Cancelled for want of a window, not because the open or ssh ended the question.
+        if waited, !Task.isCancelled {
+            await connections.cancelledForNobody(key: key, generation: generation)
+        }
         return .cancel
     }
 }

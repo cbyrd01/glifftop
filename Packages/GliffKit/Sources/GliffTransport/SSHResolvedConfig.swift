@@ -10,6 +10,10 @@ public struct SSHResolvedConfig: Equatable, Sendable {
     public var strictHostKeyChecking = "ask"
     /// `true`, `false` or `ask`, as `ssh -G` prints it.
     public var updateHostKeys = "true"
+    /// `false`, `true`, `ask`, `confirm`, or with a lifetime, as `ssh -G` prints it.
+    public var addKeysToAgent = "false"
+    /// The first of `UserKnownHostsFile`, as `ssh -G` prints it (expanded).
+    public var userKnownHostsFile: String?
     public var hasProxy = false
     /// `connecttimeout none`: the config sets no timeout of its own.
     public var connectTimeoutUnset = false
@@ -26,6 +30,8 @@ public struct SSHResolvedConfig: Equatable, Sendable {
             case "batchmode": batchMode = Self.isOn(value)
             case "stricthostkeychecking": strictHostKeyChecking = value
             case "updatehostkeys": updateHostKeys = value
+            case "addkeystoagent": addKeysToAgent = value
+            case "userknownhostsfile": userKnownHostsFile = value.split(separator: " ").first.map(String.init)
             case "proxyjump", "proxycommand": hasProxy = hasProxy || value != "none"
             case "connecttimeout": connectTimeoutUnset = value == "none"
             case "hostname": hostName = value
@@ -40,8 +46,10 @@ public struct SSHResolvedConfig: Equatable, Sendable {
     public var names: Set<String> { Set([hostName, hostKeyAlias].compactMap(\.self)) }
 
     /// The name of the destination's known_hosts entry, as ssh looks it up: HostKeyAlias as it
-    /// is, else HostName, as `[name]:port` off port 22.
+    /// is, else HostName, as `[name]:port` off port 22. None when the config keeps its own
+    /// known_hosts file, which `ssh-keygen -R` without `-f` doesn't edit.
     public var knownHostsName: String? {
+        if let userKnownHostsFile, !userKnownHostsFile.hasSuffix("/.ssh/known_hosts") { return nil }
         if let hostKeyAlias { return hostKeyAlias }
         return hostName.map { port == 22 ? $0 : "[\($0)]:\(port)" }
     }
@@ -63,14 +71,18 @@ public struct SSHResolvedConfig: Equatable, Sendable {
 ///   would trust a key nobody saw, so they ask instead.
 /// - `updateHostKeysOff`: a config's `UpdateHostKeys ask` is turned off, since its question
 ///   comes after sign-in, when no window is waiting.
+/// - `addKeysToAgentOff`: a config's `AddKeysToAgent ask` is turned off: its yes/no isn't a
+///   question a window is shown.
 public struct MasterAsking: Equatable, Sendable {
     public var strictHostKeyChecking: String
     public var updateHostKeysOff: Bool
+    public var addKeysToAgentOff: Bool
 
     public init?(config: SSHResolvedConfig) {
         guard !config.batchMode else { return nil }
         strictHostKeyChecking = SSHResolvedConfig.isOn(config.strictHostKeyChecking) ? "yes" : "ask"
         updateHostKeysOff = config.updateHostKeys == "ask"
+        addKeysToAgentOff = config.addKeysToAgent.hasPrefix("ask")
     }
 }
 

@@ -121,7 +121,7 @@
                 await connection.close()
                 throw failure(error, outcome: outcome, knownHostsName: knownHostsName)
             }
-            bridge?.revoke()
+            bridge?.revoke(ready: true)
             log.info("master ready")
             return connection
         }
@@ -151,6 +151,7 @@
             case .denied: return .exited(status: status, failure: .hostKeyDenied)
             case .cancelled: return .exited(status: status, failure: .signInCancelled)
             case .tooMany: return .exited(status: status, failure: .tooManyQuestions)
+            case .unknownQuestion: return .exited(status: status, failure: .unknownQuestion)
             case nil:
                 guard case .changedHostKey(let fingerprint, nil) = failure else { return error }
                 return .exited(

@@ -181,6 +181,13 @@
         }
 
         /// The known_hosts name for `ssh-keygen -R` comes from the probe, never from stderr.
+        @Test func anUnknownQuestionFailsAsOne() {
+            let failure = SystemSSHConnection.failure(
+                .exited(status: 255, failure: .permissionDenied), outcome: .unknownQuestion,
+                knownHostsName: nil)
+            #expect(failure == .exited(status: 255, failure: .unknownQuestion))
+        }
+
         @Test func aChangedKeyNamesTheProbesKnownHostsName() async throws {
             let changed =
                 "@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @\nThe fingerprint for the ED25519 key sent by the remote host is\nSHA256:new.\nHost key verification failed."

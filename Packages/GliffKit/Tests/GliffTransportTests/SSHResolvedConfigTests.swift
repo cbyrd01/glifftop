@@ -49,6 +49,19 @@ struct SSHResolvedConfigTests {
             SSHResolvedConfig(resolved: "hostname 192.0.2.5\nport 2222\nhostkeyalias box\n").knownHostsName
                 == "box")
         #expect(SSHResolvedConfig(resolved: "").knownHostsName == nil)
+        #expect(
+            SSHResolvedConfig(
+                resolved:
+                    "hostname omarchy\nuserknownhostsfile /Users/me/.ssh/known_hosts /Users/me/.ssh/known_hosts2\n"
+            ).knownHostsName == "omarchy")
+    }
+
+    /// `ssh-keygen -R` without `-f` edits only ~/.ssh/known_hosts: for a file of the config's
+    /// own, no entry is named.
+    @Test func aKnownHostsFileOfItsOwnNamesNoEntry() {
+        #expect(
+            SSHResolvedConfig(resolved: "hostname omarchy\nuserknownhostsfile /Users/me/.ssh/work_hosts\n")
+                .knownHostsName == nil)
     }
 
     @Test(arguments: ["true", "yes"])
@@ -77,6 +90,18 @@ struct SSHResolvedConfigTests {
         #expect(
             MasterAsking(config: SSHResolvedConfig(resolved: "updatehostkeys true\n"))?.updateHostKeysOff
                 == false)
+    }
+
+    /// Its question comes as ssh signs in, as a yes/no no window is asked.
+    @Test func configAddKeysToAgentAskIsTurnedOff() throws {
+        let asking = MasterAsking(config: SSHResolvedConfig(resolved: "addkeystoagent ask\n"))
+        #expect(asking?.addKeysToAgentOff == true)
+        #expect(
+            MasterAsking(config: SSHResolvedConfig(resolved: "addkeystoagent true\n"))?.addKeysToAgentOff
+                == false)
+        let master = try SSHMasterCommand(target: SSHTarget("omarchy"), socket: "/s/1-1", asking: asking)
+            .master
+        #expect(master.contains("AddKeysToAgent=no"))
     }
 
     /// `-G` resolves the config and exits, without connecting. ssh keeps an option's first

@@ -158,11 +158,49 @@
             let bridge = try bridge(serving: false) { _ in .cancel }
             async let shown = helper("Confirm user presence for key ED25519-SK", notice: true)
             try await Task.sleep(for: .milliseconds(200))
-            bridge.revoke()
+            bridge.revoke(ready: true)
             bridge.serve()
             _ = await shown
             try await Task.sleep(for: .milliseconds(300))
             #expect(bridge.outcome == nil && !record.events.withLock { $0.contains("end") })
+        }
+
+        /// A question that reached the bridge as ssh became ready, served after the revoke: no
+        /// ssh is signing in any more, so the master is left alone.
+        @Test func aQuestionWaitingAtAReadyRevokeLeavesTheMasterAlone() async throws {
+            let bridge = try bridge(serving: false) { _ in .secret(SignInSecret(copying: "pw")) }
+            async let answered = helper("person@omarchy's password: ")
+            try await Task.sleep(for: .milliseconds(200))
+            bridge.revoke(ready: true)
+            bridge.serve()
+            #expect(await answered.0 == 1 && record.asked == 0)
+            try await Task.sleep(for: .milliseconds(300))
+            #expect(!record.events.withLock { $0.contains("end") })
+        }
+
+        @Test func aReadyRevokeClosesAnOpenQuestionWithoutEndingTheMaster() async throws {
+            let bridge = try bridge { _ in
+                try? await Task.sleep(for: .seconds(30))
+                return .cancel
+            }
+            async let answered = helper("person@omarchy's password: ")
+            while !bridge.questionOpen { try await Task.sleep(for: .milliseconds(10)) }
+            bridge.revoke(ready: true)
+            #expect(await answered.0 == 1)
+            try await Task.sleep(for: .milliseconds(300))
+            #expect(record.events.withLock { $0 } == ["helper"])
+        }
+
+        /// An answer before the bridge has marked its question open leaves none open, so the
+        /// sign-in limit counts again.
+        @Test func anInstantAnswerLeavesNoQuestionOpen() async throws {
+            for _ in 0..<10 {
+                let bridge = try bridge { _ in .secret(SignInSecret(copying: "pw")) }
+                _ = await helper("person@omarchy's password: ")
+                try await Task.sleep(for: .milliseconds(20))
+                #expect(!bridge.questionOpen)
+                bridge.revoke()
+            }
         }
 
         @Test func aWrongTokenIsClosedUnanswered() async throws {
@@ -182,10 +220,10 @@
             bridge.revoke()
         }
 
-        @Test func unknownTextCancels() async throws {
+        @Test func unknownTextIsRefused() async throws {
             let bridge = try bridge { _ in .secret(SignInSecret(copying: "pw")) }
             let (status, _) = await helper("Something else: ")
-            #expect(status == 1 && record.asked == 0 && bridge.outcome == .cancelled)
+            #expect(status == 1 && record.asked == 0 && bridge.outcome == .unknownQuestion)
             bridge.revoke()
         }
 

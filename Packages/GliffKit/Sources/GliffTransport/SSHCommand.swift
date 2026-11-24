@@ -52,6 +52,7 @@ public struct SSHCommand: Equatable, Sendable {
             asking.map {
                 ["-n", "-o", "StrictHostKeyChecking=\($0.strictHostKeyChecking)"]
                     + ($0.updateHostKeysOff ? ["-o", "UpdateHostKeys=no"] : [])
+                    + ($0.addKeysToAgentOff ? ["-o", "AddKeysToAgent=no"] : [])
             } ?? ["-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes"]
         return ["-T"] + safety + ["-o", "Compression=no", "-o", "IPQoS=ef"] + own + sshArguments
             + ["-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=6"]

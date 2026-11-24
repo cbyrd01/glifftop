@@ -21,7 +21,7 @@
     /// - It logs question kinds and counts, never their text or answers.
     public final class AskpassBridge: Sendable {
         public enum Outcome: Equatable, Sendable {
-            case denied, cancelled, tooMany
+            case denied, cancelled, tooMany, unknownQuestion
         }
 
         private struct State {
@@ -29,6 +29,8 @@
             var questionOpen = false
             var asked = 0
             var revoked = false
+            /// Revoked as the master became ready: what comes after needs no ending.
+            var ready = false
             var listener: (any DispatchSourceRead)?
             var serving = false
             /// The question being asked, which `revoke()` cancels.
@@ -45,6 +47,8 @@
         /// How a question ended.
         private enum Step: Sendable {
             case answered, denied, gone, refused
+            /// Closed unanswered with nobody signing in any more: no outcome, the master left.
+            case closed
         }
 
         public let path: String
@@ -130,10 +134,13 @@
         }
 
         /// The token is dead and the socket closed and removed: no more questions, and an open
-        /// one is cancelled.
-        public func revoke() {
+        /// one is cancelled. `ready`: the master is ready, so nothing after ends it; otherwise a
+        /// question still asked (not a notice) ends it, as ssh would read its closed helper as
+        /// an empty answer.
+        public func revoke(ready: Bool = false) {
             let (listener, question) = state.withLock { state in
                 state.revoked = true
+                state.ready = state.ready || ready
                 return (state.listener.take(), state.question)
             }
             question?.cancel()
@@ -169,10 +176,12 @@
         }
 
         private func serve(_ socket: Int32) async {
-            guard state.withLock({ $0.outcome == nil }) else {
+            let (settled, revoked, ready) = state.withLock { ($0.outcome != nil, $0.revoked, $0.ready) }
+            guard !settled, !ready else {
                 close(socket)
                 return
             }
+            guard !revoked else { return await fail(.cancelled, socket, "revoked") }
             guard peer.accepts(socket) else { return await fail(.cancelled, socket, "peer refused") }
             guard let request = await blocking({ Self.readRequest(socket) }) else {
                 return await fail(.cancelled, socket, "unreadable request")
@@ -180,16 +189,10 @@
             guard Self.matches(request.token, token) else {
                 return await fail(.cancelled, socket, "wrong token")
             }
-            if state.withLock(\.revoked) {
-                // A notice ssh showed as its sign-in finished needs no answer; a question does.
-                guard request.kind == .notice else { return await fail(.cancelled, socket, "revoked") }
-                close(socket)
-                return
-            }
             guard
                 let question = AskpassPrompt.classify(
                     request.text, kind: request.kind, destination: destination, names: names)
-            else { return await fail(.cancelled, socket, "unknown question") }
+            else { return await fail(.unknownQuestion, socket, "unknown question") }
             let count = state.withLock { state in
                 state.asked += 1
                 return state.asked
@@ -204,19 +207,23 @@
         private func asking(_ question: SignInQuestion, on socket: Int32) async {
             let gone = Flag()
             let isNotice = if case .notice = question { true } else { false }
+            // Open before the task can answer, so its close always comes after.
+            state.withLock { $0.questionOpen = true }
             let task = Task { [self] in
                 let answer = await ask(question)
-                state.withLock { $0.questionOpen = false }
+                let (revoked, ready) = state.withLock { state in
+                    state.questionOpen = false
+                    return (state.revoked, state.ready)
+                }
                 if gone.isSet { return Step.gone }
-                // A notice revoked as the master becomes ready is over, not refused.
-                if state.withLock(\.revoked) { return isNotice ? .gone : .refused }
+                // A notice, or anything once the master is ready, is over, not refused.
+                if revoked { return isNotice || ready ? .closed : .refused }
                 // ssh fails as soon as it reads "no": the outcome is set first.
                 return Self.reply(answer, to: question, on: socket) {
                     state.withLock { $0.outcome = $0.outcome ?? .denied }
                 }
             }
             let revoked = state.withLock { state in
-                state.questionOpen = true
                 state.question = task
                 return state.revoked
             }
@@ -238,7 +245,7 @@
             watch.cancel()
             for await _ in watchEnded {}
             switch step {
-            case .answered, .denied: break
+            case .answered, .denied, .closed: break
             case .gone where isNotice: Self.log.info("sign-in notice ended by ssh")
             case .gone, .refused:
                 state.withLock { $0.outcome = $0.outcome ?? .cancelled }

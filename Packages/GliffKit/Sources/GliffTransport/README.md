@@ -32,7 +32,7 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
 - **A master that may ask:** `MasterAsking`, from the resolved config (nil under `BatchMode
   yes`), drops `BatchMode=yes` from the master only, gives ssh `-n`, keeps
   `StrictHostKeyChecking=yes` when the config says so and asks otherwise (never `accept-new`
-  or `no`), and turns a config's `UpdateHostKeys ask` off. `check`, `exit` and channels keep
+  or `no`), and turns a config's `UpdateHostKeys ask` and `AddKeysToAgent ask` off. `check`, `exit` and channels keep
   their guards.
 - **The askpass bridge:** `AskpassBridge` listens on a 0600 socket beside the master's
   (`<pid>-<n>-a` in `ControlSocketDirectory`), for the helper ssh runs. It serves a
@@ -41,7 +41,8 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   one-time token, one question at a time, at most 10. Allow on a host key answers its
   fingerprint; a secret is written from its own memory. Cancel or any refusal ends the master
   before the helper's socket closes unanswered, so ssh never sends an empty answer;
-  `revoke()` ends the token.
+  `revoke()` ends the token, and `revoke(ready: true)`, once the master is ready, closes what
+  is left without ending it. A question it can't recognise fails as `unknownQuestion`.
 - **Shared connections:** `HostConnection` is one signed-in connection to a host that runs
   shell commands as channels (`ByteConnection`s); a system ssh ControlMaster or an embedded ssh
   can each be one. `HostConnections` (an actor) keeps one per destination as typed, held by
@@ -85,7 +86,8 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   retried). With a `SignInAsker`, the askpass helper and a config that allows it, the master asks
   (`SSH_ASKPASS`, `SSH_ASKPASS_REQUIRE=force`, its stderr unlogged) through a bridge revoked once
   the master is ready or has failed; the bridge's outcome names the failure (`hostKeyDenied`,
-  `signInCancelled`, `tooManyQuestions`), and a changed key's known_hosts name is the config's.
+  `signInCancelled`, `tooManyQuestions`, `unknownQuestion`), and a changed key's known_hosts
+  name is the config's, none when it keeps its own known_hosts file.
   Without them, or when the probe fails, the master runs in batch mode. Each channel is one ssh
   through the socket; the master's own exit, even a clean one, is a lost connection, and
   `close()` ends it with `-O exit`. `SystemSSH.opener(helper:)` is the app's opener for

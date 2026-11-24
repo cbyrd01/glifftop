@@ -154,6 +154,46 @@ import Testing
         #expect(await second == .signInCancelled)
     }
 
+    /// ssh ending a question itself (a notice, once the key is touched) isn't a cancel for want
+    /// of a window: the open's failure is remembered.
+    @Test func aQuestionSSHEndsLeavesTheFailureRemembered() async throws {
+        opener.ask([.notice(host: "omarchy", text: "Confirm user presence for key ED25519-SK")])
+        opener.detachQuestions(then: .exited(status: 255, failure: .permissionDenied))
+        let a = Self.waiting()
+        let target = try omarchy()
+        async let first = failure { try await hosts.lease(for: target, fresh: true, asker: a) }
+        #expect(await eventually { a.questions.count == 1 })
+        opener.release()
+        #expect(await first == .permissionDenied)
+        opener.ask([])
+        #expect(await failure { try await hosts.lease(for: target) } == .permissionDenied)
+        #expect(opener.calls == 1)
+    }
+
+    /// The open ending while its question waits for a window frees the question.
+    @Test func anOpenEndingFreesAQuestionWaitingForAWindow() async throws {
+        opener.ask([Self.password])
+        opener.detachQuestions(then: .exited(status: 255, failure: .unreachable))
+        let a = Self.waiting()
+        let target = try omarchy()
+        let first = Task { try await hosts.lease(for: target, fresh: true, asker: a) }
+        #expect(await eventually { a.questions.count == 1 })
+        first.cancel()
+        #expect(await clock.waitForSleepers(2))
+        opener.release()
+        #expect(await eventually { await hosts.hostCount == 0 })
+    }
+
+    /// A question nobody could be shown would come again at once: its failure is remembered.
+    @Test func anUnknownQuestionIsRemembered() async throws {
+        opener.failNext(.exited(status: 255, failure: .unknownQuestion))
+        let target = try omarchy()
+        #expect(
+            await failure { try await hosts.lease(for: target, asker: Self.secret()) } == .unknownQuestion)
+        #expect(await failure { try await hosts.lease(for: target) } == .unknownQuestion)
+        #expect(opener.calls == 1)
+    }
+
     @Test func aReconnectNeverAsksAboutAHostKey() async throws {
         opener.ask([Self.hostKey])
         let a = Self.secret()

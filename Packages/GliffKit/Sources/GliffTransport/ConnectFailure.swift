@@ -26,6 +26,8 @@ public enum ConnectFailure: Equatable, Sendable {
     case signInCancelled
     /// The sign-in asked more questions than any honest one does.
     case tooManyQuestions
+    /// ssh asked a question Glifftop doesn't recognise, so it couldn't be shown.
+    case unknownQuestion
     /// Anything else: the last line ssh printed, or the exit status.
     case other(String)
 
@@ -61,6 +63,8 @@ public enum ConnectFailure: Equatable, Sendable {
             "This Mac doesn't know the host's key yet, and reconnecting never accepts one. "
                 + "Connect again to check and accept its key."
         case .signInCancelled: "Sign-in cancelled."
+        case .unknownQuestion:
+            "ssh asked a question Glifftop doesn't recognise. Connect with ssh in Terminal to see it."
         case .tooManyQuestions: "The host asked too many questions."
         case .other(let text): text
         }
