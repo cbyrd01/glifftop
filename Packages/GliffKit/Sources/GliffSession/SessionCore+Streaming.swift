@@ -43,13 +43,30 @@ extension SessionCore {
 
     /// A StreamConfig once HelloAck is in, or a new one while streaming, with a Resize due now:
     /// the window's size goes with the first, not at the next tick, and ahead of the decoder's
-    /// set-up (an await, during which a newer Resize could otherwise pass it).
+    /// set-up (an await, during which a newer Resize could otherwise pass it). A held picture
+    /// (`PictureHold`) is held before the first stream (the app shows its wait, not an empty
+    /// picture), and shown only after the stream that shows it.
     mutating func streamConfig(_ config: StreamConfig, now: UInt64) -> [SessionAction] {
         if let reason = StreamRules.validate(config) { return finish(.protocolError(reason)) }
+        let first = stream == nil
         let rebuild = stream.map { StreamRules.needsNewDecoder(from: $0, to: config) } ?? true
+        let view = Self.view(of: config)
         enterStreaming(config)
+        let held: [SessionAction]
+        if first {
+            let satisfied = resize.isSatisfied(headless: isHeadless, view: view, pipeline: config.pipeline)
+            held =
+                hold.started(view: view, headless: isHeadless, satisfied: satisfied)
+                ? [.status(.pictureHeld(true))] : []
+        } else {
+            hold.streamConfig(view: view)
+            held = []
+        }
+        let due = resizeDue(now: now)
+        let sends = due.filter { if case .send = $0 { true } else { false } }
         let status = SessionAction.status(.streaming(StreamInfo(config)))
-        return resizeDue(now: now) + [rebuild ? .configureDecoder(config) : .updateDecoder(config), status]
+        return sends + held + [rebuild ? .configureDecoder(config) : .updateDecoder(config), status]
+            + due.filter { !sends.contains($0) }
     }
 
     /// A message while streaming.
@@ -61,6 +78,7 @@ extension SessionCore {
             video.pending.append(.init(frameID: frame.frameID, isKeyframe: frame.isKeyframe))
             // The window opens with the first frame, so a burst before the first tick counts.
             if video.window == nil { video.window = StatsWindow(start: now) }
+            hold.frame(id: frame.frameID, now: now)
             video.window?.bytes += UInt64(frame.dataLength) + UInt64(frame.auxLength)
             return [.decode(frame)]
         case .pong(let t, _):
@@ -107,13 +125,17 @@ extension SessionCore {
             video.window?.frames += 1
             video.window?.decodeMilliseconds += decodeMilliseconds
         }
+        if hold.decoded(id: frameID, picture: outcome == .picture) {
+            actions.append(.status(.pictureHeld(false)))
+        }
         return actions
     }
 
     /// The clock: an RTT Ping every `pingInterval`, stats every `statsInterval`.
     mutating func tick(now: UInt64) -> [SessionAction] {
         guard state == .streaming else { return [] }
-        return [ping(now: now), stats(now: now)].compactMap { $0 } + resizeDue(now: now)
+        let shows: SessionAction? = hold.tick(now: now) ? .status(.pictureHeld(false)) : nil
+        return [ping(now: now), stats(now: now), shows].compactMap { $0 } + resizeDue(now: now)
     }
 
     /// A Ping now, whenever the last went (the wake probe), its `t` being `now`; nil unless
@@ -142,15 +164,26 @@ extension SessionCore {
         for on in liveResizeEdges { setLiveResize(on) }
     }
 
-    /// A Resize, when one is due and video is streaming.
+    /// A Resize, when one is due and video is streaming; else a held picture shown, when the
+    /// window's size leaves nothing to ask for.
     mutating func resizeDue(now: UInt64) -> [SessionAction] {
         guard state == .streaming, let stream else { return [] }
-        let view = ResizeRules.View(
+        let view = Self.view(of: stream)
+        if let message = resize.due(now: now, headless: isHeadless, view: view, pipeline: stream.pipeline) {
+            hold.resizeSent(now: now)
+            return [.send(message)]
+        }
+        guard hold.isHolding, resize.isSatisfied(headless: isHeadless, view: view, pipeline: stream.pipeline),
+            hold.satisfied()
+        else { return [] }
+        return [.status(.pictureHeld(false))]
+    }
+
+    private var isHeadless: Bool { session?.headless ?? false }
+
+    private static func view(of stream: StreamConfig) -> ResizeRules.View {
+        ResizeRules.View(
             width: stream.viewWidth, height: stream.viewHeight, scale: Float(StreamInfo(stream).screenScale))
-        let headless = session?.headless ?? false
-        return resize.due(now: now, headless: headless, view: view, pipeline: stream.pipeline).map {
-            [.send($0)]
-        } ?? []
     }
 
     private mutating func ping(now: UInt64) -> SessionAction? {

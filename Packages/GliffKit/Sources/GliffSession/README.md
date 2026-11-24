@@ -37,16 +37,23 @@ the feature seam.
   connecting, `disconnect()` cancels that connect instead (`TransportError.cancelled`).
 - **Resize:** `Session.setViewTarget(_:)` takes the window's size in pixels, its backing
   scale, text factor (`TextSize`) and resolution (`VirtualResolution`), as a `ViewTarget`,
-  from any thread, latest wins. `ResizeRules` sends a Resize while video is streaming: the
-  first one it can send at once; none during a live resize, and the size it ended on at once;
-  any other once it has stayed unchanged for 200 ms (a wake just past the settle time, the
-  tick as backup). No
+  from any thread, latest wins; `Session.setLiveResize(_:)` the window's live resize, its
+  starts and ends in order. `ResizeRules` sends a Resize while video is streaming: one due
+  at the first StreamConfig goes with it, ahead of the decoder; the first one it can send at
+  once; none during a live resize, and the size it ended on at once; any other once it has
+  stayed unchanged for 200 ms (a wake just past the settle time, the tick as backup). No
   smaller than 320×240; a mirror's scale the backing scale (0.5–4), a virtual screen's the
   backing scale times the text factor (1–4); a virtual screen's size and scale then times
   its resolution's factor (½ for Standard on a Retina display whose window at ½ still fits
   320×240, or Automatic on a CPU pipeline; the layout stays the same, the scale perhaps
   down to 0.5); never the same
   request twice, nor one the StreamConfig in force already answers.
+- **Held picture:** `PictureHold` keeps a virtual screen's first picture back
+  (`.pictureHeld(true)`, just before the first `.streaming`) while the server's default
+  screen (1920×1080 at 1) awaits the window's size: until the first picture decoded from a
+  frame after a StreamConfig with another view, a size that leaves nothing to ask for, or 2 s
+  after the first frame or a later Resize. A release in a StreamConfig's batch comes after
+  its `.streaming`. A mirror is never held, nor a picture once shown.
 - **Cursor:** a CursorShape while streaming is checked with its frame's payload
   (GliffInput's `CursorImage`, with the pixels it declares; bytes past them are skipped) and
   published to the `CursorSlot` the session was made with (latest wins, a generation per
@@ -61,7 +68,7 @@ the feature seam.
   session (headless or not), its own output from HelloAck (`output`; nil when HelloAck lists
   none, or its size is impossible, outside 1–16384 a side), `mirrorSize` (what a mirror's
   window is fitted to: the first view, which the server caps to its encoder, within the
-  monitor), stream, last stats, end, and `isInterrupted`, which the end
+  monitor), stream, last stats, end, and `holdsPicture` and `isInterrupted`, which the end
   clears); nothing after the end changes it.
 - **Recording:** `StreamRecorder` writes the raw frames, wire-exact, to a `.gliffrec` file:
   the StreamConfig, then video frames from the first keyframe. Nothing else.

@@ -358,7 +358,8 @@ import Testing
     }
 
     /// The server's quality ladder halved the stream (scale_milli 1000 for an output at 2×,
-    /// upstream `stream_config`): the virtual screen is already 1600×1000 at 2×, so nothing goes.
+    /// upstream `stream_config`): the virtual screen is already 1600×1000 at 2×, so no Resize
+    /// goes, and the picture held for it shows.
     @Test func aLadderedStreamStillAnswersTheTarget() {
         var core = HandshakeTests.core()
         let headless = SessionInfo(headless: true, output: "gliff-1")
@@ -369,6 +370,6 @@ import Testing
         (config.viewWidth, config.viewHeight) = (1600, 1000)
         _ = core.receive(.streamConfig(config), payloadLength: 0, now: 0)
         core.setViewTarget(ViewTarget(width: 1600, height: 1000, backingScale: 2, textFactor: 1), now: 0)
-        #expect(core.resizeDue(now: 200) == [])
+        #expect(core.resizeDue(now: 200) == [.status(.pictureHeld(false))])
     }
 }

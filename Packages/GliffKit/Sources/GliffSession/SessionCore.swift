@@ -23,6 +23,8 @@ struct SessionCore {
     private(set) var session: SessionInfo?
     /// When the window's size goes to the server (`ResizeRules`).
     var resize = ResizeRules()
+    /// Whether a virtual screen's first picture waits for its size (`PictureHold`).
+    var hold = PictureHold()
 
     init(configuration: SessionConfiguration, features: [String: Set<Int64>]) {
         self.configuration = configuration

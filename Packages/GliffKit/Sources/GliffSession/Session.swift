@@ -368,6 +368,7 @@ public actor Session {
         case .handshaking: "handshaking"
         case .waitingForVideo: "waiting for video"
         case .streaming: "streaming"
+        case .pictureHeld(let on): on ? "picture held" : "picture shown"
         case .stats: nil
         case .interrupted(let on): on ? "interrupted" : "resumed"
         case .clipboardOffer, .clipboardActivity: nil

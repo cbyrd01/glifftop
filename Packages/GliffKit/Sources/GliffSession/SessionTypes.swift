@@ -81,6 +81,9 @@ public enum SessionStatus: Equatable, Sendable {
     /// HelloAck didn't list it).
     case waitingForVideo(SessionInfo, OutputInfo?)
     case streaming(StreamInfo)
+    /// A virtual screen's picture waits for the answer to the window's size (true), or shows
+    /// (false): `PictureHold`.
+    case pictureHeld(Bool)
     case stats(SessionStats)
     /// The link went quiet while streaming (true: `Liveness`), or the server was heard from
     /// again (false).

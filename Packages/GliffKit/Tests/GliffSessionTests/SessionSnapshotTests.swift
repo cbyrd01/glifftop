@@ -22,6 +22,17 @@ import Testing
         return (snapshot, phases)
     }
 
+    /// A held picture is still streaming: only the picture waits.
+    @Test func aHeldPictureIsStreaming() {
+        let (held, _) = fold([.pictureHeld(true), .streaming(Self.stream)])
+        #expect(held.holdsPicture && held.phase == .streaming)
+        let (shown, _) = fold([.pictureHeld(true), .streaming(Self.stream), .pictureHeld(false)])
+        #expect(!shown.holdsPicture)
+        #expect(!SessionSnapshot().holdsPicture)
+        let (ended, _) = fold([.pictureHeld(true), .streaming(Self.stream), .ended(.connectionLost)])
+        #expect(!ended.holdsPicture)
+    }
+
     @Test func startsIdle() {
         let snapshot = SessionSnapshot()
         #expect(snapshot.phase == .idle)
