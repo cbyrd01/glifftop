@@ -16,16 +16,8 @@ final class TestListener: Sendable {
         try FileManager.default.createDirectory(
             atPath: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         path = directory + "/b"
-        guard var address = AskpassSocket.address(path), let socket = AskpassSocket.make() else {
-            throw Failed()
-        }
+        guard let socket = AskpassSocket.listening(at: path) else { throw Failed() }
         self.socket = socket
-        let bound = withUnsafePointer(to: &address) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                bind(socket, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
-            }
-        }
-        guard bound == 0, listen(socket, 4) == 0 else { throw Failed() }
     }
 
     func accept() -> Int32? {

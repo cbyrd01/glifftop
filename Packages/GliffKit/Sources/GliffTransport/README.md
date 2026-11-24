@@ -34,6 +34,14 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   `StrictHostKeyChecking=yes` when the config says so and asks otherwise (never `accept-new`
   or `no`), and turns a config's `UpdateHostKeys ask` off. `check`, `exit` and channels keep
   their guards.
+- **The askpass bridge:** `AskpassBridge` listens on a 0600 socket beside the master's
+  (`<pid>-<n>-a` in `ControlSocketDirectory`), for the helper ssh runs. It serves a
+  connection only from this user's helper whose parent is the master's ssh or a jump host's
+  under it (`AskpassPeer`: uid, the audit token's executable, the parent chain), with the
+  one-time token, one question at a time, at most 10. Allow on a host key answers its
+  fingerprint; a secret is written from its own memory. Cancel or any refusal ends the master
+  before the helper's socket closes unanswered, so ssh never sends an empty answer;
+  `revoke()` ends the token.
 - **Shared connections:** `HostConnection` is one signed-in connection to a host that runs
   shell commands as channels (`ByteConnection`s); a system ssh ControlMaster or an embedded ssh
   can each be one. `HostConnections` (an actor) keeps one per destination as typed, held by

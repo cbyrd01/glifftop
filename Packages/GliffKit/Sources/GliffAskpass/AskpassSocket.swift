@@ -24,6 +24,26 @@ public enum AskpassSocket {
         return socket
     }
 
+    /// A socket listening at `path`, which only this user can open (0600), or nil.
+    public static func listening(at path: String) -> Int32? {
+        guard var address = address(path), let socket = make() else { return nil }
+        let bound = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                bind(socket, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        guard bound == 0 else {
+            close(socket)
+            return nil
+        }
+        guard chmod(path, 0o600) == 0, listen(socket, 4) == 0 else {
+            close(socket)
+            unlink(path)
+            return nil
+        }
+        return socket
+    }
+
     /// A socket connected to `path`, or nil.
     public static func connect(to path: String) -> Int32? {
         guard var address = address(path), let socket = make() else { return nil }

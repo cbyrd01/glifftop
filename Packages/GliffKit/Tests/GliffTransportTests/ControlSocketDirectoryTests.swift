@@ -96,6 +96,32 @@
             #expect(ended.withLock { $0.sorted() } == [path("111-1"), path("\(getpid())-1")].sorted())
         }
 
+        /// A bridge's socket (`<pid>-<n>-a`) is never taken for a master: a live app's stays, and
+        /// a gone app's (or an earlier Glifftop's with this pid) is removed without ending anything.
+        @Test func removeStaleKeepsALiveBridgeSocket() async throws {
+            let directory = try ControlSocketDirectory.prepare(
+                preferred: root.appending(path: "ssh"), fallback: root.appending(path: "f"))
+            #expect(directory.bridgePath(number: 3) == directory.path + "/\(getpid())-3-a")
+            try makeSocket(directory.path + "/222-1-a")
+            let ended = Mutex<[String]>([])
+            await directory.removeStale(
+                isRunning: { $0 == 222 }, ending: { p in ended.withLock { $0.append(p) } })
+            #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path) == ["222-1-a"])
+            #expect(ended.withLock { $0.isEmpty })
+        }
+
+        @Test func removeStaleRemovesADeadAppsBridgeSocket() async throws {
+            let directory = try ControlSocketDirectory.prepare(
+                preferred: root.appending(path: "ssh"), fallback: root.appending(path: "f"))
+            for name in ["111-1-a", "\(getpid())-2-a"] { try makeSocket(directory.path + "/" + name) }
+            FileManager.default.createFile(atPath: directory.path + "/111-1-b", contents: Data())
+            let ended = Mutex<[String]>([])
+            await directory.removeStale(
+                isRunning: { _ in false }, ending: { p in ended.withLock { $0.append(p) } })
+            #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path) == ["111-1-b"])
+            #expect(ended.withLock { $0.isEmpty })
+        }
+
         @Test func staleMastersEndTogether() async throws {
             let directory = try ControlSocketDirectory.prepare(
                 preferred: root.appending(path: "ssh"), fallback: root.appending(path: "f"))
