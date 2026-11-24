@@ -101,7 +101,9 @@
         @Test func removeStaleKeepsALiveBridgeSocket() async throws {
             let directory = try ControlSocketDirectory.prepare(
                 preferred: root.appending(path: "ssh"), fallback: root.appending(path: "f"))
-            #expect(directory.bridgePath(number: 3) == directory.path + "/\(getpid())-3-a")
+            #expect(
+                ControlSocketDirectory.bridgePath(forMaster: directory.socketPath(number: 3))
+                    == directory.path + "/\(getpid())-3-a")
             try makeSocket(directory.path + "/222-1-a")
             let ended = Mutex<[String]>([])
             await directory.removeStale(

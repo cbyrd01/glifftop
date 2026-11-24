@@ -58,7 +58,7 @@
         func helper(_ prompt: String, token: [UInt8]? = nil, notice: Bool = false) async -> (Int32, String) {
             var environment = [
                 AskpassWire.socketVariable: path,
-                AskpassWire.tokenVariable: (token ?? self.token).map { String(format: "%02x", $0) }.joined(),
+                AskpassWire.tokenVariable: AskpassWire.tokenText(token ?? self.token),
             ]
             if notice { environment["SSH_ASKPASS_PROMPT"] = "none" }
             let (record, variables) = (record, environment)
@@ -134,6 +134,22 @@
             #expect(record.events.withLock { $0 } == ["end", "helper"])
             #expect(bridge.outcome == .cancelled)
             bridge.revoke()
+        }
+
+        /// A notice ssh has just ended may still look open when the master is ready: revoking it
+        /// must not end the master.
+        @Test func revokeEndsANoticeWithoutEndingTheMaster() async throws {
+            let bridge = try bridge { _ in
+                try? await Task.sleep(for: .seconds(30))
+                return .cancel
+            }
+            async let shown = helper("Confirm user presence for key ED25519-SK", notice: true)
+            while !bridge.questionOpen { try await Task.sleep(for: .milliseconds(10)) }
+            bridge.revoke()
+            _ = await shown
+            while bridge.questionOpen { try await Task.sleep(for: .milliseconds(10)) }
+            try await Task.sleep(for: .milliseconds(300))
+            #expect(bridge.outcome == nil && !record.events.withLock { $0.contains("end") })
         }
 
         @Test func aWrongTokenIsClosedUnanswered() async throws {

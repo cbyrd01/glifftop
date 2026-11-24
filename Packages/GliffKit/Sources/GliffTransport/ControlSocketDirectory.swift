@@ -46,8 +46,8 @@
 
         func socketPath(number: UInt32) -> String { path + "/\(getpid())-\(number)" }
 
-        /// The askpass bridge's socket beside master `number`'s.
-        func bridgePath(number: UInt32) -> String { socketPath(number: number) + "-a" }
+        /// The askpass bridge's socket beside the master's at `socket`.
+        static func bridgePath(forMaster socket: String) -> String { socket + "-a" }
 
         /// Removes the sockets of Glifftops no longer running, calling `ending` with each master's
         /// path first (its master may have outlived its app); a bridge's socket is only removed.

@@ -6,9 +6,9 @@ public protocol AskpassPeerCheck: Sendable {
 #if os(macOS)
     public import Foundation
 
-    /// The bridge's peer check: the connection must come from this user's `helper`, run by an
-    /// `/usr/bin/ssh` that is the master or descends from it (a jump host's ssh). A ProxyCommand
-    /// program, or anything else, is refused.
+    /// The bridge's peer check: the connection must come from this user's `helper`, run by `ssh`
+    /// (`/usr/bin/ssh`) that is the master or descends from it (a jump host's ssh). A
+    /// ProxyCommand program, or anything else, is refused.
     ///
     /// - The uid is the socket's peer's (`getpeereid`).
     /// - The executable is read through the peer's audit token (`LOCAL_PEERTOKEN`,
@@ -17,17 +17,20 @@ public protocol AskpassPeerCheck: Sendable {
     /// - `helper` is kept resolved (`realpath`), as the kernel reports it.
     public struct AskpassPeer: AskpassPeerCheck {
         public let helper: String
+        public let ssh: String
         /// The master's pid, once it runs.
         public let masterPID: @Sendable () -> pid_t?
 
-        public init(helper: String, masterPID: @escaping @Sendable () -> pid_t?) {
+        public init(
+            helper: String, ssh: String = SSHCommand.executable, masterPID: @escaping @Sendable () -> pid_t?
+        ) {
+            self.ssh = ssh
             let resolved = realpath(helper, nil)
             defer { free(resolved) }
             self.helper = resolved.map { String(cString: $0) } ?? helper
             self.masterPID = masterPID
         }
 
-        static let ssh = "/usr/bin/ssh"
         static let ancestorLimit = 8
 
         public func accepts(_ socket: Int32) -> Bool {
@@ -41,7 +44,7 @@ public protocol AskpassPeerCheck: Sendable {
             else { return false }
             // The audit token's sixth word is the pid.
             let pid = pid_t(bitPattern: token.val.5)
-            guard let parent = Self.parent(of: pid), Self.path(of: parent) == Self.ssh else { return false }
+            guard let parent = Self.parent(of: pid), Self.path(of: parent) == ssh else { return false }
             var ancestor = parent
             for _ in 0..<Self.ancestorLimit {
                 if ancestor == master { return true }

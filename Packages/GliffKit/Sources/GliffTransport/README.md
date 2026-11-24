@@ -73,10 +73,16 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   0700, and refused if it is a symbolic link, not a directory or another user's. Sockets are named
   `<pid>-<n>`; before the app's first master, those of Glifftops no longer running (or with this app's own pid) are
   removed, sockets only, each master first ended with `-O exit`.
-  `SystemSSHConnection` (macOS) is a `HostConnection` on such a master: `open` waits until the
-  socket answers `-O check`, up to 60 s (then `ConnectFailure.signInTimedOut`, not retried);
-  each channel is one ssh through the socket; the master's own exit, even a clean one, is a lost
-  connection, and `close()` ends it with `-O exit`. `SystemSSH.opener()` is the app's opener for
+  `SystemSSHConnection` (macOS) is a `HostConnection` on such a master: `open` reads the
+  config once (`ssh -G`) and waits until the socket answers `-O check`, up to 60 s not counting
+  time a sign-in question is open, and 5 min in all (then `ConnectFailure.signInTimedOut`, not
+  retried). With a `SignInAsker`, the askpass helper and a config that allows it, the master asks
+  (`SSH_ASKPASS`, `SSH_ASKPASS_REQUIRE=force`, its stderr unlogged) through a bridge revoked once
+  the master is ready or has failed; the bridge's outcome names the failure (`hostKeyDenied`,
+  `signInCancelled`, `tooManyQuestions`), and a changed key's known_hosts name is the config's.
+  Without them, or when the probe fails, the master runs in batch mode. Each channel is one ssh
+  through the socket; the master's own exit, even a clean one, is a lost connection, and
+  `close()` ends it with `-O exit`. `SystemSSH.opener(helper:)` is the app's opener for
   `HostConnections`; every opener shares one socket directory and one numbering.
 - **Screens:** `ScreenChoice` is what a session shows (the focused monitor, one by name,
   or a virtual screen) as gliff-server's arguments. `ScreenListParser` reads the host's

@@ -30,6 +30,7 @@
             var asked = 0
             var revoked = false
             var listener: (any DispatchSourceRead)?
+            var serving = false
             /// The question being asked, which `revoke()` cancels.
             var question: Task<Step, Never>?
         }
@@ -86,23 +87,40 @@
         public var questionOpen: Bool { state.withLock(\.questionOpen) }
         public var outcome: Outcome? { state.withLock(\.outcome) }
 
-        /// Listens on `path`, a socket only this user can open (0600, in a 0700 directory).
+        /// Listens and serves.
         public func start() throws(TransportError) {
+            try listen()
+            serve()
+        }
+
+        /// Listens on `path`, a socket only this user can open (0600, in a 0700 directory). A
+        /// connection waits for `serve()`: start ssh between the two, once its pid is known.
+        public func listen() throws(TransportError) {
+            guard state.withLock({ $0.listener == nil && !$0.revoked }) else { return }
             unlink(path)
             guard let socket = AskpassSocket.listening(at: path) else {
                 unlink(path)
-                throw .launchFailed("askpass bridge")
+                throw .launchFailed("There's no socket for ssh's sign-in questions.")
             }
             guard fcntl(socket, F_SETFL, fcntl(socket, F_GETFL) | O_NONBLOCK) == 0 else {
                 close(socket)
                 unlink(path)
-                throw .launchFailed("askpass bridge")
+                throw .launchFailed("There's no socket for ssh's sign-in questions.")
             }
             let listener = DispatchSource.makeReadSource(fileDescriptor: socket, queue: queue)
             listener.setEventHandler { [weak self] in self?.acceptAll(socket) }
             listener.setCancelHandler { close(socket) }
             state.withLock { $0.listener = listener }
             listener.resume()
+        }
+
+        /// Serves the connections, one at a time, from now on.
+        public func serve() {
+            let first = state.withLock { state in
+                defer { state.serving = true }
+                return !state.serving
+            }
+            guard first else { return }
             let accepted = accepted
             Task { [weak self] in
                 for await connection in accepted {
@@ -180,11 +198,13 @@
         /// answer is written (or not) and the watch has stopped using it.
         private func asking(_ question: SignInQuestion, on socket: Int32) async {
             let gone = Flag()
+            let isNotice = if case .notice = question { true } else { false }
             let task = Task { [self] in
                 let answer = await ask(question)
                 state.withLock { $0.questionOpen = false }
                 if gone.isSet { return Step.gone }
-                if state.withLock(\.revoked) { return .refused }
+                // A notice revoked as the master becomes ready is over, not refused.
+                if state.withLock(\.revoked) { return isNotice ? .gone : .refused }
                 // ssh fails as soon as it reads "no": the outcome is set first.
                 return Self.reply(answer, to: question, on: socket) {
                     state.withLock { $0.outcome = $0.outcome ?? .denied }
@@ -214,7 +234,7 @@
             for await _ in watchEnded {}
             switch step {
             case .answered, .denied: break
-            case .gone where Self.kind(question) == "notice": Self.log.info("sign-in notice ended by ssh")
+            case .gone where isNotice: Self.log.info("sign-in notice ended by ssh")
             case .gone, .refused:
                 state.withLock { $0.outcome = $0.outcome ?? .cancelled }
                 Self.log.info("sign-in question cancelled")
@@ -225,7 +245,7 @@
 
         private func fail(_ outcome: Outcome, _ socket: Int32, _ reason: StaticString) async {
             state.withLock { $0.outcome = $0.outcome ?? outcome }
-            Self.log.error("askpass connection refused: \(reason)")
+            Self.log.error("askpass connection refused: \(reason, privacy: .public)")
             await end()
             close(socket)
         }

@@ -15,6 +15,13 @@ public enum AskpassWire {
     public static let socketVariable = "GLIFFTOP_ASKPASS_SOCKET"
     public static let tokenVariable = "GLIFFTOP_ASKPASS_TOKEN"
 
+    /// `token` as `tokenVariable` holds it: lowercase hex.
+    public static func tokenText(_ token: [UInt8]) -> String {
+        let digits = Array("0123456789abcdef".utf8)
+        return String(
+            decoding: token.flatMap { [digits[Int($0 >> 4)], digits[Int($0 & 0xF)]] }, as: UTF8.self)
+    }
+
     public enum Error: Swift.Error, Equatable, Sendable {
         case version, short, tooLong, malformed
     }

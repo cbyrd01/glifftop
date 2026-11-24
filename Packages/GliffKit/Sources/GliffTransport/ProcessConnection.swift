@@ -188,13 +188,18 @@
             }
             closeStdin()
             if await waitForExit(within: .seconds(2)) { return }
+            Self.log.debug("pid \(self.processIdentifier) still running after stdin closed")
+            await end()
+        }
+
+        /// Ends the process now and returns once it has exited: SIGTERM, then SIGKILL after 1 s.
+        /// Foundation starts each process as its own process group's leader, and `terminate()`
+        /// signals the group: an ssh's ProxyJump or ProxyCommand children end with it.
+        func end() async {
+            terminate()
+            if await waitForExit(within: .seconds(1)) { return }
             // isRunning turns false when Foundation reaps the child, so a signal never goes
             // to a recycled pid (short of the instant between this check and the signal).
-            if process.isRunning {
-                Self.log.debug("pid \(self.processIdentifier) still running after stdin closed: SIGTERM")
-                process.terminate()
-            }
-            if await waitForExit(within: .seconds(1)) { return }
             if process.isRunning {
                 Self.log.debug("pid \(self.processIdentifier) still running after SIGTERM: SIGKILL")
                 kill(processIdentifier, SIGKILL)

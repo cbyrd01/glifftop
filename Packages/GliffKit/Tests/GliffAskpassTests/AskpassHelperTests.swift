@@ -5,7 +5,7 @@ import Testing
 /// `AskpassHelper.run` against a listener the test plays, with its stdout a pipe.
 struct AskpassHelperTests {
     static let token = [UInt8](0..<32)
-    static var tokenHex: String { token.map { String(format: "%02x", $0) }.joined() }
+    static var tokenHex: String { AskpassWire.tokenText(token) }
 
     /// Runs the helper with `prompt` while `serve` plays the app on the accepted socket; returns
     /// the helper's status and stdout, and what `serve` returned.
