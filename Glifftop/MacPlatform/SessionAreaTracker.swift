@@ -71,6 +71,15 @@ final class SessionAreaView: NSView {
         report()
     }
 
+    /// The size a live resize ended on, laid out and reported now, ahead of its end
+    /// (`LiveResizeTracker`).
+    override func viewDidEndLiveResize() {
+        super.viewDidEndLiveResize()
+        guard ready else { return }
+        window?.layoutIfNeeded()
+        measure()
+    }
+
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
         report()

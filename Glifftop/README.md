@@ -145,7 +145,7 @@ AppKit adapters for what SwiftUI can't do:
   new view box for the picture on screen, or Scale to Fit toggled, and only while the window
   is visible; wrapped for SwiftUI by `VideoView`. Once the window has been fitted for the
   session it reports its drawable size and backing scale (`onTarget`) on every change, from
-  the display link, never from the machines window. Its cursor handling is in
+  the display link and as a live resize ends, never from the machines window. Its cursor handling is in
   `VideoNSView+Cursor.swift`;
 - `WakeObserver`: the Mac waking (`NSWorkspace.didWakeNotification`) and whether the network
   path is usable (`NWPathMonitor`), for the session's probe and its reconnect;
@@ -164,7 +164,9 @@ AppKit adapters for what SwiftUI can't do:
   again;
 - `LiveResizeTracker`: the window's live resize (a drag of its edge), for
   `SessionModel.liveResizeChanged`, which tells the session (no Resize during one) and any
-  session started during one; it reports the end when it leaves its window;
+  session started during one. It reports the end a turn after AppKit's, once the video view
+  (or `SessionAreaTracker`) has laid out and reported the size it ended on, and when it
+  leaves its window;
 - `SessionAreaTracker`: a virtual screen's window before its picture, filled once and
   measured as the video view will be (`NSView.backingPixels`, less the status bar), so the
   remote screen is asked for that size while the session connects;

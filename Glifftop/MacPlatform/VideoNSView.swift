@@ -357,6 +357,14 @@ final class VideoNSView: NSView {
         tracker.drew(generation: latest.generation, drawable: size, view: view, scaleToFit: scaleToFit)
     }
 
+    /// The size a live resize ended on, laid out and reported now, ahead of its end
+    /// (`LiveResizeTracker`).
+    override func viewDidEndLiveResize() {
+        super.viewDidEndLiveResize()
+        window?.layoutIfNeeded()
+        reportTarget(drawableSize())
+    }
+
     /// Tells `onTarget` of a new drawable size or backing scale, once fitted. Every tick, so
     /// a live resize, full screen and another display are all seen; the session sends only
     /// once a target settles.
