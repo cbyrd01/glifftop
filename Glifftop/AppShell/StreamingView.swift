@@ -1,3 +1,4 @@
+import GliffInput
 import GliffProtocol
 import GliffSession
 import GliffVideo
@@ -31,7 +32,8 @@ struct StreamingView: View {
             scaleToFit: model.drawsScaled,
             onTarget: model.viewTargetChanged, capture: model.capture,
             cursor: model.viewCursor,
-            captured: model.capture.isCaptured, headless: model.snapshot.session?.headless ?? false
+            captured: model.capture.isCaptured,
+            videoHasPointer: CursorLook.videoHasPointer(model.snapshot.session)
         )
         // A new session's slot gets a new video view: the old one would keep drawing the old slot.
         .id(ObjectIdentifier(model.shownSlot))

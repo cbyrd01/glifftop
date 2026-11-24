@@ -5,8 +5,8 @@ public import GliffProtocol
 /// hotspot inside. The bytes are B, G, R, A (`wl_shm` ARGB8888, little-endian), premultiplied.
 /// A valid shape with nothing to show (every pixel clear, or every pixel the same) is kept, but
 /// not visible (upstream `has_visible_shape`). A shape that can't be shown, or isn't visible,
-/// gets the Mac arrow, or no cursor on a headless session, whose video carries the pointer
-/// (upstream `set_remote_cursor`).
+/// gets the Mac arrow, or no cursor when the video carries the pointer
+/// (`CursorLook.videoHasPointer`; upstream `set_remote_cursor`).
 public struct CursorImage: Sendable, Equatable {
     public let id, width, height: UInt32
     public let hotX, hotY: Int32

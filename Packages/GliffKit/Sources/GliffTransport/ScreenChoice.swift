@@ -1,3 +1,5 @@
+import GliffProtocol
+
 /// What a session shows: the monitor that has focus when it starts, a monitor by
 /// name, or a virtual screen sized to the window. gliff-server picks its output only at start,
 /// from these arguments, so changing the choice means a new session.
@@ -31,7 +33,7 @@ extension ScreenChoice: Codable {
         case .focused: self = .focused
         case .virtual: self = .virtual
         case .named(let name):
-            guard ScreenListParser.isValidName(name), !ScreenListParser.isVirtualScreen(name) else {
+            guard ScreenListParser.isValidName(name), !OutputName.isVirtualScreen(name) else {
                 throw DecodingError.dataCorrupted(
                     .init(codingPath: decoder.codingPath, debugDescription: "screen name"))
             }

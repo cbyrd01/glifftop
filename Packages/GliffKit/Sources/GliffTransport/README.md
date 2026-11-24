@@ -2,8 +2,9 @@
 
 Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
 
-- **Imports:** Foundation, plus the platform layers under it: `os` (Logger), `Synchronization`
-  (Mutex, Swift's standard library); signals come through Foundation. Must not import GliffSession,
+- **Imports:** Foundation and GliffProtocol (`OutputName`), plus the platform layers under it:
+  `os` (Logger), `Synchronization` (Mutex, Swift's standard library); signals come through
+  Foundation. Must not import GliffSession,
   GliffVideo, AppKit or UIKit.
 - **Seam:** `Transport.connect()` gives a `ByteConnection` (`incoming` chunks, `write`,
   `close`). The session only sees this, so tests run against `tools/fake-server` instead
