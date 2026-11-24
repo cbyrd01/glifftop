@@ -1,15 +1,16 @@
 import AppKit
 import SwiftUI
 
-/// The window's native tabs: joins the tab group of window `tabOf` once (a new tab, added after
-/// its last tab), or leaves any group once when opened `alone`, and reports the window's number
-/// and its group's, in tab order, at each change (a tab added, closed, moved or torn off), and
-/// the window's close.
+/// The window's native tabs: once, joins the tab group of window `tabOf` (File ▸ New Tab), or
+/// of the session window in front when no group is named (the tab bar's +), as a new tab
+/// after its last; or leaves any group when opened `alone`. It reports the window's number and
+/// its group's, in tab order, at each change (a tab added, closed, moved or torn off), and the
+/// window's close.
 ///
 /// A SwiftUI window is already ordered in when its content reaches it, so `tabbingMode` can't
 /// place it: the group is joined with `addTabbedWindow`, and a window opened alone that macOS
-/// tabbed anyway (System Settings' "Prefer tabs: Always") leaves its group. Any other window
-/// (the tab bar's +) stays where macOS put it.
+/// tabbed anyway (System Settings' "Prefer tabs: Always") leaves its group. The first window,
+/// with none in front, stays where macOS put it.
 struct WindowTabbing: NSViewRepresentable {
     static let identifier = "session"
 
@@ -63,9 +64,10 @@ final class TabbingView: NSView {
         guard let window else { return }
         window.tabbingIdentifier = WindowTabbing.identifier
         window.tabbingMode = .preferred
+        var joined: NSRect?
         if !placed {
             placed = true
-            place(window)
+            joined = place(window)
         }
         windowObservation = window.observe(\.tabGroup) { [weak self] _, _ in
             MainActor.assumeIsolated { self?.observeGroup() }
@@ -77,21 +79,34 @@ final class TabbingView: NSView {
             MainActor.assumeIsolated { self?.closed() }
         }
         observeGroup()
+        // The group takes the size of the tab in front: the new tab, sized to the machines' form
+        // until it knew it shares the window (reported just now). Back to the group's own,
+        // after SwiftUI's update for that.
+        if let joined { Task { window.setFrame(joined, display: true) } }
     }
 
-    /// Joins the requested group; a window opened alone stays alone.
-    private func place(_ window: NSWindow) {
-        guard let tabOf else {
-            if alone, let group = window.tabGroup, group.windows.count > 1 { group.removeWindow(window) }
-            return
+    /// Joins the requested group, or the front session window's, returning the group's frame
+    /// to keep (none in full screen, which keeps its own); a window opened alone stays alone.
+    private func place(_ window: NSWindow) -> NSRect? {
+        if alone {
+            if let group = window.tabGroup, group.windows.count > 1 { group.removeWindow(window) }
+            return nil
         }
-        // Already in its group: macOS tabbed it ("Prefer tabs: Always").
-        guard let source = NSApp.window(withWindowNumber: tabOf), source !== window,
-            window.tabGroup == nil || window.tabGroup !== source.tabGroup
-        else { return }
+        // Already in a group: macOS tabbed it ("Prefer tabs: Always").
+        if let other = window.tabGroup?.windows.first(where: { $0 !== window }) { return Self.kept(other) }
+        let source = tabOf.flatMap(NSApp.window(withWindowNumber:)) ?? NSApp.mainWindow
+        guard let source, source !== window, source.tabbingIdentifier == WindowTabbing.identifier else {
+            return nil
+        }
+        let frame = Self.kept(source)
         let last = source.tabbedWindows?.last { $0 !== window } ?? source
         last.addTabbedWindow(window, ordered: .above)
         window.makeKeyAndOrderFront(nil)
+        return frame
+    }
+
+    private static func kept(_ tab: NSWindow) -> NSRect? {
+        tab.styleMask.contains(.fullScreen) ? nil : tab.frame
     }
 
     /// Follows the window's current group, and reports it.

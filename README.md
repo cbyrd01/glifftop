@@ -31,8 +31,9 @@ The name combines *gliff*, the Scots word for a glimpse, with *desktop* and *cli
 - ⌘Space and ⌘Tab stay with the Mac.
 - Signed releases: for now, build it yourself.
 
-**Known, upstream:** Hyprland 0.56.2 shares every cursor image fully transparent, so the
-Mac arrow shows over the picture.
+**Known, upstream:** Hyprland 0.56.2 shares every cursor image fully transparent, so over a
+monitor the Mac arrow shows. A virtual screen draws the host's own pointer into the picture,
+so there the host's pointer shows, a frame behind the Mac's.
 
 ## Requirements
 

@@ -1,10 +1,11 @@
 import Foundation
 import GliffInput
 import GliffMachines
+import GliffTransport
 import Observation
 
 /// The open windows' models, in opening order, held weakly: what a new tab, a machine's host
-/// lock, tab titles and quitting look across.
+/// lock, tab titles, a host reached again and quitting look across.
 @Observable final class OpenSessions {
     static let shared = OpenSessions()
 
@@ -51,6 +52,13 @@ import Observation
     func isOpen(_ host: String, besides model: SessionModel) -> Bool {
         let host = host.trimmingCharacters(in: .whitespacesAndNewlines)
         return models.contains { $0 !== model && $0.isActive && $0.host == host }
+    }
+
+    /// `model`'s session to `destination` streams: the other windows to it whose reconnect
+    /// gave up are revived, on the connection now up (an approval that came too late for their
+    /// tries, say).
+    func reached(_ destination: SSHTarget, by model: SessionModel) {
+        for other in models where other !== model && other.destination == destination { other.revive() }
     }
 
     /// The machine sheet saved `saved`: every window showing it takes its options, so none

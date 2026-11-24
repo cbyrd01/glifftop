@@ -57,9 +57,11 @@ extension SessionModel {
     }
 
     /// Whether a session starting asks for a sign-in again (`HostConnections`' fresh lease):
-    /// one the person started does, a reconnect's try only after Reconnect Now.
+    /// one the person started does, a reconnect's try only after Reconnect Now, a revived one
+    /// never.
     func asksAgain(_ reconnecting: Bool) -> Bool {
-        guard reconnecting, let run = reconnectRun else { return true }
+        guard reconnecting else { return true }
+        guard let run = reconnectRun else { return false }
         defer { run.asked = false }
         return run.asked
     }
@@ -78,13 +80,22 @@ extension SessionModel {
         start(destination, screen: sheetScreen ?? screenChoice)
     }
 
+    /// Another window's session to this destination streams again after this one's reconnect
+    /// gave up: a try on the connection now up, keeping the window's size, as a reconnect's
+    /// would. One that fails still says the reconnect gave up, and is revived again.
+    func revive() {
+        guard gaveUp, canTryAgain, let destination else { return }
+        start(destination, screen: screenChoice, reconnecting: true)
+    }
+
     /// The session's phase changed: a try's session streamed or ended, or a session that may
     /// be tried again ended.
     func sessionPhaseChanged() {
         switch phase {
         case .streaming:
-            heldPicture = nil
+            (heldPicture, gaveUp) = (nil, false)
             resumeAttempt(.streaming)
+            if let destination { OpenSessions.shared.reached(destination, by: self) }
         case .ended:
             let end = snapshot.end ?? .connectionLost
             if reconnectRun?.waiter != nil {

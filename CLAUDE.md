@@ -24,8 +24,8 @@ desktop for Hyprland/Omarchy, written in Swift. Not affiliated with Gliff.
   - files over the clipboard;
   - an optional event tap for ⌘Space and ⌘Tab (they stay with the Mac);
   - signed releases.
-- **Known, upstream:** Hyprland 0.56.2 shares every cursor image fully transparent, so the
-  Mac arrow shows over the picture.
+- **Known, upstream:** Hyprland 0.56.2 shares every cursor image fully transparent, so over a
+  monitor the Mac arrow shows; a virtual screen's picture carries the host's own pointer.
 
 ## Engineering rules
 

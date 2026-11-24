@@ -238,7 +238,7 @@ import os
     }
 
     /// Ends any session, then starts one with `destination` showing `screen`; a reconnect's
-    /// try keeps the window's size.
+    /// try (or a revival) keeps the window's size.
     func start(_ destination: SSHTarget, screen: ScreenChoice, reconnecting: Bool = false) {
         guard !quitting else {
             isSwitching = false
@@ -261,8 +261,9 @@ import os
         slot = PictureSlot()
         cursor = CursorSlot()
         remotePointer = RemotePointerSlot()
-        if !reconnecting { windowSizing = nil }
-        viewPixels = nil
+        // A reconnect's try keeps the window's size: a tab in the background draws nothing, so
+        // its view wouldn't report it again until selected.
+        if !reconnecting { (windowSizing, viewPixels) = (nil, nil) }
         let decoder: VideoToolboxDecoder
         do throws(VideoError) {
             decoder = try makeDecoder()
@@ -285,6 +286,7 @@ import os
             decoder: decoder, cursor: cursor, pointer: remotePointer,
             clipboard: ClipboardSetup(source: PasteboardSource()), observer: protocolObserver)
         self.session = session
+        sendViewTarget()
         capture.attach(
             target: { [weak self] in self?.activationTarget(macPointer: $0) }, send: { session.send($0) })
         clipboard.attach(session, host: destination.value)

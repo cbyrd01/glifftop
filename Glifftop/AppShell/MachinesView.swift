@@ -15,6 +15,11 @@ struct MachinesView: View {
     /// else the last host connected to.
     @State private var target = ""
     @State private var options = AppSettings.defaultOptions
+    /// The host field starts with the keyboard: ⌘T then Return connects. Focus is only taken in
+    /// an active window, so the field asks once its window first is.
+    @FocusState private var fieldFocused: Bool
+    @Environment(\.appearsActive) private var appearsActive
+    @State private var focusedOnce = false
     /// What Options were last filled with (Settings', or the saved machine's the field names):
     /// while `options` still equal them, they follow the field and Settings; once edited, they
     /// stay as edited.
@@ -54,6 +59,11 @@ struct MachinesView: View {
             target = [model.fieldHost, lastHost].compactMap(\.self).first { !$0.isEmpty } ?? ""
             fillOptions(for: target)
         }
+        .onChange(of: appearsActive, initial: true) {
+            guard appearsActive, !focusedOnce else { return }
+            focusedOnce = true
+            fieldFocused = true
+        }
         // Posted on whichever thread changed the defaults: handled on the main one.
         .onReceive(
             NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification).receive(
@@ -90,6 +100,7 @@ struct MachinesView: View {
                     .autocorrectionDisabled()
                     .writingToolsBehavior(.disabled)
                     .labelsHidden()
+                    .focused($fieldFocused)
                     .onChange(of: target) { fillOptions(for: target) }
                     // Return here, not as the window's default button: Return in the list
                     // connects to the selected machine.

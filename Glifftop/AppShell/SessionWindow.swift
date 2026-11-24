@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// What a window is opened for: each request a new window (its own id), in the tab group of
-/// window `tabOf` (File ▸ New Tab), alone (File ▸ New Window), or where macOS puts it (the
-/// tab bar's +, the first window).
+/// window `tabOf` (File ▸ New Tab), alone (File ▸ New Window), or, with neither, in the group of
+/// the session window in front (the tab bar's +), if any (the first window has none).
 struct TabRequest: Codable, Hashable {
     var id = UUID()
     /// The window number of the window whose tab group it joins.
