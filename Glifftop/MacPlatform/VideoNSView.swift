@@ -24,7 +24,7 @@ final class VideoNSView: NSView {
     static let cursorLogger = Logger(subsystem: "me.cbyrd.Glifftop", category: "cursor")
 
     /// Fits the window when it changes (and once the view is in a window). Each session gets its
-    /// own view: StreamingView exists only while streaming. The sizing is the session's, set
+    /// own view: StreamingView exists only while a picture is shown. The sizing is the session's, set
     /// once, so a later view from the server never resizes the window; a reconnect's (with
     /// `fitsWindow` off) changes only what Actual Size fits.
     var fit: Fit? {

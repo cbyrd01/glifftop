@@ -49,9 +49,11 @@ extension SessionModel {
         return .monitor(size)
     }
 
-    /// A virtual screen's session that hasn't ended shows no picture yet: its window is sized,
-    /// and its size measured, without one (`SessionAreaTracker`).
-    var awaitsVirtualPicture: Bool { isVirtual && picture == nil && snapshot.phase != .ended }
+    /// A virtual screen's session that hasn't ended (or is being reconnected) shows no picture
+    /// yet: its window is sized, and its size measured, without one (`SessionAreaTracker`).
+    var awaitsVirtualPicture: Bool {
+        isVirtual && picture == nil && (snapshot.phase != .ended || isReconnecting)
+    }
 
     /// The video view's drawable (pixels) and backing scale: the remote screen follows it.
     func viewTargetChanged(_ pixels: PixelSize, backingScale: Double) {
