@@ -23,6 +23,8 @@ struct SessionCore {
     private(set) var session: SessionInfo?
     /// When the window's size goes to the server (`ResizeRules`).
     var resize = ResizeRules()
+    /// Whether a virtual screen's first picture waits for its size (`PictureHold`).
+    var hold = PictureHold()
 
     init(configuration: SessionConfiguration, features: [String: Set<Int64>]) {
         self.configuration = configuration
@@ -78,7 +80,7 @@ struct SessionCore {
             guard case .streamConfig(let config) = message else {
                 return finish(.protocolError("\(Self.name(of: message)) before StreamConfig"))
             }
-            return streamConfig(config)
+            return streamConfig(config, now: now)
         default:
             return finish(.protocolError("\(Self.name(of: message)) before HelloAck"))
         }

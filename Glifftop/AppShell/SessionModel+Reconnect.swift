@@ -93,7 +93,7 @@ extension SessionModel {
     func sessionPhaseChanged() {
         switch phase {
         case .streaming:
-            (heldPicture, gaveUp) = (nil, false)
+            gaveUp = false
             resumeAttempt(.streaming)
             if let destination { OpenSessions.shared.reached(destination, by: self) }
         case .ended:
@@ -149,7 +149,7 @@ extension SessionModel {
     }
 
     private func beginReconnect(after end: SessionEnd, now: Bool = false) {
-        heldPicture = lastStream.map { (slot, $0) }
+        heldPicture = lastPicture
         (reconnectEnd, gaveUp) = (end, false)
         let run = ReconnectRun()
         // A window gone, or a run since replaced, ends with a reason that is never retried.
@@ -211,15 +211,28 @@ extension SessionModel {
     private func finishReconnect(_ result: ReconnectResult, run: ReconnectRun) {
         guard reconnectRun === run else { return }
         reconnectRun = nil
+        let held = heldPicture
         clearReconnect()
         switch result {
         case .reconnected:
+            // The new session's picture may still be held: the last one stays until it shows.
+            if shownStream == nil, held != nil {
+                heldPicture = held
+                refreshHasPicture()
+            }
             if screenChoice == .virtual { showVirtualNotice() }
             // The new session ended before this arrived: it is tried again too.
             if phase == .ended { sessionPhaseChanged() }
         case .gaveUp: gaveUp = true
         case .cancelled: break
         }
+    }
+
+    /// A picture shows: a reconnect's held picture gives way to it, and a later reconnect
+    /// holds it. A session that ends before its picture shows (held) leaves the last one.
+    func showing(_ stream: StreamInfo) {
+        lastPicture = (slot, stream)
+        if heldPicture != nil { heldPicture = nil }
     }
 
     fileprivate func clearReconnect() {

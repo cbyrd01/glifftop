@@ -25,9 +25,10 @@ import Testing
     }
 
     static func helloAck(
-        version: UInt16 = 1, features: [String] = [], outputs: [OutputInfo] = [output]
+        version: UInt16 = 1, features: [String] = [], outputs: [OutputInfo] = [output], headless: Bool = false
     ) -> ServerMessage {
-        .helloAck(version: version, session: session, outputs: outputs, features: features)
+        let session = headless ? SessionInfo(headless: true, output: "gliff-1") : session
+        return .helloAck(version: version, session: session, outputs: outputs, features: features)
     }
 
     @Test func startSendsHello() {

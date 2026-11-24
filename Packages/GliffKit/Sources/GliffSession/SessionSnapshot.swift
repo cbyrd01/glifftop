@@ -29,6 +29,9 @@ public struct SessionSnapshot: Equatable, Sendable {
     public var stats: SessionStats?
     /// Why the session ended, once it has.
     public var end: SessionEnd?
+    /// A virtual screen's picture waits for the answer to the window's size (`PictureHold`).
+    /// Set just before the first stream (while waiting for video), cleared by the end.
+    public var holdsPicture = false
     /// The server has gone quiet while streaming: the picture may be stale.
     public var isInterrupted = false
     /// The host's latest read of our clipboard, kept until the next.
@@ -49,6 +52,7 @@ public struct SessionSnapshot: Equatable, Sendable {
         case .streaming(let info):
             phase = .streaming
             stream = info
+        case .pictureHeld(let on): holdsPicture = on
         case .stats(let stats): self.stats = stats
         case .interrupted(let on): isInterrupted = on
         case .clipboardActivity(let activity): clipboard = activity
@@ -56,7 +60,7 @@ public struct SessionSnapshot: Equatable, Sendable {
         case .ended(let end):
             phase = .ended
             self.end = end
-            isInterrupted = false
+            (isInterrupted, holdsPicture) = (false, false)
             // The bridge closed with the session: a read still shown as running ended with it.
             if clipboard?.state == .running {
                 clipboard?.state = .failed(TransferError.connectionEnded.message)

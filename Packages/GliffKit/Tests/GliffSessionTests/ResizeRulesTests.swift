@@ -19,13 +19,84 @@ import Testing
     private static let mirrorView = View(width: 2560, height: 1440, scale: 1)
     private static let virtualView = View(width: 1920, height: 1080, scale: 1)
 
-    @Test func nothingBeforeItSettles() {
+    /// The session's first size goes at once: the server's screen starts at its own default.
+    @Test func theFirstTargetGoesAtOnce() {
         var rules = ResizeRules()
         rules.set(Self.target(1600, 1000), now: 0)
-        #expect(rules.due(now: 199, headless: true, view: Self.virtualView, pipeline: nil) == nil)
         #expect(
-            rules.due(now: 200, headless: true, view: Self.virtualView, pipeline: nil)
+            rules.due(now: 0, headless: true, view: Self.virtualView, pipeline: nil)
                 == .resize(width: 1600, height: 1000, scale: 2))
+    }
+
+    @Test func aLaterTargetWaitsForTheSettle() {
+        var rules = Self.sentFirst()
+        rules.set(Self.target(1400, 900), now: 1000)
+        #expect(rules.due(now: 1199, headless: true, view: Self.virtualView, pipeline: nil) == nil)
+        #expect(
+            rules.due(now: 1200, headless: true, view: Self.virtualView, pipeline: nil)
+                == .resize(width: 1400, height: 900, scale: 2))
+    }
+
+    @Test func nothingGoesDuringALiveResize() {
+        var rules = ResizeRules()
+        rules.setLiveResize(true)
+        rules.set(Self.target(1600, 1000), now: 0)
+        #expect(rules.due(now: 5000, headless: true, view: Self.virtualView, pipeline: nil) == nil)
+    }
+
+    /// A drag's end sends its last size at once, with no settle.
+    @Test func theEndOfALiveResizeSendsAtOnce() {
+        var rules = Self.sentFirst()
+        rules.setLiveResize(true)
+        for step in 0...25 {
+            rules.set(
+                Self.target(1000 + UInt32(step) * 16, 600 + UInt32(step) * 12), now: 1000 + UInt64(step) * 16)
+            #expect(
+                rules.due(
+                    now: 1000 + UInt64(step) * 16 + 300, headless: true, view: Self.virtualView, pipeline: nil
+                ) == nil)
+        }
+        rules.setLiveResize(false)
+        #expect(
+            rules.due(now: 1401, headless: true, view: Self.virtualView, pipeline: nil)
+                == .resize(width: 1400, height: 900, scale: 2))
+    }
+
+    @Test func aTargetEqualToTheViewIsSatisfied() {
+        var rules = ResizeRules()
+        #expect(!rules.isSatisfied(headless: true, view: Self.virtualView, pipeline: nil))
+        rules.set(Self.target(1920, 1080, backing: 1), now: 0)
+        #expect(rules.isSatisfied(headless: true, view: Self.virtualView, pipeline: nil))
+        rules.set(Self.target(1600, 1000), now: 0)
+        #expect(!rules.isSatisfied(headless: true, view: Self.virtualView, pipeline: nil))
+    }
+
+    /// Only the size a drag ended on skips the settle: a later change (a snap) waits.
+    @Test func aChangeAfterADragEndsWaitsForTheSettle() {
+        var rules = Self.sentFirst()
+        rules.setLiveResize(true)
+        rules.set(Self.target(1200, 800), now: 1000)
+        rules.setLiveResize(false)
+        rules.set(Self.target(1300, 850), now: 1010)
+        #expect(rules.due(now: 1011, headless: true, view: Self.virtualView, pipeline: nil) == nil)
+        #expect(
+            rules.due(now: 1210, headless: true, view: Self.virtualView, pipeline: nil)
+                == .resize(width: 1300, height: 850, scale: 2))
+    }
+
+    /// A target too small to send leaves nothing to wait for.
+    @Test func aTargetTooSmallToSendIsSatisfied() {
+        var rules = ResizeRules()
+        rules.set(Self.target(300, 200), now: 0)
+        #expect(rules.isSatisfied(headless: true, view: Self.virtualView, pipeline: nil))
+    }
+
+    /// Rules whose first target (1600×1000 at 2) has gone, at 0.
+    private static func sentFirst() -> ResizeRules {
+        var rules = ResizeRules()
+        rules.set(target(1600, 1000), now: 0)
+        _ = rules.due(now: 0, headless: true, view: virtualView, pipeline: nil)
+        return rules
     }
 
     /// A scale that isn't a number would never equal what was sent: it would go every tick.
@@ -38,11 +109,11 @@ import Testing
         }
     }
 
-    /// A live drag sends once, when it pauses.
+    /// A drag the window doesn't report as a live resize sends once, when it pauses.
     @Test func aDragSendsOnceItSettles() {
-        var rules = ResizeRules()
+        var rules = Self.sentFirst()
         var sent: [ClientMessage] = []
-        var now: UInt64 = 0
+        var now: UInt64 = 1000
         for step in 0...25 {
             rules.set(Self.target(1000 + UInt32(step) * 16, 600 + UInt32(step) * 12), now: now)
             if let message = rules.due(now: now, headless: true, view: Self.virtualView, pipeline: nil) {
@@ -217,14 +288,45 @@ import Testing
         return core
     }
 
-    /// A target before the first StreamConfig waits for it.
-    @Test func aResizeGoesOnlyWhileStreaming() {
+    /// A target before the first StreamConfig waits for it, and goes with it.
+    @Test func aTargetBeforeStreamingGoesWithTheFirstStreamConfig() {
         var core = HandshakeTests.core()
         _ = core.receive(HandshakeTests.helloAck(), payloadLength: 0, now: 0)
         core.setViewTarget(Self.target, now: 0)
         #expect(core.resizeDue(now: 500).isEmpty)
-        _ = core.receive(.streamConfig(HandshakeTests.config), payloadLength: 0, now: 600)
-        #expect(core.resizeDue(now: 600) == [.send(.resize(width: 1600, height: 1000, scale: 2))])
+        let actions = core.receive(.streamConfig(HandshakeTests.config), payloadLength: 0, now: 600)
+        #expect(actions.contains(.send(.resize(width: 1600, height: 1000, scale: 2))))
+    }
+
+    /// The window's latest size is taken before the live-resize edges that came with it: a
+    /// drag's end with its last size sends that size at once.
+    @Test(arguments: [[false], [true, false]])
+    func aDragsEndTakenWithItsLastSizeGoesAtOnce(edges: [Bool]) {
+        var core = streaming()
+        core.takeWindow(
+            ViewTarget(width: 1400, height: 900, backingScale: 2, textFactor: 1), liveResizeEdges: [], now: 0)
+        _ = core.resizeDue(now: 0)
+        core.takeWindow(nil, liveResizeEdges: [true], now: 1000)
+        core.takeWindow(Self.target, liveResizeEdges: edges, now: 1900)
+        #expect(core.resizeDue(now: 1901) == [.send(.resize(width: 1600, height: 1000, scale: 2))])
+    }
+
+    /// The Resize goes ahead of the decoder's set-up, which awaits: a newer one can't pass it.
+    @Test func theFirstStreamConfigsResizeGoesBeforeTheDecoder() {
+        var core = HandshakeTests.core()
+        _ = core.receive(HandshakeTests.helloAck(), payloadLength: 0, now: 0)
+        core.setViewTarget(Self.target, now: 0)
+        let actions = core.receive(.streamConfig(HandshakeTests.config), payloadLength: 0, now: 600)
+        #expect(actions.first == .send(.resize(width: 1600, height: 1000, scale: 2)))
+    }
+
+    @Test func theCoreHoldsResizesDuringALiveResize() {
+        var core = streaming()
+        core.setLiveResize(true)
+        core.setViewTarget(Self.target, now: 0)
+        #expect(!core.tick(now: 2000).contains(.send(.resize(width: 1600, height: 1000, scale: 2))))
+        core.setLiveResize(false)
+        #expect(core.resizeDue(now: 2001) == [.send(.resize(width: 1600, height: 1000, scale: 2))])
     }
 
     /// Nothing after the end.
@@ -238,6 +340,8 @@ import Testing
 
     @Test func theTickSendsADueResize() {
         var core = streaming()
+        core.setViewTarget(ViewTarget(width: 1400, height: 900, backingScale: 2, textFactor: 1), now: 0)
+        _ = core.resizeDue(now: 0)
         core.setViewTarget(Self.target, now: 1000)
         #expect(!core.tick(now: 1100).contains(.send(.resize(width: 1600, height: 1000, scale: 2))))
         #expect(core.tick(now: 1200).contains(.send(.resize(width: 1600, height: 1000, scale: 2))))
@@ -254,7 +358,8 @@ import Testing
     }
 
     /// The server's quality ladder halved the stream (scale_milli 1000 for an output at 2×,
-    /// upstream `stream_config`): the virtual screen is already 1600×1000 at 2×, so nothing goes.
+    /// upstream `stream_config`): the virtual screen is already 1600×1000 at 2×, so no Resize
+    /// goes, and the picture held for it shows.
     @Test func aLadderedStreamStillAnswersTheTarget() {
         var core = HandshakeTests.core()
         let headless = SessionInfo(headless: true, output: "gliff-1")
@@ -265,6 +370,6 @@ import Testing
         (config.viewWidth, config.viewHeight) = (1600, 1000)
         _ = core.receive(.streamConfig(config), payloadLength: 0, now: 0)
         core.setViewTarget(ViewTarget(width: 1600, height: 1000, backingScale: 2, textFactor: 1), now: 0)
-        #expect(core.resizeDue(now: 200) == [])
+        #expect(core.resizeDue(now: 200) == [.status(.pictureHeld(false))])
     }
 }

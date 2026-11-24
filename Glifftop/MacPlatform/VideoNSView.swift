@@ -24,7 +24,7 @@ final class VideoNSView: NSView {
     static let cursorLogger = Logger(subsystem: "me.cbyrd.Glifftop", category: "cursor")
 
     /// Fits the window when it changes (and once the view is in a window). Each session gets its
-    /// own view: StreamingView exists only while streaming. The sizing is the session's, set
+    /// own view: StreamingView exists only while a picture is shown. The sizing is the session's, set
     /// once, so a later view from the server never resizes the window; a reconnect's (with
     /// `fitsWindow` off) changes only what Actual Size fits.
     var fit: Fit? {
@@ -280,10 +280,7 @@ final class VideoNSView: NSView {
     }
 
     /// The drawable's size: the view's bounds in backing pixels.
-    private func drawableSize() -> PixelSize {
-        let backing = convertToBacking(bounds).size
-        return PixelSize(width: Int(backing.width.rounded()), height: Int(backing.height.rounded()))
-    }
+    private func drawableSize() -> PixelSize { backingPixels() }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -358,6 +355,14 @@ final class VideoNSView: NSView {
         commandBuffer.present(drawable)
         commandBuffer.commit()
         tracker.drew(generation: latest.generation, drawable: size, view: view, scaleToFit: scaleToFit)
+    }
+
+    /// The size a live resize ended on, laid out and reported now, ahead of its end
+    /// (`LiveResizeTracker`).
+    override func viewDidEndLiveResize() {
+        super.viewDidEndLiveResize()
+        window?.layoutIfNeeded()
+        reportTarget(drawableSize())
     }
 
     /// Tells `onTarget` of a new drawable size or backing scale, once fitted. Every tick, so

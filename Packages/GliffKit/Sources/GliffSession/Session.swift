@@ -54,11 +54,13 @@ public actor Session {
     /// The StreamConfig in force, as received, for a recording started mid-stream.
     private var config: Frame?
     /// The window's latest size and scale, from any thread (latest wins).
-    private nonisolated let viewTarget = Mutex<ViewTarget?>(nil)
+    nonisolated let viewTarget = Mutex<ViewTarget?>(nil)
+    /// The window's live resize's starts (true) and ends, from any thread, in order, until taken.
+    nonisolated let liveResizeEdges = Mutex<[Bool]>([])
     /// Numbers each `probe()` and `withdrawProbe()` as it's called, for `Liveness` to order.
     nonisolated let probeCalls = Mutex<UInt64>(0)
     /// Sends a Resize once the latest target has settled.
-    private var resizeWake: Task<Void, Never>?
+    var resizeWake: Task<Void, Never>?
     /// The session's clipboard, when the app shares it (`Session+Clipboard.swift`).
     public nonisolated let clipboard: ClipboardBridge?
     /// Where the bridge's messages go: straight to the writer, so an offer is queued there
@@ -132,30 +134,6 @@ public actor Session {
     /// only if what it ends went (`InputGate`); a keymap always. Nothing is kept once the session has ended.
     public nonisolated func send(_ input: InputMessage) {
         inputs.append(input)
-    }
-
-    /// The window's size in pixels, its backing scale and text size, from any thread. The
-    /// latest goes to the server as a Resize once it has stayed unchanged for a moment and
-    /// video is streaming (`ResizeRules`).
-    public nonisolated func setViewTarget(_ target: ViewTarget) {
-        viewTarget.withLock { $0 = target }
-        Task { await self.takeViewTarget() }
-    }
-
-    private func takeViewTarget() {
-        guard !core.isFinished, let target = viewTarget.withLock({ $0 }) else { return }
-        core.setViewTarget(target, now: Self.now())
-        resizeWake?.cancel()
-        // A little past the settle time; the tick sends it too, should this wake be lost.
-        resizeWake = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(ResizeRules.settle + 20))
-            guard !Task.isCancelled else { return }
-            await self?.resizeIfDue()
-        }
-    }
-
-    private func resizeIfDue() async {
-        await perform(core.resizeDue(now: Self.now()))
     }
 
     /// Records the raw stream for `duration`, from the next keyframe (asked for now).
@@ -390,6 +368,7 @@ public actor Session {
         case .handshaking: "handshaking"
         case .waitingForVideo: "waiting for video"
         case .streaming: "streaming"
+        case .pictureHeld(let on): on ? "picture held" : "picture shown"
         case .stats: nil
         case .interrupted(let on): on ? "interrupted" : "resumed"
         case .clipboardOffer, .clipboardActivity: nil
