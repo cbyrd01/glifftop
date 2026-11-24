@@ -130,6 +130,24 @@
             #expect(text.contains(sshd.directory.appending(path: "id_enc").path))
         }
 
+        /// A master that doesn't ask (`asking` nil, as without the helper) runs under BatchMode,
+        /// and an unknown key fails as one.
+        @Test func anUnknownKeyWithNoOneToAskFails() async throws {
+            let sshd = try LoopbackSSHD()
+            defer { sshd.stop() }
+            let arguments = try ["-F", sshd.config(identity: "id")]
+            let target = try SSHTarget(LoopbackSSHD.alias)
+            let command = SSHMasterCommand(
+                target: target, socket: sshd.directory.appending(path: "m").path, sshArguments: arguments,
+                asking: nil)
+            let failed = await failure {
+                try await SystemSSHConnection.open(
+                    command: command, executable: URL(filePath: SSHCommand.executable))
+            }
+            #expect(failed == .unknownHostKey)
+            #expect(sshd.knownHosts.isEmpty)
+        }
+
         @Test func noQuestionsLeaveNoBridge() async throws {
             let sshd = try LoopbackSSHD()
             defer { sshd.stop() }

@@ -26,6 +26,30 @@
             }
         }
 
+        /// Fails its connect as a shared connection's sign-in does.
+        struct FailingTransport: Transport {
+            func connect() async throws(TransportError) -> any ByteConnection {
+                throw .exited(status: 255, failure: .hostKeyUnchecked)
+            }
+        }
+
+        /// A connect that fails ends the session as a failure to connect, with ssh's reason.
+        @Test func aFailedConnectEndsWithItsReason() async {
+            let session = Session(
+                transport: FailingTransport(),
+                configuration: SessionConfiguration(maxWidth: 5120, maxHeight: 2880), decoder: SpyDecoder())
+            let runner = Task { await session.run() }
+            var end: SessionEnd?
+            for await status in session.status {
+                if case .ended(let ended) = status {
+                    end = ended
+                    break
+                }
+            }
+            await runner.value
+            #expect(end == .connectFailed(.hostKeyUnchecked))
+        }
+
         @Test func aDisconnectCancelsTheConnect() async {
             let transport = SlowTransport()
             let session = Session(
