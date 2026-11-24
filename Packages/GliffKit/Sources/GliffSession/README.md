@@ -37,8 +37,10 @@ the feature seam.
   connecting, `disconnect()` cancels that connect instead (`TransportError.cancelled`).
 - **Resize:** `Session.setViewTarget(_:)` takes the window's size in pixels, its backing
   scale, text factor (`TextSize`) and resolution (`VirtualResolution`), as a `ViewTarget`,
-  from any thread, latest wins. `ResizeRules` sends a Resize once the target has stayed unchanged for
-  200 ms and video is streaming (a wake just past the settle time, the tick as backup): no
+  from any thread, latest wins. `ResizeRules` sends a Resize while video is streaming: the
+  first one it can send at once; none during a live resize, and the size it ended on at once;
+  any other once it has stayed unchanged for 200 ms (a wake just past the settle time, the
+  tick as backup). No
   smaller than 320×240; a mirror's scale the backing scale (0.5–4), a virtual screen's the
   backing scale times the text factor (1–4); a virtual screen's size and scale then times
   its resolution's factor (½ for Standard on a Retina display whose window at ½ still fits

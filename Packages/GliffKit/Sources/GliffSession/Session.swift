@@ -135,8 +135,8 @@ public actor Session {
     }
 
     /// The window's size in pixels, its backing scale and text size, from any thread. The
-    /// latest goes to the server as a Resize once it has stayed unchanged for a moment and
-    /// video is streaming (`ResizeRules`).
+    /// latest goes to the server as a Resize while video is streaming, when `ResizeRules`
+    /// says.
     public nonisolated func setViewTarget(_ target: ViewTarget) {
         viewTarget.withLock { $0 = target }
         Task { await self.takeViewTarget() }

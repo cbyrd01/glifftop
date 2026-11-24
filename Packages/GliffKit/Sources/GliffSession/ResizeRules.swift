@@ -36,8 +36,12 @@ public struct ViewTarget: Equatable, Sendable {
     }
 }
 
-/// When a `ViewTarget` goes to the server as a Resize (upstream `request_resize`, plus a
-/// settle delay so a live drag sends once it pauses):
+/// When a `ViewTarget` goes to the server as a Resize (upstream `request_resize`):
+/// - the session's first target it can send at once (the server's screen starts at its own
+///   default);
+/// - none during a live resize, and the size it ended on at once;
+/// - any other once it has stayed unchanged for `settle` (full screen, zoom, a pause in a
+///   drag the window doesn't report);
 /// - nothing smaller than the server takes (320×240);
 /// - a virtual screen's scale is the backing scale times the text factor, 1–4 (never below
 ///   the Mac's 1×); a mirror's is the backing scale, 0.5–4 (the server ignores it there);
@@ -63,44 +67,72 @@ struct ResizeRules {
     private var target: ViewTarget?
     private var changedAt: UInt64 = 0
     private var lastSent: View?
+    /// A target has been weighed: the next ones wait for the settle.
+    private var weighed = false
+    private var liveResize = false
+    /// The target in hand is the one a live resize ended on: it goes without the settle.
+    private var endedDrag = false
 
     mutating func set(_ target: ViewTarget, now: UInt64) {
         guard target != self.target else { return }
         self.target = target
         changedAt = now
+        endedDrag = false
+    }
+
+    /// The window's live resize (a drag of its edge) starts or ends.
+    mutating func setLiveResize(_ on: Bool) {
+        guard on != liveResize else { return }
+        liveResize = on
+        if !on { endedDrag = true }
     }
 
     /// The Resize to send now, if any; it is then recorded as sent.
     /// `pipeline` is the stream's, for Automatic resolution (nil before it's known).
     mutating func due(now: UInt64, headless: Bool, view: View, pipeline: VideoPipeline?) -> ClientMessage? {
         // A clock step backwards counts as settled rather than waiting it out.
-        guard let target, now < changedAt || now - changedAt >= Self.settle,
-            target.width >= Self.minimum.width, target.height >= Self.minimum.height,
-            // Never equal to what was sent, so it would go every tick.
+        guard !liveResize, let target,
+            !weighed || endedDrag || now < changedAt || now - changedAt >= Self.settle,
+            let request = Self.request(for: target, headless: headless, pipeline: pipeline)
+        else { return nil }
+        (weighed, endedDrag) = (true, false)
+        guard request != lastSent, !Self.shows(request, view: view, headless: headless) else { return nil }
+        lastSent = request
+        return .resize(width: request.width, height: request.height, scale: request.scale)
+    }
+
+    /// Whether a target is in hand and leaves nothing to ask for: the server's view is what it
+    /// asks, or it can't be sent.
+    func isSatisfied(headless: Bool, view: View, pipeline: VideoPipeline?) -> Bool {
+        guard let target else { return false }
+        guard let request = Self.request(for: target, headless: headless, pipeline: pipeline) else {
+            return true
+        }
+        return Self.shows(request, view: view, headless: headless)
+    }
+
+    /// What `target` asks the server for; nil for one too small, or whose scale isn't a
+    /// finite number (it would never equal what was sent, so it would go every tick).
+    private static func request(for target: ViewTarget, headless: Bool, pipeline: VideoPipeline?) -> View? {
+        guard target.width >= minimum.width, target.height >= minimum.height,
             target.backingScale.isFinite, target.textFactor.isFinite
         else { return nil }
-        let request: View
-        if headless {
-            let r = target.resolution.factor(
-                pipeline: pipeline, backingScale: target.backingScale, width: target.width,
-                height: target.height)
-            let scale = ViewTarget.virtualScale(
-                backingScale: target.backingScale, textFactor: target.textFactor)
-            request = View(
-                width: UInt32(Double(target.width) * r), height: UInt32(Double(target.height) * r),
-                scale: Float(scale * r))
-        } else {
-            request = View(
+        guard headless else {
+            return View(
                 width: target.width, height: target.height,
                 scale: Float(min(max(target.backingScale, 0.5), 4)))
         }
-        guard request != lastSent else { return nil }
-        if view.width == request.width, view.height == request.height,
-            !headless || abs(view.scale - request.scale) < 0.005
-        {
-            return nil
-        }
-        lastSent = request
-        return .resize(width: request.width, height: request.height, scale: request.scale)
+        let r = target.resolution.factor(
+            pipeline: pipeline, backingScale: target.backingScale, width: target.width, height: target.height)
+        let scale = ViewTarget.virtualScale(backingScale: target.backingScale, textFactor: target.textFactor)
+        return View(
+            width: UInt32(Double(target.width) * r), height: UInt32(Double(target.height) * r),
+            scale: Float(scale * r))
+    }
+
+    /// Whether `view` is `request`: a mirror's scale isn't the server's to change.
+    private static func shows(_ request: View, view: View, headless: Bool) -> Bool {
+        view.width == request.width && view.height == request.height
+            && (!headless || abs(view.scale - request.scale) < 0.005)
     }
 }
