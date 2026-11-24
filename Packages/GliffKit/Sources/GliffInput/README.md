@@ -64,12 +64,14 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
 - **`CursorImage`:** a remote cursor shape the app can show, checked strictly: each
   side 1–1024, the payload exactly `width × height × 4` premultiplied BGRA bytes, the hotspot
   inside. A shape with nothing to show (all clear, or one colour) is valid but not visible.
-  Either way the app shows the arrow (nothing on a headless session, whose video carries the
-  pointer). `pointsPerPixel` sizes it so a remote pixel matches a picture pixel on screen
-  (nil without sizes).
+  Either way the app shows the arrow (nothing when the video carries the pointer).
+  `pointsPerPixel` sizes it so a remote pixel matches a picture pixel on screen (nil without
+  sizes).
 - **`CursorLook`:** what the pointer looks like over the picture: the remote's visible shape at
-  its size only while captured; captured without one, hidden on a headless session, else the
-  arrow; released, the arrow.
+  its size only while captured; captured without one, hidden when the video carries the
+  pointer (`videoHasPointer`: a virtual screen, this session's or another's mirrored, or a
+  monitor of Hyprland's headless backend named `HEADLESS-N`, such as a container's, whose
+  cursor is drawn into the picture), else the arrow; released, the arrow.
 - **`CursorClaim`:** the cursor the picture last showed. When the pointer stops being the
   picture's, the arrow replaces it only if it is still the cursor shown (by identity), never
   one set since by the toolkit, an overlay or another window; not during a live resize. Every

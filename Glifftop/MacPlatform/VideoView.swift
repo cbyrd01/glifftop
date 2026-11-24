@@ -7,7 +7,7 @@ import SwiftUI
 /// `scaleToFit`), the window fitted by `sizing` (once known) when it changes or `fitRequest` does
 /// (never while it `sharesWindow` with other tabs), the
 /// drawable's size and backing scale to `onTarget` from then on, and over the picture the
-/// cursor for `cursor`'s shapes, whether input is `captured` and the session headless.
+/// cursor for `cursor`'s shapes, whether input is `captured` and the video carries the pointer.
 struct VideoView: NSViewRepresentable {
     let slot: PictureSlot
     let renderer: PictureRenderer
@@ -28,7 +28,7 @@ struct VideoView: NSViewRepresentable {
     let capture: CaptureController
     let cursor: CursorSlot
     let captured: Bool
-    let headless: Bool
+    let videoHasPointer: Bool
 
     func makeNSView(context: Context) -> VideoNSView {
         VideoNSView(slot: slot, renderer: renderer)
@@ -45,6 +45,6 @@ struct VideoView: NSViewRepresentable {
         nsView.onTarget = onTarget
         nsView.onPointer = capture.pointer
         capture.macPointer = { [weak nsView] in nsView?.macPointerOverPicture() }
-        nsView.updateCursor(slot: cursor, captured: captured, headless: headless)
+        nsView.updateCursor(slot: cursor, captured: captured, videoHasPointer: videoHasPointer)
     }
 }

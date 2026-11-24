@@ -33,7 +33,9 @@ let package = Package(
             resources: [.copy("Fixtures")],
             swiftSettings: strictSettings
         ),
-        .target(name: "GliffTransport", exclude: ["README.md"], swiftSettings: strictSettings),
+        .target(
+            name: "GliffTransport", dependencies: ["GliffProtocol"], exclude: ["README.md"],
+            swiftSettings: strictSettings),
         .testTarget(
             name: "GliffTransportTests", dependencies: ["GliffTransport", "GliffTestSupport"],
             swiftSettings: strictSettings),

@@ -18,6 +18,8 @@ client and server message types.
   `ServerMessage.checkPayload(carried:)` applies upstream's payload rules: each declared
   section at most 64 MiB, together no more than the frame carries (fewer is fine; the rest
   is skipped). A malformed cursor shape (`CursorShape.payloadFits`) declares nothing.
+- `OutputName.isVirtualScreen(_:)`: whether a Hyprland output is a gliff-server virtual
+  screen (`gliff-<pid>`, upstream `session.rs`), any session's.
 - Internal: `CBORReader`, `CBORWriter` and `FieldReader` (minicbor's field-list rules).
 
 ## Encoding rules (minicbor, as upstream v0.4.3 writes them)

@@ -2,13 +2,13 @@ import AppKit
 import GliffInput
 import GliffSession
 
-/// The session's cursor shapes, and whether input is captured and the session headless: the
-/// pointer's look over the picture (`CursorLook`), as an `NSCursor`.
+/// The session's cursor shapes, and whether input is captured and the video carries the
+/// pointer: the pointer's look over the picture (`CursorLook`), as an `NSCursor`.
 final class RemoteCursor {
     /// Another session's shapes: what was made from the last one's doesn't carry over.
     var slot: CursorSlot? { didSet { if slot !== oldValue { made = nil } } }
     var captured = false
-    var headless = false
+    var videoHasPointer = false
     /// The last shape made into a cursor, and at what size: made again only when either changes.
     private var made: (generation: UInt64, pointsPerPixel: Double, cursor: NSCursor?)?
 
@@ -19,7 +19,8 @@ final class RemoteCursor {
     func current(pointsPerPixel: Double?) -> NSCursor {
         let latest = slot?.latest
         switch CursorLook.choose(
-            captured: captured, headless: headless, image: latest?.image, pointsPerPixel: pointsPerPixel)
+            captured: captured, videoHasPointer: videoHasPointer, image: latest?.image,
+            pointsPerPixel: pointsPerPixel)
         {
         case .arrow: return .arrow
         case .hidden: return hidden

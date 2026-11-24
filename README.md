@@ -33,7 +33,8 @@ The name combines *gliff*, the Scots word for a glimpse, with *desktop* and *cli
 
 **Known, upstream:** Hyprland 0.56.2 shares every cursor image fully transparent, so over a
 monitor the Mac arrow shows. A virtual screen draws the host's own pointer into the picture,
-so there the host's pointer shows, a frame behind the Mac's.
+as does a monitor of Hyprland's headless backend (`HEADLESS-N`, such as a container's), so
+there the Mac pointer is hidden and the host's shows, a frame behind.
 
 ## Requirements
 

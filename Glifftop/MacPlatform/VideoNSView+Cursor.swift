@@ -37,13 +37,14 @@ extension VideoNSView {
         refreshCursor()
     }
 
-    /// The session's shapes, whether input is captured and the session headless: the cursor
-    /// changes at once if the pointer is over the picture.
-    func updateCursor(slot: CursorSlot, captured: Bool, headless: Bool) {
-        guard cursor.slot !== slot || cursor.captured != captured || cursor.headless != headless else {
+    /// The session's shapes, whether input is captured and the video carries the pointer: the
+    /// cursor changes at once if the pointer is over the picture.
+    func updateCursor(slot: CursorSlot, captured: Bool, videoHasPointer: Bool) {
+        guard cursor.slot !== slot || cursor.captured != captured || cursor.videoHasPointer != videoHasPointer
+        else {
             return
         }
-        (cursor.slot, cursor.captured, cursor.headless) = (slot, captured, headless)
+        (cursor.slot, cursor.captured, cursor.videoHasPointer) = (slot, captured, videoHasPointer)
         refreshCursor()
     }
 

@@ -1,4 +1,5 @@
 import Foundation
+import GliffProtocol
 
 /// Reads `hyprctl -j monitors` from the host, as untrusted input: a JSON array of
 /// monitors. A monitor whose name gliff-server couldn't take, with a field missing or of the
@@ -35,15 +36,6 @@ public enum ScreenListParser {
             && name != "auto"
     }
 
-    /// A gliff-server virtual screen (upstream `session.rs`: `gliff-<pid>`), this session's or
-    /// another's: it goes when its session ends, so it isn't offered.
-    static func isVirtualScreen(_ name: String) -> Bool {
-        let prefix = "gliff-"
-        guard name.hasPrefix(prefix) else { return false }
-        let pid = name.dropFirst(prefix.count)
-        return !pid.isEmpty && pid.allSatisfy { ("0"..."9").contains($0) }
-    }
-
     /// One array element: a monitor, or nil when it isn't one that can be shown.
     private struct Entry: Decodable {
         let monitor: Monitor?
@@ -57,8 +49,10 @@ public enum ScreenListParser {
         let transform: Int?
         let focused, disabled: Bool?
 
+        /// A virtual screen, this session's or another's, isn't offered: it goes when its
+        /// session ends.
         var screen: RemoteScreen? {
-            guard disabled != true, isValidName(name), !isVirtualScreen(name),
+            guard disabled != true, isValidName(name), !OutputName.isVirtualScreen(name),
                 sides.contains(width), sides.contains(height),
                 scales.contains(scale)
             else { return nil }
