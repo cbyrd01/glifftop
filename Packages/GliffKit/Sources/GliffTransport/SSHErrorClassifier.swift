@@ -71,7 +71,8 @@ public enum SSHErrorClassifier {
     /// Longest remote line shown to the person.
     static let maxShownLength = 200
 
-    private static let hidden: Set<Unicode.GeneralCategory> = [
+    /// What remote text never shows: control and format characters, line and paragraph breaks.
+    static let hidden: Set<Unicode.GeneralCategory> = [
         .control, .format, .lineSeparator, .paragraphSeparator,
     ]
 

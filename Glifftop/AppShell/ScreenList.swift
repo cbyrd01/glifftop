@@ -15,15 +15,16 @@ import Observation
     /// so it compares equal to a session's `SSHTarget.value`.
     @ObservationIgnored private(set) var host: String?
     @ObservationIgnored private var listing: Task<Void, Never>?
+    /// The window that answers a listing's sign-in questions.
+    @ObservationIgnored var asker: (any SignInAsker)?
     /// Lists a host's monitors on the app's shared connection to it (a closure, so another way
     /// of listing can replace it).
-    @ObservationIgnored private let lister:
-        @Sendable (SSHTarget) async throws(ScreenListError) -> [RemoteScreen]
+    @ObservationIgnored private let lister: Lister
 
-    init(
-        lister: @escaping @Sendable (SSHTarget) async throws(ScreenListError) -> [RemoteScreen] = ScreenList
-            .overSSH
-    ) {
+    typealias Lister =
+        @Sendable (SSHTarget, (any SignInAsker)?) async throws(ScreenListError) -> [RemoteScreen]
+
+    init(lister: @escaping Lister = ScreenList.overSSH) {
         self.lister = lister
     }
 
@@ -44,11 +45,11 @@ import Observation
             return
         }
         isListing = true
-        let lister = lister
+        let (lister, asker) = (lister, asker)
         listing = Task {
             let result: Result<[RemoteScreen], ScreenListError>
             do throws(ScreenListError) {
-                result = .success(try await lister(target))
+                result = .success(try await lister(target, asker))
             } catch {
                 result = .failure(error)
             }
@@ -107,7 +108,9 @@ import Observation
     private static func key(_ host: String) -> String { host.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     /// The ssh lister: the host's list command, on the app's shared connection to it.
-    static func overSSH(_ target: SSHTarget) async throws(ScreenListError) -> [RemoteScreen] {
-        try await ScreenLister(connections: AppConnections.shared, target: target).screens()
+    static func overSSH(
+        _ target: SSHTarget, asker: (any SignInAsker)?
+    ) async throws(ScreenListError) -> [RemoteScreen] {
+        try await ScreenLister(connections: AppConnections.shared, target: target, asker: asker).screens()
     }
 }

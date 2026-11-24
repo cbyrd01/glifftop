@@ -121,6 +121,8 @@ import os
     var sheetScreen: ScreenChoice?
     /// The host's monitors, from Get Screens (or View ▸ Screen's Refresh Screen List).
     let screenList = ScreenList()
+    /// The window's sign-in questions, from its sessions, reconnects and Get Screens.
+    let signIn = SignInPrompter()
     /// The video view's drawable size in pixels, last reported (with `backingScale`), and
     /// whether the window is in a live resize: no view reads them.
     @ObservationIgnored var viewPixels: PixelSize?
@@ -182,6 +184,7 @@ import os
     private let wake = WakeObserver()
 
     init() {
+        screenList.asker = signIn.queue
         wake.onWake = { [weak self] in self?.woke() }
         wake.onNetwork = { [weak self] in self?.networkChanged($0) }
     }
@@ -277,7 +280,8 @@ import os
         // goes as a Keymap straight after, queued before the session runs.
         let session = Session(
             transport: AppConnections.session(
-                on: destination, serverArguments: screen.serverArguments, fresh: asksAgain(reconnecting)),
+                on: destination, serverArguments: screen.serverArguments, fresh: asksAgain(reconnecting),
+                asker: signIn.queue),
             configuration: SessionConfiguration(maxWidth: pixels.width, maxHeight: pixels.height),
             decoder: decoder, cursor: cursor, pointer: remotePointer,
             clipboard: ClipboardSetup(source: PasteboardSource()), observer: protocolObserver)
@@ -344,10 +348,12 @@ import os
         Task { await session.disconnect(abandoningAQuietLink: abandoningAQuietLink) }
     }
 
-    /// Says Bye and waits for the session to end and ssh to exit, for quitting. Bounded: the
-    /// transport stops ssh with SIGTERM, then SIGKILL, within a few seconds.
+    /// Says Bye and waits for the session to end and ssh to exit, for closing the window and
+    /// quitting. Bounded: the transport stops ssh with SIGTERM, then SIGKILL, within a few
+    /// seconds. A listing still running stops too: its sign-in questions have no window left.
     func shutdown() async {
         quitting = true
+        screenList.stop()
         stopSession()
         await running?.value
     }

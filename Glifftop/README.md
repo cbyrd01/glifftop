@@ -86,7 +86,15 @@ the clipboard (`ClipboardSharing`: Not shared by default, Shared, or Shared incl
 step up asks first; at once for an open session following Settings. A machine may have its
 own, which the options form and the toolbar's button set; Settings' doesn't override it, and
 every window to the machine follows it), in `UserDefaults` through
-`AppSettings`) and (Debug builds) the Debug menu: Protocol Inspector (⌥⌘I: `InspectorView`, a
+`AppSettings`), the sign-in's questions (`SignInPrompter`, one per window, its
+`SignInQueue` the asker for the window's sessions, reconnects and Get Screens, the machine
+sheet's included; one question at a time as a sheet, on the machine sheet while that shows:
+`HostKeySheet`, a key ssh doesn't know (its type and fingerprint, selectable, and how to check
+it) or ssh's yes/no question about one, with Deny (Escape) and Allow and no default;
+`SecretSheet`, a passphrase, PIN or password, or the host's own question set apart under
+"HOST asks:", in a secure field that Show turns to text, with Continue and Cancel, the field
+emptied as the answer goes; a notice, such as a security key's touch, with no buttons, until
+ssh is done; only an answer, or the question ending, dismisses one) and (Debug builds) the Debug menu: Protocol Inspector (⌥⌘I: `InspectorView`, a
 section per open window titled as its tab, with each message type's count, bytes, last seen
 and rate per direction, and the last 200 messages, refreshed once a second, with Pause and
 Clear; `InspectorModel` holds a `ProtocolTally` per window behind a `Mutex`, filled by the
@@ -115,7 +123,8 @@ and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes
   lost on the end screen); `SessionEndedView` after
   an end the person didn't choose, with Try Again, Edit Machine… and Close: Disconnect and
   Cancel go straight back to the machines), `AppConnections` (the app's one `HostConnections`:
-  each session and Get Screens is a channel on its host's one signed-in ssh), `ScreenList`
+  each session and Get Screens is a channel on its host's one signed-in ssh, which asks its
+  questions through the bundle's askpass helper), `ScreenList`
   (the host's monitors, listed through a lister closure, by default on the host's shared
   connection, and never saved:
   one listing at a time, stopped (its error dismissed) when a session starts; a refresh keeps the list until the
@@ -174,6 +183,8 @@ AppKit adapters for what SwiftUI can't do:
   group's size: no session sizes it, a mirror draws fitted (`SessionModel.sharesWindow`), the
   machines stay resizable and Actual Size is off; a mirror left alone (torn off) is fitted
   again;
+- `AttentionTracker`: a new sign-in question selects its window's tab and brings it forward
+  while Glifftop is active, else bounces the Dock icon once (`requestUserAttention`);
 - `LiveResizeTracker`: the window's live resize (a drag of its edge), for
   `SessionModel.liveResizeChanged`, which tells the session (no Resize during one) and any
   session started during one. It reports the end a turn after AppKit's, once the video view

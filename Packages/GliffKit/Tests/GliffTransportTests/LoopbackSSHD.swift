@@ -14,6 +14,9 @@
         let directory: URL
         let port: Int
         private let process: Process
+        /// Signalled as sshd exits: `waitUntilExit` hears of the exit only through the run loop
+        /// of the thread that started it, which a concurrency thread doesn't run.
+        private let exited = DispatchSemaphore(value: 0)
 
         /// Starts sshd with `banner` shown before sign-in, and waits until it listens.
         init(banner: String? = nil) throws {
@@ -59,6 +62,7 @@
             process.arguments = ["-D", "-e", "-f", base.appending(path: "sshd_config").path]
             process.standardError = try FileHandle(forWritingTo: base.appending(path: "sshd.log"))
             process.standardInput = FileHandle.nullDevice
+            process.terminationHandler = { [exited] _ in exited.signal() }
             try process.run()
             self.process = process
             for _ in 0..<100 where !log.contains("Server listening") { Thread.sleep(forTimeInterval: 0.05) }
@@ -117,7 +121,7 @@
 
         func stop() {
             process.terminate()
-            process.waitUntilExit()
+            exited.wait()
             try? FileManager.default.removeItem(at: directory)
         }
 
