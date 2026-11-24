@@ -1,8 +1,8 @@
 #!/bin/sh
 # Stop: if code changed since HEAD, what it belongs to must still build: GliffKit (tests
-# included) for package changes, the app for Glifftop/ or Config/ changes. Skipped when
-# none of that code changed since the last stop that built cleanly. The full gate, scripts/test.sh,
-# runs before every commit.
+# included) for package changes, the app for Glifftop/, glifftop-askpass/, Config/ or project
+# changes. Skipped when none of that code changed since the last stop that built cleanly.
+# The full gate, scripts/test.sh, runs before every commit.
 . "$(dirname "$0")/lib.sh"
 
 eval "$(fields cwd stop_hook_active)"
@@ -12,13 +12,13 @@ cd_project || exit 0
 
 # Only what the two builds read. -z: git otherwise quotes non-ASCII names, which no pattern
 # below would match.
-set -- Packages/GliffKit Glifftop Config Glifftop.xcodeproj
+set -- Packages/GliffKit Glifftop glifftop-askpass Config Glifftop.xcodeproj
 untracked=$(git ls-files --others --exclude-standard -z -- "$@" 2>/dev/null | tr '\0' '\n')
 changed=$( (git diff HEAD --name-only -z -- "$@" 2>/dev/null | tr '\0' '\n'; printf '%s\n' "$untracked"))
 touched() { printf '%s\n' "$changed" | grep -Eq "$1"; }
 kit=false app=false
 touched '^Packages/GliffKit/.*\.swift$' && kit=true
-touched '^Glifftop/.*\.swift$|^Config/.*\.xcconfig$' && app=true
+touched '^Glifftop/.*\.swift$|^glifftop-askpass/.*\.swift$|^Config/.*\.xcconfig$|^Glifftop\.xcodeproj/project\.xcproj$' && app=true
 $kit || $app || exit 0
 
 # A fingerprint of the toolchain and those paths: Xcode's version, HEAD, their tracked

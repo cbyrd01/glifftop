@@ -60,6 +60,14 @@ printf '\000\003' >Glifftop/icon.bin
 stop; expect "a second binary change builds again" 0 "swift xcodebuild "
 git add -A && commit next
 stop; expect "after a commit, a clean tree builds nothing" 0 ""
+mkdir -p glifftop-askpass Glifftop.xcodeproj/xcuserdata
+echo a >glifftop-askpass/main.swift
+stop; expect "the askpass helper's change builds the app" 0 "xcodebuild "
+echo a >Glifftop.xcodeproj/project.xcproj
+stop; expect "a project change builds the app" 0 "xcodebuild "
+git add -A && commit helper
+echo a >Glifftop.xcodeproj/xcuserdata/state
+stop; expect "Xcode's per-user state: skipped" 0 ""
 
 [ "$fail" -eq 0 ] && echo "stop-gate: all cases passed"
 exit "$fail"
