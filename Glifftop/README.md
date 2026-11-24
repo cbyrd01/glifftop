@@ -24,6 +24,17 @@ line with its `ictool` (into `.build/`, which git ignores):
   --rendition Default --width 512 --height 512 --scale 1
 ```
 
+## The askpass helper
+
+`glifftop-askpass/` (beside this folder) is the `glifftop-askpass` tool target: one `main`
+calling `AskpassHelper.run()`. The app's Copy Files phase signs it into
+`Glifftop.app/Contents/Helpers`, and ssh runs it to ask its sign-in questions through the app.
+
+- **Owns:** nothing but that `main`; its settings are `Config/GlifftopAskpass.xcconfig` (no
+  entitlements, no sandbox).
+- **Imports:** Foundation and GliffKit's `GliffAskpass`, never the app's modules or any other
+  GliffKit library.
+
 ## AppShell
 
 The SwiftUI side of the app: the window, the machines (`MachinesView`: "Connect to a host",

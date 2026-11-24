@@ -38,7 +38,7 @@ let package = Package(
         .target(name: "GliffAskpass", exclude: ["README.md"], swiftSettings: strictSettings),
         // The helper as SwiftPM builds it, for the tests and the live check; the app embeds its own.
         .executableTarget(
-            name: "glifftop-askpass", dependencies: ["GliffAskpass"], exclude: ["README.md"],
+            name: "glifftop-askpass-swiftpm", dependencies: ["GliffAskpass"], exclude: ["README.md"],
             swiftSettings: strictSettings),
         .testTarget(
             name: "GliffAskpassTests", dependencies: ["GliffAskpass"], swiftSettings: strictSettings),

@@ -69,7 +69,7 @@ gliffkit_tests() {
 }
 
 step secrets gitleaks git --redact --no-banner
-step format swift format lint --strict --parallel --recursive Glifftop \
+step format swift format lint --strict --parallel --recursive Glifftop glifftop-askpass \
     Packages/GliffKit/Package.swift Packages/GliffKit/Sources Packages/GliffKit/Tests \
     tools/encode-fixtures/Package.swift tools/encode-fixtures/Sources tools/encode-fixtures/Tests
 step sources scripts/check-sources.sh

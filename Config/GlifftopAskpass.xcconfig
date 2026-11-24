@@ -1,0 +1,18 @@
+// The glifftop-askpass helper tool's own settings, over the project's (Debug or Release, then
+// Shared). Its target sets nothing in the project: scripts/check-xcodeproj.sh. Under a real
+// signing identity it has Shared's hardened runtime; ad-hoc signing, as local builds use, has
+// none.
+
+PRODUCT_BUNDLE_IDENTIFIER = me.cbyrd.Glifftop.askpass
+// A tool has no Info.plist, so its signing identifier is set here.
+OTHER_CODE_SIGN_FLAGS = $(inherited) --identifier $(PRODUCT_BUNDLE_IDENTIFIER)
+// Copied into Glifftop.app/Contents/Helpers by the app's Copy Files phase, never installed.
+SKIP_INSTALL = YES
+// No entitlements, Xcode's own included, and no sandbox, whatever the app gains in Shared: it
+// only connects to the app's socket and writes to its stdout.
+CODE_SIGN_ENTITLEMENTS =
+CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO
+// Else Xcode adds an application identifier, which a Developer ID signature without a profile
+// can't carry.
+ENTITLEMENTS_REQUIRED = NO
+ENABLE_APP_SANDBOX = NO

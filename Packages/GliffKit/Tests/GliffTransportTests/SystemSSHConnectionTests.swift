@@ -81,7 +81,7 @@
 
         /// The helper as SwiftPM builds it (`swift test` builds every target).
         static let helper = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appending(path: ".build/debug/glifftop-askpass")
+            .deletingLastPathComponent().appending(path: ".build/debug/glifftop-askpass-swiftpm")
 
         struct Asker: SignInAsker {
             let answer: @Sendable (SignInQuestion) async -> SignInAnswer

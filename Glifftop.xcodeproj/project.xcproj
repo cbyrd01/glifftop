@@ -21,6 +21,7 @@
       "kind": "group",
       "path": "Config",
       "children": [
+        { "path": "GlifftopAskpass.xcconfig" },
         { "path": "Debug.xcconfig" },
         { "path": "Release.xcconfig" },
         { "path": "Shared.xcconfig" },
@@ -40,12 +41,14 @@
         },
       ],
     },
+    { "kind": "folder", "path": "glifftop-askpass", "target-membership": [ "glifftop-askpass" ] },
     { "kind": "group", "name": "Frameworks" },
     {
       "kind": "group",
       "name": "Products",
       "children": [
         { "path": "<PRODUCTS>/Glifftop.app", "id": "8379598D30AEED33006FA654", "type": "wrapper.application", "index": false },
+        { "path": "<PRODUCTS>/glifftop-askpass", "id": "8387C66730B5E04600898381", "type": "compiled.mach-o.executable", "index": false, "target-membership": [ { "build-phase": "Glifftop/copy/Copy Files", "code-sign-on-copy": true } ] },
       ],
     },
   ],
@@ -59,10 +62,19 @@
         { "name": "Debug", "file": "Config/Debug.xcconfig" },
         { "name": "Release", "file": "Config/Release.xcconfig" },
       ],
+      "dependencies": [
+        "glifftop-askpass",
+      ],
       "build-phases": [
         "compile-sources",
         "frameworks",
         "resources",
+        {
+          "kind": "copy",
+          "name": "Copy Files",
+          "bundle-base-path": "root",
+          "relative-path": "Contents/Helpers",
+        },
       ],
       "package-product-members": [
         {
@@ -90,6 +102,30 @@
         "REGISTER_APP_GROUPS": "YES",
         "STRING_CATALOG_GENERATE_SYMBOLS": "YES",
         "SWIFT_EMIT_LOC_STRINGS": "YES",
+      },
+    }, {
+      "name": "glifftop-askpass",
+      "id": "8387C66630B5E04600898381",
+      "product": "Products/glifftop-askpass",
+      "product-type": "tool",
+      "specialized-configurations": [
+        { "name": "Debug", "file": "Config/GlifftopAskpass.xcconfig" },
+        { "name": "Release", "file": "Config/GlifftopAskpass.xcconfig" },
+      ],
+      "build-phases": [
+        "compile-sources",
+        "frameworks",
+      ],
+      "package-product-members": [
+        {
+          "package": "GliffKit",
+          "product-name": "GliffAskpass",
+          "build-phase": { "build-phase": "frameworks" },
+        },
+      ],
+      "build-settings": {
+        "CODE_SIGN_STYLE": "Automatic",
+        "PRODUCT_NAME": "$(TARGET_NAME)",
       },
     },
   ],

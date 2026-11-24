@@ -1,6 +1,7 @@
 #!/bin/sh
 # Source rules swift-format can't express. Usage: scripts/check-sources.sh [file.swift ...]
-# With no arguments, checks every .swift file in Glifftop/, Packages/GliffKit/{Sources,Tests}
+# With no arguments, checks every .swift file in Glifftop/, glifftop-askpass/,
+# Packages/GliffKit/{Sources,Tests}
 # and tools/encode-fixtures/{Sources,Tests}
 # (run it from the repo root). Fails on:
 #   - print(, debugPrint(, dump( or NSLog( outside Tests/, in code rather than comments
@@ -15,7 +16,7 @@ set -eu
 # NUL-separated so paths with spaces survive.
 swift_files() {
     if [ $# -eq 0 ]; then
-        find Glifftop Packages/GliffKit/Sources Packages/GliffKit/Tests \
+        find Glifftop glifftop-askpass Packages/GliffKit/Sources Packages/GliffKit/Tests \
             tools/encode-fixtures/Sources tools/encode-fixtures/Tests -name '*.swift' -print0
     else
         for f; do
