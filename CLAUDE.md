@@ -252,6 +252,8 @@ GliffKit       Packages/GliffKit/, platform-neutral, one target per module
   GliffTransport  `Transport` protocol; HostConnections: one ssh ControlMaster per host, each
                   session a channel on it (ChannelTransport) running gliff-server --stdio
   GliffProtocol   frame header, minimal CBOR, ClientMessage/ServerMessage; pure, no I/O
+  GliffAskpass    the askpass helper's logic and its wire to the app; the app's helper tool
+                  links only this
   GliffTestSupport  test doubles shared by the test targets (ManualClock); never in the product
 ```
 
