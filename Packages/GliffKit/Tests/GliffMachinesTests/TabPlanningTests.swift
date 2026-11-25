@@ -46,13 +46,12 @@ import Testing
         let titles = TabPlanning.titles([
             TitledTab(machineID: a, name: "omarchy", screen: .named("DP-3")),
             TitledTab(machineID: a, name: "omarchy", screen: .focused, output: "DP-2"),
-            TitledTab(machineID: a, name: "omarchy", screen: .focused),
         ])
-        #expect(titles == ["omarchy · DP-3", "omarchy · DP-2", "omarchy"])
+        #expect(titles == ["omarchy · DP-3", "omarchy · DP-2"])
     }
 
-    /// Only the tabs that aren't mirrors are counted, so a mirror's output being named never
-    /// renumbers another tab.
+    /// A mirror whose monitor is known isn't counted among the machine's tabs; a Focused
+    /// Monitor mirror whose output isn't named yet is, so no two tabs read the same.
     @Test func numberingCountsOnlyTabsWithoutAMonitor() {
         let a = UUID()
         let titles = TabPlanning.titles([
@@ -61,7 +60,17 @@ import Testing
             TitledTab(machineID: a, name: "omarchy", screen: .virtual),
             TitledTab(machineID: a, name: "omarchy", screen: .virtual),
         ])
-        #expect(titles == ["omarchy", "omarchy · DP-3", "omarchy", "omarchy 2"])
+        #expect(titles == ["omarchy", "omarchy · DP-3", "omarchy 2", "omarchy 3"])
+    }
+
+    /// An unsaved host is numbered apart from every saved machine, whatever it is called.
+    @Test func anUnsavedHostIsNumberedApartFromMachines() {
+        let a = UUID()
+        let titles = TabPlanning.titles([
+            TitledTab(machineID: a, name: "omarchy", screen: .named("DP-3")),
+            TitledTab(name: a.uuidString, screen: .named("DP-3")),
+        ])
+        #expect(titles == ["omarchy · DP-3", "\(a.uuidString) · DP-3"])
     }
 
     /// Two mirrors of one monitor (chosen by hand): the second is numbered.
