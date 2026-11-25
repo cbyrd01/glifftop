@@ -83,8 +83,9 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   both may reconnect.
 - **The ControlMaster:** `SSHMasterCommand` builds the system ssh's arguments for one shared
   connection: the master (`SSHCommand`'s options first, then `-o ControlMaster=yes -o
-  ControlPersist=no -S socket -N`), `-O check` and `-O exit`, and a channel through it
-  (`ControlMaster=no`, and `ProxyCommand=/usr/bin/false` so a channel never signs in on its own).
+  ControlPersist=no -S socket -N`), `-O check` and `-O exit`, a channel
+  through it (`ControlMaster=no`, and `ProxyCommand=/usr/bin/false` so a channel never signs in
+  on its own), and `-O forward`.
   `ControlSocketDirectory` (macOS) is where the sockets live: the caches directory's `ssh/`, else
   `/tmp/glifftop-<uid>` when that path is too long for a socket or is refused; each is created
   0700, and refused if it is a symbolic link, not a directory or another user's. Sockets are named
@@ -102,6 +103,13 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   through the socket; the master's own exit, even a clean one, is a lost connection, and
   `close()` ends it with `-O exit`. `SystemSSH.opener(helper:)` is the app's opener for
   `HostConnections`, asking through the asker `HostConnections` gives it; every opener shares one socket directory and one numbering.
+- **The config's port forwards:** every ssh this module starts runs with
+  `ClearAllForwardings=yes` (`SSHCommand`'s options, a channel's), and control requests read no
+  config (`-F none`), so ssh opens none of the config's forwards: one on a busy port would end
+  the master under `ExitOnForwardFailure yes`, or fail a channel, which asks the master for them. `SSHResolvedConfig` reads the `LocalForward`
+  lines (`SSHLocalForward`); once the master is ready, `SystemSSHConnection` asks it for each,
+  off the open's path, always on 127.0.0.1, skipping one it refuses. `RemoteForward`,
+  `DynamicForward` and unix-socket `LocalForward` lines don't apply. Only counts are logged.
 - **Screens:** `ScreenChoice` is what a session shows (the focused monitor, one by name,
   or a virtual screen) as gliff-server's arguments. `ScreenListParser` reads the host's
   `hyprctl -j monitors` as untrusted input into `RemoteScreen`s: at most 1 MiB, names only

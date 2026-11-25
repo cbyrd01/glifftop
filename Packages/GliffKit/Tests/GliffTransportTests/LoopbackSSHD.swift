@@ -68,8 +68,9 @@
             for _ in 0..<100 where !log.contains("Server listening") { Thread.sleep(forTimeInterval: 0.05) }
         }
 
-        /// `ssh_config` for `alias`, signing in with `identity` (`id`, or the encrypted `id_enc`).
-        func config(identity: String) throws -> String {
+        /// `ssh_config` for `alias`, signing in with `identity` (`id`, or the encrypted `id_enc`),
+        /// with `extra` lines (each indented) at the end of its `Host` block.
+        func config(identity: String, extra: [String] = []) throws -> String {
             let path = directory.appending(path: "ssh_config_\(identity)").path
             try Self.write(
                 """
@@ -89,7 +90,7 @@
                   PasswordAuthentication no
                   KbdInteractiveAuthentication no
 
-                """, to: URL(filePath: path))
+                """ + extra.map { "  \($0)\n" }.joined(), to: URL(filePath: path))
             return path
         }
 
@@ -145,20 +146,37 @@
         }
 
         /// A port the kernel just handed out on 127.0.0.1.
-        private static func freePort() throws -> Int {
-            let socket = Darwin.socket(AF_INET, SOCK_STREAM, 0)
-            defer { close(socket) }
+        static func freePort() throws -> Int {
+            let held = try HeldPort()
+            defer { held.close() }
+            return held.port
+        }
+    }
+
+    /// A listening TCP socket on a port the kernel hands out on 127.0.0.1, held until `close`.
+    struct HeldPort {
+        let socket: Int32
+        let port: Int
+
+        init() throws {
+            let fd = Darwin.socket(AF_INET, SOCK_STREAM, 0)
+            socket = fd
             var address = sockaddr_in()
             address.sin_family = sa_family_t(AF_INET)
             address.sin_addr.s_addr = inet_addr("127.0.0.1")
             var length = socklen_t(MemoryLayout<sockaddr_in>.size)
             let bound = withUnsafeMutablePointer(to: &address) { pointer in
                 pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    bind(socket, $0, length) == 0 && getsockname(socket, $0, &length) == 0
+                    bind(fd, $0, length) == 0 && listen(fd, 4) == 0 && getsockname(fd, $0, &length) == 0
                 }
             }
-            guard bound else { throw CocoaError(.featureUnsupported) }
-            return Int(UInt16(bigEndian: address.sin_port))
+            guard bound else {
+                Darwin.close(fd)
+                throw CocoaError(.featureUnsupported)
+            }
+            port = Int(UInt16(bigEndian: address.sin_port))
         }
+
+        func close() { Darwin.close(socket) }
     }
 #endif

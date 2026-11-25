@@ -1,12 +1,14 @@
 /// The ssh invocation that starts `gliff-server --stdio` on the target:
 /// `/usr/bin/ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes -o Compression=no
-/// -o IPQoS=ef [ssh args] -o ServerAliveInterval=10 -o ServerAliveCountMax=6
-/// [-o ConnectTimeout=10] -- <target> gliff-server --stdio [server args]`.
+/// -o IPQoS=ef -o ClearAllForwardings=yes [ssh args] -o ServerAliveInterval=10
+/// -o ServerAliveCountMax=6 [-o ConnectTimeout=10] -- <target> gliff-server --stdio [server args]`.
 ///
 /// - `BatchMode=yes`: never prompt. `StrictHostKeyChecking=yes` comes before any other
 ///   option because ssh keeps the first value it sees, so neither the extra arguments nor
 ///   the person's ssh_config can relax host keys.
 /// - `IPQoS=ef`: OpenSSH 10 reads the old `lowdelay` keyword as no marking at all.
+/// - `ClearAllForwardings=yes`, also before the extra arguments: none of the config's port
+///   forwards is opened (one on a busy port fails the ssh under `ExitOnForwardFailure yes`).
 /// - `ServerAliveInterval=10`, `ServerAliveCountMax=6`: a dead link ends after about a minute,
 ///   not TCP's minutes, while a shorter outage survives. After the extra arguments, which
 ///   can change them.
@@ -54,10 +56,15 @@ public struct SSHCommand: Equatable, Sendable {
                     + ($0.updateHostKeysOff ? ["-o", "UpdateHostKeys=no"] : [])
                     + ($0.addKeysToAgentOff ? ["-o", "AddKeysToAgent=no"] : [])
             } ?? ["-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes"]
-        return ["-T"] + safety + ["-o", "Compression=no", "-o", "IPQoS=ef"] + own + sshArguments
+        return ["-T"] + safety + ["-o", "Compression=no", "-o", "IPQoS=ef"] + noConfigForwards + own
+            + sshArguments
             + ["-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=6"]
             + (connectTimeout ? SSHConnectTimeout.options : [])
     }
+
+    /// No port forward from the person's ssh_config: Glifftop's master adds the `LocalForward`s
+    /// itself (`SystemSSHConnection`).
+    static let noConfigForwards = ["-o", "ClearAllForwardings=yes"]
 
     private static let shellSafe = Set(
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_@%+=:,./-")

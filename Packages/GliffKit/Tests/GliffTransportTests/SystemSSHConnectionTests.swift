@@ -24,7 +24,7 @@
             #!/bin/bash
             sock=""; request=""; master=no; prev=""
             for arg in "$@"; do
-              case "$prev" in -S) sock="$arg" ;; -O) request="$arg" ;; esac
+              case "$prev" in -S) sock="$arg" ;; -O) request="$arg" ;; -L) forward="$arg" ;; esac
               [ "$arg" = "ControlMaster=yes" ] && master=yes
               prev="$arg"
             done
@@ -60,6 +60,7 @@
               while :; do sleep 0.05; done
             fi
             if [ "$request" = check ]; then [ -f "$sock" ] && exit 0; exit 255; fi
+            [ "$request" = forward ] && { echo "$forward" >> "${sock%/*}/forwards"; exit ${STUB_FORWARD_STATUS:-0}; }
             if [ "$request" = exit ]; then
               master=$(cat "$sock"); kill -USR1 "$master"
               while kill -0 "$master" 2>/dev/null; do sleep 0.02; done
@@ -304,6 +305,18 @@
             await #expect(throws: TransportError.exited(status: 255, failure: .sharedConnectionLost)) {
                 try await connection.channel(command: "late")
             }
+        }
+
+        /// Once the master is ready, each of the config's local forwards is asked of it; one it
+        /// refuses ends nothing.
+        @Test func theConfigsForwardsAreAskedOnceReady() async throws {
+            let config = SSHResolvedConfig(
+                resolved: "localforward 3000 [localhost]:3000\nlocalforward 3001 [db]:5432\n")
+            let connection = try await open("STUB_FORWARD_STATUS=255", config: config, asking: nil)
+            let asked = "127.0.0.1:3000:localhost:3000\n127.0.0.1:3001:db:5432\n"
+            #expect(await eventually { self.file("forwards") == asked })
+            #expect(kill(try masterPID(), 0) == 0)
+            await connection.close()
         }
 
         @Test func closeRemovesTheSocket() async throws {

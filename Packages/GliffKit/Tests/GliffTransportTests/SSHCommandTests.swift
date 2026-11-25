@@ -10,7 +10,8 @@ import Testing
         #expect(
             command.arguments == [
                 "-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "Compression=no", "-o",
-                "IPQoS=ef", "-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=6", "--",
+                "IPQoS=ef", "-o", "ClearAllForwardings=yes", "-o", "ServerAliveInterval=10", "-o",
+                "ServerAliveCountMax=6", "--",
                 "user@omarchy", "gliff-server", "--stdio",
             ])
         #expect(SSHCommand.executable == "/usr/bin/ssh")
@@ -30,7 +31,9 @@ import Testing
         #expect(
             command.arguments == [
                 "-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "Compression=no", "-o",
-                "IPQoS=ef", "-p", "2222", "-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=6",
+                "IPQoS=ef", "-o", "ClearAllForwardings=yes", "-p", "2222", "-o", "ServerAliveInterval=10",
+                "-o",
+                "ServerAliveCountMax=6",
                 "--", "user@omarchy", "gliff-server", "--stdio", "--output", "DP-2",
             ])
     }
@@ -43,6 +46,15 @@ import Testing
         let pinned = command.arguments.firstIndex(of: "StrictHostKeyChecking=yes")
         let extra = command.arguments.firstIndex(of: "StrictHostKeyChecking=accept-new")
         #expect(pinned != nil && extra != nil && pinned! < extra!)
+    }
+
+    /// No ssh Glifftop starts opens the config's port forwards: ours comes before the extra
+    /// arguments and the person's ssh_config.
+    @Test func opensNoneOfTheConfigsForwards() {
+        let command = SSHCommand(target: target, sshArguments: ["-o", "ClearAllForwardings=no"])
+        let ours = command.arguments.firstIndex(of: "ClearAllForwardings=yes")
+        let extra = command.arguments.firstIndex(of: "ClearAllForwardings=no")
+        #expect(ours != nil && extra != nil && ours! < extra!)
     }
 
     /// OpenSSH 10 maps the old `lowdelay` keyword to no marking at all; `ef` marks both
