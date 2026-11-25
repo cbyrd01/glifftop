@@ -222,11 +222,28 @@ import Testing
         #expect(SSHErrorClassifier.displayable(flood).unicodeScalars.count <= 201)
     }
 
+    /// A quiet channel's stderr (a start macro's login files) is the person's: only ssh's own
+    /// channel words are read from it, and the failure never carries its text.
+    @Test func aQuietChannelKeepsNoText() {
+        func quiet(_ status: Int32, _ stderr: String) -> ConnectFailure {
+            SSHErrorClassifier.classifyQuietChannel(exitStatus: status, stderr: stderr)
+        }
+        #expect(quiet(255, "channel 0: open failed: administratively prohibited") == .channelRefused)
+        #expect(quiet(255, "Control socket connect(/x): No such file") == .sharedConnectionLost)
+        #expect(quiet(1, "token=abc") == .other("ssh exited with status 1"))
+        #expect(quiet(255, "Permission denied (publickey).") == .other("ssh exited with status 255"))
+        #expect(quiet(127, "sh: gliff-server: not found") == .other("ssh exited with status 127"))
+        #expect(quiet(-15, "token=abc") == .other("ssh was stopped by signal 15"))
+        #expect(
+            quiet(255, "@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @\nSHA256:abc").message.contains(
+                "SHA256") == false)
+    }
+
     @Test func everyFailureHasAMessage() {
         let all: [ConnectFailure] = [
             .unknownHostKey, .changedHostKey(), .permissionDenied, .agentRefused, .hostNotFound,
             .connectionRefused, .unreachable, .serverNotInstalled, .hostKeyDenied, .signInCancelled,
-            .tooManyQuestions, .hostKeyUnchecked, .unknownQuestion,
+            .tooManyQuestions, .hostKeyUnchecked, .unknownQuestion, .macroFailed, .noRoomOnConnection,
             .changedHostKey(fingerprint: "SHA256:abc", knownHostsName: "omarchy"),
         ]
         for failure in all { #expect(!failure.message.isEmpty) }

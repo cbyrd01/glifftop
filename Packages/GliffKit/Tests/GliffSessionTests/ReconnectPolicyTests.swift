@@ -14,12 +14,20 @@ struct ReconnectPolicyTests {
         .connectFailed(.changedHostKey(fingerprint: nil, knownHostsName: nil)),
         .connectFailed(.hostKeyDenied), .connectFailed(.signInCancelled), .connectFailed(.tooManyQuestions),
         .connectFailed(.serverNotInstalled), .remoteNotGliff, .incompatible("x"), .protocolError("x"),
-        .decoderFailed("x"),
+        .decoderFailed("x"), .connectFailed(.macroFailed), .connectFailed(.noRoomOnConnection),
     ])
     func anEndThatMayNotReconnectNeverRetries(_ end: SessionEnd) {
         var policy = ReconnectPolicy()
         #expect(policy.next(after: end) == nil)
         #expect(policy.failures == 0)
+    }
+
+    /// Even once trying again, a failed macro or a full connection is never retried.
+    @Test(arguments: [ConnectFailure.macroFailed, .noRoomOnConnection])
+    func macroFailuresAreNotRetriedOnARetry(_ failure: ConnectFailure) {
+        var policy = ReconnectPolicy()
+        _ = policy.next(after: .connectionLost)
+        #expect(policy.next(after: .connectFailed(failure)) == nil)
     }
 
     @Test(arguments: [

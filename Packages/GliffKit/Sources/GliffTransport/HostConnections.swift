@@ -97,13 +97,16 @@ public actor HostConnections {
 
     /// A place on `target`'s connection. `fresh`: an attempt the person starts, which asks again
     /// after a remembered failure and may be asked about a host key. `asker` answers the
-    /// sign-in's questions while this lease waits.
-    public func lease(for target: SSHTarget, fresh: Bool = false, asker: (any SignInAsker)? = nil)
-        async throws(TransportError) -> HostLease
-    {
-        if fresh { forgetFailure(target.value) }
-        let place = try await acquire(target, fresh: fresh, asker: asker)
-        return HostLease(owner: self, target: target, asker: asker, place: place, generation: generation)
+    /// sign-in's questions while this lease waits. `opening: false` takes a place only on a
+    /// connection already open with room, never opening one or waiting for an open, and
+    /// otherwise throws `noRoomOnConnection`.
+    public func lease(
+        for target: SSHTarget, fresh: Bool = false, asker: (any SignInAsker)? = nil, opening: Bool = true
+    ) async throws(TransportError) -> HostLease {
+        if opening, fresh { forgetFailure(target.value) }
+        let place = try await acquire(target, fresh: fresh, asker: asker, opening: opening)
+        return HostLease(
+            owner: self, target: target, asker: asker, opening: opening, place: place, generation: generation)
     }
 
     /// Ends every connection, in use or in its grace, and every open under way (returning once
@@ -140,8 +143,8 @@ public actor HostConnections {
     /// How many wait for `target`'s open: for tests.
     func waiterCount(for target: SSHTarget) -> Int { hosts[target.value]?.waiters.count ?? 0 }
 
-    /// A place on a connection with room, opening one if none has.
-    private func acquire(_ target: SSHTarget, fresh: Bool, asker: (any SignInAsker)?)
+    /// A place on a connection with room, opening one if none has, unless `opening` is false.
+    private func acquire(_ target: SSHTarget, fresh: Bool, asker: (any SignInAsker)?, opening: Bool)
         async throws(TransportError)
         -> Place
     {
@@ -149,6 +152,7 @@ public actor HostConnections {
         while true {
             if Task.isCancelled { throw .cancelled }
             if let place = takePlace(key) { return place }
+            guard opening else { throw .exited(status: 255, failure: .noRoomOnConnection) }
             if let failure = hosts[key]?.failure { throw failure }
             if hosts[key]?.opening != true { startOpen(target, asking: asker != nil) }
             let generation = self.generation
@@ -353,7 +357,7 @@ public actor HostConnections {
             hosts[key]?.live[index].limit = left
             if left == 0 { startGrace(key, id) }
         }
-        let place = try await acquire(lease.target, fresh: false, asker: lease.asker)
+        let place = try await acquire(lease.target, fresh: false, asker: lease.asker, opening: lease.opening)
         if !lease.moved(to: place) { give(back: place.id, key) }
     }
 }

@@ -69,7 +69,9 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   in 1 s is cancelled (so a session that starts as a listing stops shares its sign-in); a connection takes at most 10 leases (sshd's `MaxSessions`), and one that
   refuses a channel takes no more, its lease moving to a further connection; a lost connection is
   forgotten at once, so the next lease opens anew; `closeAll()` ends them all and cancels anyone
-  waiting.
+  waiting. A lease with `opening: false` takes a place only on a connection already open with
+  room, never opening one or waiting for an open; otherwise it fails as `noRoomOnConnection`.
+  A refused channel moves such a lease only to another connection open with room.
 - **A session on a shared connection:** `ChannelTransport` leases a connection and runs the
   command as a channel, ending the lease when the stream ends. Bytes written before the first
   byte arrives are kept: a channel refused before then (`ConnectFailure.channelRefused`) moves
@@ -80,7 +82,11 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   the connection too, unless another channel on it was heard from after this one's last byte.
   `SSHErrorClassifier.classifyChannel` reads a channel's stderr: refused by the master, or the
   master gone (ssh then tries a direct connection, which `ProxyCommand=/usr/bin/false` stops);
-  both may reconnect.
+  both may reconnect. A channel opened with `logsStderr: false` (a start macro's, whose
+  output is the person's) never logs its stderr tail, and its failure never carries that text
+  (`SSHErrorClassifier.classifyQuietChannel`: ssh's own channel words, else the exit in fixed
+  words). `ConnectFailure.macroFailed` is a start
+  macro's failure that stops the session; it and `noRoomOnConnection` are never retried.
 - **The ControlMaster:** `SSHMasterCommand` builds the system ssh's arguments for one shared
   connection: the master (`SSHCommand`'s options first, then `-o ControlMaster=yes -o
   ControlPersist=no -S socket -N`), `-O check` and `-O exit`, a channel
@@ -117,8 +123,12 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   number), rotated monitors' sides swapped, disabled ones and gliff-server's own virtual
   screens (`gliff-<pid>`, gone when their session ends) left out. `ScreenListCommand` is
   the one-shot ssh for Get Screens: `SSHCommand`'s options, then a fixed one-line `sh -c`
-  script that tries each Hyprland instance as gliff-server does (the session's own, then the
-  newest whose socket answers) and prints `hyprctl -j monitors`. `ScreenLister` (macOS) runs
+  script that finds the Hyprland instance with `HyprlandLookup` and prints
+  `hyprctl -j monitors`. `HyprlandLookup.function` is a one-line shell function,
+  `glifftop_find_hyprland`, that tries each instance as gliff-server does (the session's own,
+  then the newest whose socket answers) and exports `HYPRLAND_INSTANCE_SIGNATURE` for it; it
+  never exits, prints the list it read only when called with `print` (as Get Screens does, so
+  hyprctl runs once), and leaves no variable of its own, so a start macro can run after it. `ScreenLister` (macOS) runs
   it, as a channel on a `HostConnections` connection (`ScreenListCommand.remoteCommand`, the
   app's way) or as one ssh: output up to 1 MiB, a 60 s limit (room for a 1Password approval),
   failures in `SSHErrorClassifier`'s words; too much, too late or cancelled, it ends the

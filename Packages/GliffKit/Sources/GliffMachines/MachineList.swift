@@ -62,7 +62,8 @@ public struct MachineList: Equatable, Sendable {
 
     /// The machine sheet saved `machine`, a copy taken when it opened: what the sheet doesn't
     /// show (the favourite, the last connection, the macros' approvals) stays as stored. A
-    /// macro keeps its stored approval only while its script (byte for byte) and moment do.
+    /// macro keeps its stored approval only while its script (byte for byte) and moment do,
+    /// and `save` drops it when the destination changes.
     public mutating func saveEdit(_ machine: Machine) {
         var edited = machine
         let stored = machines.first { $0.id == machine.id }

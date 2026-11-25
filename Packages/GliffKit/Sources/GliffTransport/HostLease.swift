@@ -15,6 +15,8 @@ public final class HostLease: Sendable {
     let target: SSHTarget
     /// Asks the sign-in's questions if a move opens another connection.
     let asker: (any SignInAsker)?
+    /// Whether a move may open another connection; false, it moves only to one open with room.
+    let opening: Bool
     var key: String { target.value }
     /// The `HostConnections` generation it was taken in: after a `closeAll()` it moves nowhere.
     let generation: Int
@@ -27,11 +29,12 @@ public final class HostLease: Sendable {
     private let state: Mutex<State>
 
     init(
-        owner: HostConnections, target: SSHTarget, asker: (any SignInAsker)? = nil,
+        owner: HostConnections, target: SSHTarget, asker: (any SignInAsker)? = nil, opening: Bool = true,
         place: HostConnections.Place,
         generation: Int
     ) {
-        (self.owner, self.target, self.asker, self.generation) = (owner, target, asker, generation)
+        (self.owner, self.target, self.asker, self.opening, self.generation) =
+            (owner, target, asker, opening, generation)
         state = Mutex(State(id: place.id, connection: place.connection, activity: place.activity))
     }
 
@@ -69,8 +72,11 @@ public final class HostLease: Sendable {
     /// Whether no channel on the connection has received anything since `mark`.
     func quiet(since mark: Int) -> Bool { activityMark == mark }
 
-    public func channel(command: String) async throws(TransportError) -> any ByteConnection {
-        try await current.connection.channel(command: command)
+    /// A channel on this lease's connection; `logsStderr` as `HostConnection`'s.
+    public func channel(command: String, logsStderr: Bool = true) async throws(TransportError)
+        -> any ByteConnection
+    {
+        try await current.connection.channel(command: command, logsStderr: logsStderr)
     }
 
     /// The host refused a channel on this connection (sshd's `MaxSessions`): no new lease goes

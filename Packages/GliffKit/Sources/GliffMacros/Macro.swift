@@ -53,6 +53,8 @@ public enum MacroLimits {
     public static let machineScriptBytes = 256 * 1024
     /// A name's characters.
     public static let nameLength = 100
+    /// A name's Unicode scalars: a character can hold any number of combining marks.
+    public static let nameScalars = 300
     /// The time every `disconnect` macro of one Disconnect shares.
     public static let disconnectBudget: Duration = .seconds(5)
 }
@@ -124,14 +126,24 @@ public struct Macro: Codable, Equatable, Identifiable, Sendable {
     private static let breaks = MacroText.lineBreaks.union(["\t"])
 
     /// A name as it may be shown: line breaks and tabs as spaces, no other hidden characters,
-    /// at most `MacroLimits.nameLength`.
+    /// whole characters up to `MacroLimits.nameLength` and `MacroLimits.nameScalars`.
     static func cleanName(_ name: String) -> String {
-        var spaced = String.UnicodeScalarView()
-        spaced.append(
-            contentsOf: MacroText.normalisingLineEnds(name).unicodeScalars.map {
-                breaks.contains($0) ? " " : $0
-            })
-        return String(SSHErrorClassifier.displayable(String(spaced)).prefix(MacroLimits.nameLength))
+        var shown = String.UnicodeScalarView()
+        for scalar in MacroText.normalisingLineEnds(name).unicodeScalars {
+            if breaks.contains(scalar) {
+                shown.append(" ")
+            } else if !SSHErrorClassifier.hidden.contains(scalar.properties.generalCategory) {
+                shown.append(scalar)
+            }
+        }
+        var kept = ""
+        var scalars = 0
+        for character in String(shown).prefix(MacroLimits.nameLength) {
+            scalars += character.unicodeScalars.count
+            guard scalars <= MacroLimits.nameScalars else { break }
+            kept.append(character)
+        }
+        return kept
     }
 
     private static func clamp(_ limit: Int, to moment: MacroMoment) -> Int {

@@ -5,7 +5,8 @@ connection, before the session, once the screen exists, on demand and at Disconn
 
 - `Macro`: a macro's stored fields (`MacroMoment`, `MacroRuns`, `MacroLimits`), with a tolerant
   decoder: a field missing or unreadable takes its moment's default, a script that can't run is
-  kept disabled.
+  kept disabled. A name loses control and format characters, its breaks become spaces, and it
+  keeps whole characters up to 100 characters and 300 Unicode scalars.
 - `MacroText`: the character rules for scripts. Control, format and separator characters are
   refused (but `\n` and `\t`); other characters outside printable ASCII are shown escaped in the
   approval sheet.

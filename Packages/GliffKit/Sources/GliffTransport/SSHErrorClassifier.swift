@@ -15,18 +15,30 @@ public enum SSHErrorClassifier {
     /// socket was gone and ssh tried a direct connection, which `ProxyCommand=/usr/bin/false`
     /// ends at once.
     public static func classifyChannel(exitStatus: Int32, stderr: String) -> ConnectFailure {
+        channelFailure(exitStatus: exitStatus, stderr: stderr)
+            ?? classify(exitStatus: exitStatus, stderr: stderr)
+    }
+
+    /// A quiet channel (`logsStderr: false`, a start macro's), whose stderr is the person's:
+    /// only ssh's own channel words are read from it, and anything else is the exit status in
+    /// fixed words, never the text.
+    public static func classifyQuietChannel(exitStatus: Int32, stderr: String) -> ConnectFailure {
+        channelFailure(exitStatus: exitStatus, stderr: stderr) ?? .other(exitWords(exitStatus))
+    }
+
+    /// ssh's own words for a channel the master refused or a master that is gone.
+    private static func channelFailure(exitStatus: Int32, stderr: String) -> ConnectFailure? {
+        guard exitStatus == 255 else { return nil }
         func has(_ text: String) -> Bool { stderr.contains(text) }
-        if exitStatus == 255 {
-            if has("administratively prohibited") || has("Session open refused by peer") {
-                return .channelRefused
-            }
-            if has("Control socket connect(") || has("kex_exchange_identification") || has("UNKNOWN port")
-                || has("mux_client_") || has("read from master failed")
-            {
-                return .sharedConnectionLost
-            }
+        if has("administratively prohibited") || has("Session open refused by peer") {
+            return .channelRefused
         }
-        return classify(exitStatus: exitStatus, stderr: stderr)
+        if has("Control socket connect(") || has("kex_exchange_identification") || has("UNKNOWN port")
+            || has("mux_client_") || has("read from master failed")
+        {
+            return .sharedConnectionLost
+        }
+        return nil
     }
 
     public static func classify(exitStatus: Int32, stderr: String) -> ConnectFailure {
@@ -48,11 +60,12 @@ public enum SSHErrorClassifier {
         if exitStatus == 127 && has("gliff-server") { return .serverNotInstalled }
 
         let lastLine = stderr.split(whereSeparator: \.isNewline).last { !$0.allSatisfy(\.isWhitespace) }
-        // A negative status is a signal (ProcessConnection's convention).
-        let fallback =
-            exitStatus < 0
-            ? "ssh was stopped by signal \(-exitStatus)" : "ssh exited with status \(exitStatus)"
-        return .other(lastLine.map { displayable($0) } ?? fallback)
+        return .other(lastLine.map { displayable($0) } ?? exitWords(exitStatus))
+    }
+
+    /// An exit in fixed words; a negative status is a signal (ProcessConnection's convention).
+    private static func exitWords(_ exitStatus: Int32) -> String {
+        exitStatus < 0 ? "ssh was stopped by signal \(-exitStatus)" : "ssh exited with status \(exitStatus)"
     }
 
     /// The changed key's fingerprint, from the line after "… sent by the remote host is". The

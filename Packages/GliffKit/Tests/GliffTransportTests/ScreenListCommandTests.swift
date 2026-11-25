@@ -41,7 +41,7 @@ import Testing
     }
 
     @Test func theScriptAsksHyprctlForMonitors() {
-        #expect(ScreenListCommand.script.contains("HYPRLAND_INSTANCE_SIGNATURE=$sig hyprctl -j monitors"))
+        #expect(ScreenListCommand.script.contains("glifftop_find_hyprland print && exit 0"))
         #expect(!ScreenListCommand.script.contains("gliff-server"))
     }
 }

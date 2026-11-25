@@ -145,6 +145,32 @@ import Testing
         #expect(list.machines.first?.macros.map(\.approval) == [Data([1]), nil, nil])
     }
 
+    /// An approval names its host: pointing the machine elsewhere asks again.
+    @Test func anEditedDestinationLosesTheApprovals() {
+        var list = MachineList(data: nil)
+        var machine = list.connected("omarchy", options: MachineOptions(), at: day)
+        machine.macros = [Macro(name: "A", moment: .ready, script: "true\n", approval: Data([1]))]
+        list.save(machine)
+        var sheet = machine
+        sheet.destination = " omarchy "
+        list.saveEdit(sheet)
+        #expect(list.machines.first?.macros.first?.approval == Data([1]))
+        sheet.destination = "other"
+        list.saveEdit(sheet)
+        #expect(list.machines.first?.macros.first?.approval == nil)
+    }
+
+    @Test func anySaveToANewDestinationDropsTheApprovals() {
+        var list = MachineList(data: nil)
+        var machine = list.connected("omarchy", options: MachineOptions(), at: day)
+        machine.macros = [Macro(name: "A", moment: .ready, script: "true\n", approval: Data([1]))]
+        list.save(machine)
+        machine.destination = "other"
+        #expect(list.macrosAfterSave(machine).first?.approval == nil)
+        list.save(machine)
+        #expect(list.machines.first?.macros.first?.approval == nil)
+    }
+
     @Test func anIDDroppedForSizeIsNotTakenAgain() throws {
         let big = String(repeating: "#", count: 60 * 1024)
         var first = macro("Big", script: big)
@@ -167,6 +193,22 @@ import Testing
         #expect(merged.count == 25)
         #expect(MachineList.validate(macros: merged) == .tooMany)
         #expect(list.macrosAfterSave(old).count == 10)
+    }
+
+    /// A replaced machine's macro with an id the saved one has is not counted twice.
+    @Test func theMergedMacrosHoldEachIDOnce() {
+        var list = MachineList(data: nil)
+        var old = list.connected("omarchy", options: MachineOptions(), at: day)
+        old.macros = (0..<12).map { Macro(name: "o\($0)", moment: .manual, script: "true\n") }
+        list.save(old)
+        var new = Machine(name: "New", destination: "omarchy")
+        new.macros =
+            Array(old.macros.prefix(4))
+            + (0..<8).map { Macro(name: "n\($0)", moment: .manual, script: "true\n") }
+        let merged = list.macrosAfterSave(new)
+        #expect(merged.count == 20)
+        #expect(Set(merged.map(\.id)).count == 20)
+        #expect(MachineList.validate(macros: merged) == nil)
     }
 
     /// What is saved reads back the same: the limits and one of each id apply on save too.

@@ -28,6 +28,10 @@ public enum ConnectFailure: Equatable, Sendable {
     case tooManyQuestions
     /// ssh asked a question Glifftop doesn't recognise, so it couldn't be shown.
     case unknownQuestion
+    /// A start macro a person's connect waits for failed, and it stops the session.
+    case macroFailed
+    /// A lease that may not open a connection found none open with room.
+    case noRoomOnConnection
     /// Anything else: the last line ssh printed, or the exit status.
     case other(String)
 
@@ -66,6 +70,8 @@ public enum ConnectFailure: Equatable, Sendable {
         case .unknownQuestion:
             "ssh asked a question Glifftop doesn't recognise. Connect with ssh in Terminal to see it."
         case .tooManyQuestions: "The host asked too many questions."
+        case .macroFailed: "A start macro failed."
+        case .noRoomOnConnection: "The connection to the host is full."
         case .other(let text): text
         }
     }

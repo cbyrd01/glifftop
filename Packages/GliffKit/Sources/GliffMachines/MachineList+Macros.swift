@@ -22,17 +22,22 @@ extension MachineList {
         return bytes > MacroLimits.machineScriptBytes ? .tooLarge : nil
     }
 
-    /// `machine`'s macros as saving it would keep them, before the limits: its own, then those
-    /// of the machine its destination would replace, unapproved (an approval names its
+    /// `machine`'s macros as saving it would keep them, before the limits: its own (unapproved
+    /// when its destination changed: an approval names its host), then those of the machine
+    /// its destination would replace whose ids it hasn't, unapproved (an approval names its
     /// machine).
     public func macrosAfterSave(_ machine: Machine) -> [Macro] {
         let destination = Self.trimmed(machine.destination)
         var macros = machine.macros
+        let stored = machines.first { $0.id == machine.id }
+        if let stored, stored.destination != destination {
+            for index in macros.indices { macros[index].approval = nil }
+        }
+        var ids = Set(macros.map(\.id))
         for other in machines where other.destination == destination && other.id != machine.id {
-            macros += other.macros.map { macro in
-                var macro = macro
+            for var macro in other.macros where ids.insert(macro.id).inserted {
                 macro.approval = nil
-                return macro
+                macros.append(macro)
             }
         }
         return macros

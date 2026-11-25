@@ -39,6 +39,7 @@ final class FakeChannel: ByteConnection {
 final class FakeHostConnection: HostConnection {
     private struct State {
         var commands: [String] = []
+        var stderrLogged: [Bool] = []
         var channels: [FakeChannel] = []
         var closed = 0
         var invalidated = 0
@@ -57,6 +58,8 @@ final class FakeHostConnection: HostConnection {
     }
 
     var commands: [String] { state.withLock { $0.commands } }
+    /// Each channel's `logsStderr`, in order.
+    var stderrLogged: [Bool] { state.withLock { $0.stderrLogged } }
     var channels: [FakeChannel] { state.withLock { $0.channels } }
     var closeCount: Int { state.withLock { $0.closed } }
     var invalidateCount: Int { state.withLock { $0.invalidated } }
@@ -64,12 +67,13 @@ final class FakeHostConnection: HostConnection {
     /// The next channel asked for fails to open with `failure`.
     func failNextChannel(_ failure: TransportError) { state.withLock { $0.channelFailure = failure } }
 
-    func channel(command: String) async throws(TransportError) -> any ByteConnection {
+    func channel(command: String, logsStderr: Bool) async throws(TransportError) -> any ByteConnection {
         let channel = FakeChannel(writesFail: writesFail)
         let failure = state.withLock { state -> TransportError? in
             defer { state.channelFailure = nil }
             guard state.channelFailure == nil else { return state.channelFailure }
             state.commands.append(command)
+            state.stderrLogged.append(logsStderr)
             state.channels.append(channel)
             return nil
         }

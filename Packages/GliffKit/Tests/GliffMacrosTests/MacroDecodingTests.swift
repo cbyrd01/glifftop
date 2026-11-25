@@ -111,6 +111,23 @@ import Testing
         #expect(Macro(name: name, moment: .ready, script: "true").name == Macro.defaultName)
     }
 
+    /// The limit counts characters: one of several scalars is kept whole, with no "…".
+    @Test func aNameOfManyScalarsKeepsItsCharacters() {
+        let name = String(repeating: "e\u{301}\u{302}", count: 90)
+        #expect(Macro(name: name, moment: .manual, script: "").name == name)
+    }
+
+    /// Marks piled on a character count too: a name holds at most `nameScalars` scalars, and a
+    /// character that would pass it is left out whole.
+    @Test func aNameOfPiledMarksIsBounded() {
+        let piled = "a" + String(repeating: "\u{301}", count: 10_000)
+        #expect(Macro(name: "ok" + piled + "b", moment: .manual, script: "").name == "ok")
+        #expect(Macro(name: piled, moment: .manual, script: "").name == Macro.defaultName)
+        let marked = String(repeating: "e\u{301}\u{302}", count: 200)
+        let kept = Macro(name: marked, moment: .manual, script: "").name
+        #expect(kept == String(repeating: "e\u{301}\u{302}", count: MacroLimits.nameScalars / 3))
+    }
+
     @Test func lineBreaksAndTabsInANameBecomeSpaces() {
         #expect(
             Macro(name: "Open\tthe\nLayout\u{2028}now", moment: .ready, script: "true").name

@@ -16,7 +16,8 @@ then by name) and reads and writes them as JSON.
 - Macros are read lossily: a missing or unreadable list is none, an entry that can't be read is
   dropped, as is a repeated id, and past 20 macros or 256 KiB of scripts the first that fit are
   kept; a save keeps them the same way. The machine sheet's save keeps each macro's stored
-  approval, never the sheet's copy's, and only while its script and moment are unchanged;
+  approval, never the sheet's copy's, and only while its script and moment are unchanged; any
+  save that changes a machine's destination drops its approvals;
   Always Run (`approve`) stores one only while the script is unchanged and can run.
   `validate(macros:)` is the sheet's check of the limits.
 - `TabPlanning`: a new tab to a machine open elsewhere starts as a virtual screen, and a

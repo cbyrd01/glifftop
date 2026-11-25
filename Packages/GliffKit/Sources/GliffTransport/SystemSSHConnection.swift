@@ -177,11 +177,14 @@
             func end() async { await master.withLock { $0 }?.end() }
         }
 
-        public func channel(command line: String) async throws(TransportError) -> any ByteConnection {
+        public func channel(command line: String, logsStderr: Bool) async throws(TransportError)
+            -> any ByteConnection
+        {
             if hasEnded { throw .exited(status: 255, failure: .sharedConnectionLost) }
             return try ProcessConnection.launch(
-                executable: executable, arguments: command.channel(line),
-                classify: SSHErrorClassifier.classifyChannel)
+                executable: executable, arguments: command.channel(line), logsStderr: logsStderr,
+                classify: logsStderr
+                    ? SSHErrorClassifier.classifyChannel : SSHErrorClassifier.classifyQuietChannel)
         }
 
         public func ended() async -> ConnectFailure? {

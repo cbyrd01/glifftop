@@ -26,17 +26,12 @@ public struct ScreenListCommand: Equatable, Sendable {
     private static let remoteWords = ["sh", "-c", SSHCommand.shellQuoted(script)]
 
     /// One line (csh and tcsh refuse a newline inside single quotes) and no single quote
-    /// (`shellQuoted` wraps it in them). Each instance is tried, the session's own first, then
-    /// newest first, until one answers with a list: a crashed compositor's socket is passed
-    /// over, and hyprctl's errors, which it prints on stdout, never reach the parser.
+    /// (`shellQuoted` wraps it in them). `HyprlandLookup` finds the instance; hyprctl's
+    /// errors, which it prints on stdout, never reach the parser.
     static let script = [
         "command -v hyprctl >/dev/null 2>&1 || { echo \"hyprctl: command not found\" >&2; exit 127; }",
-        "dir=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/hypr",
-        "for sig in ${HYPRLAND_INSTANCE_SIGNATURE:-} $(ls -1t \"$dir\" 2>/dev/null); do"
-            + " [ -S \"$dir/$sig/.socket.sock\" ] || continue;"
-            + " out=$(HYPRLAND_INSTANCE_SIGNATURE=$sig hyprctl -j monitors 2>/dev/null) || continue;"
-            + " case $out in \"[\"*) printf \"%s\\n\" \"$out\"; exit 0;; esac;"
-            + " done",
+        HyprlandLookup.function,
+        "glifftop_find_hyprland print && exit 0",
         "echo \"no Hyprland session is running\" >&2",
         "exit 3",
     ].joined(separator: "; ")
