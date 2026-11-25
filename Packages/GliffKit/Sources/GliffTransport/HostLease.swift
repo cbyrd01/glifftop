@@ -73,8 +73,9 @@ public final class HostLease: Sendable {
         try await current.connection.channel(command: command)
     }
 
-    /// The host refused a channel on this connection (sshd's `MaxSessions`): no new lease goes
-    /// to it, and this lease moves to a further connection, which may mean a sign-in.
+    /// The host refused a channel on this connection (sshd's `MaxSessions`): it takes no more
+    /// than its sessions, and this lease moves to a place a spare gives up, or to a further
+    /// connection, which may mean a sign-in.
     public func channelRefused() async throws(TransportError) {
         try await owner.move(self)
     }

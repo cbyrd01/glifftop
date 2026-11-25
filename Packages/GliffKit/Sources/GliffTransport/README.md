@@ -67,9 +67,16 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   its question to the next; with none, it waits 1 s for one, then cancels it, a cancel not
   remembered; an open nobody has waited for
   in 1 s is cancelled (so a session that starts as a listing stops shares its sign-in); a connection takes at most 10 leases (sshd's `MaxSessions`), and one that
-  refuses a channel takes no more, its lease moving to a further connection; a lost connection is
+  refuses a channel takes no more than its sessions (a spare's channel among them, which yields), its lease moving on; a lost connection is
   forgotten at once, so the next lease opens anew; `closeAll()` ends them all and cancels anyone
   waiting.
+- **Following a host's connections:** `events(for:)` streams a host's `ConnectionEvent`s
+  (opened, ended with why once closed, a place freed). `attach(to:)` gives a `PassiveLease` on the busiest
+  live connection, nil when none: it never opens, moves or asks, and doesn't keep the
+  connection, whose grace starts when only passive leases remain. It forwards and cancels on
+  its connection, and holds no place but at most one spare (`takeSpare`), for a channel of its
+  own (`spareChannelEnded()` says when that channel is gone); a lease that finds the connection
+  full calls the spare's `yield` and takes that place without an open. A spare the host refuses lowers the connection's limit to the places in use.
 - **Port forwards on a connection:** `HostConnection.forward(_:on:)` listens on one of this
   Mac's loopbacks (`Loopback`: 127.0.0.1 or ::1) and carries each connection to the host;
   `cancel(_:on:)` ends it; `configuredForwards` are the person's ssh_config forwards. A

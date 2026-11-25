@@ -53,6 +53,8 @@ final class FakeHostConnection: HostConnection {
     private let writesFail: Bool
     /// Each close waits on this before it ends the connection (a slow `-O exit`).
     private let closeGate: CloseGate?
+    /// Each channel's open waits on this, when set.
+    private let channelGate = Mutex<CloseGate?>(nil)
 
     init(writesFail: Bool = false, closeGate: CloseGate? = nil) {
         (self.writesFail, self.closeGate) = (writesFail, closeGate)
@@ -63,10 +65,14 @@ final class FakeHostConnection: HostConnection {
     var closeCount: Int { state.withLock { $0.closed } }
     var invalidateCount: Int { state.withLock { $0.invalidated } }
 
+    /// Channels asked for from now on open only once `gate` opens.
+    func holdChannels(_ gate: CloseGate) { channelGate.withLock { $0 = gate } }
+
     /// The next channel asked for fails to open with `failure`.
     func failNextChannel(_ failure: TransportError) { state.withLock { $0.channelFailure = failure } }
 
     func channel(command: String) async throws(TransportError) -> any ByteConnection {
+        await channelGate.withLock { $0 }?.pass()
         let channel = FakeChannel(writesFail: writesFail)
         let failure = state.withLock { state -> TransportError? in
             defer { state.channelFailure = nil }
@@ -251,6 +257,9 @@ final class CloseGate: Sendable {
             if open { continuation.resume() }
         }
     }
+
+    /// How many wait to pass.
+    var waitingCount: Int { state.withLock { $0.waiting.count } }
 
     func open() {
         let waiting = state.withLock { state in

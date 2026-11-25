@@ -57,6 +57,7 @@ extension HostConnections {
             self.lost(key, id, failure)
         }
         hosts[key]?.live.append(live)
+        if closing[key] == nil { emit(.opened(id), key) } else { heldOpened[key, default: []].append(id) }
         // Waiters take their places at once; one that went away leaves it to close.
         startGrace(key, id)
         Self.log.info("connection opened (\(self.hosts[key]?.live.count ?? 0) to this host)")
@@ -134,15 +135,23 @@ extension HostConnections {
     }
 
     private func lost(_ key: String, _ id: Int, _ failure: ConnectFailure?) {
-        guard let index = hosts[key]?.live.firstIndex(where: { $0.id == id }) else { return }
-        hosts[key]?.live[index].grace?.cancel()
-        hosts[key]?.live.remove(at: index)
-        forgetIfIdle(key)
+        guard let live = remove(key, id) else { return }
+        live.grace?.cancel()
+        announceEnd(id, failure, key)
         if failure != nil { Self.log.info("connection lost") }
     }
 
+    /// Takes connection `id` off the host's list.
+    private func remove(_ key: String, _ id: Int) -> Live? {
+        guard let index = liveIndex(key, id), let live = hosts[key]?.live.remove(at: index) else {
+            return nil
+        }
+        forgetIfIdle(key)
+        return live
+    }
+
     func startGrace(_ key: String, _ id: Int) {
-        guard let index = hosts[key]?.live.firstIndex(where: { $0.id == id }) else { return }
+        guard let index = liveIndex(key, id) else { return }
         hosts[key]?.live[index].grace?.cancel()
         hosts[key]?.live[index].grace = Task { [clock, grace] in
             do { try await clock.sleep(for: grace) } catch { return }
@@ -151,12 +160,12 @@ extension HostConnections {
     }
 
     private func expire(_ key: String, _ id: Int) async {
-        guard let index = hosts[key]?.live.firstIndex(where: { $0.id == id }),
-            let live = hosts[key]?.live[index], live.leases == 0
+        guard let index = liveIndex(key, id), hosts[key]?.live[index].leases == 0,
+            let live = remove(key, id)
         else { return }
         live.watcher?.cancel()
-        hosts[key]?.live.remove(at: index)
-        forgetIfIdle(key)
+        beginClosing(key)
         await live.connection.close()
+        closed(id, key)
     }
 }
