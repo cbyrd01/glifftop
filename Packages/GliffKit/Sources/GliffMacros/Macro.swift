@@ -114,14 +114,23 @@ public struct Macro: Codable, Equatable, Identifiable, Sendable {
         script.utf8.count <= MacroLimits.scriptBytes && MacroText.allows(script)
     }
 
+    /// Whether the script is `script` byte for byte: what `sh` reads, where `==` would take a
+    /// differently composed text as the same.
+    public func hasScript(_ script: String) -> Bool {
+        self.script.utf8.elementsEqual(script.utf8)
+    }
+
     /// Breaks that would join words when removed: shown as spaces.
-    private static let breaks: Set<Unicode.Scalar> = ["\t", "\n", "\r", "\u{85}", "\u{2028}", "\u{2029}"]
+    private static let breaks = MacroText.lineBreaks.union(["\t"])
 
     /// A name as it may be shown: line breaks and tabs as spaces, no other hidden characters,
     /// at most `MacroLimits.nameLength`.
     static func cleanName(_ name: String) -> String {
         var spaced = String.UnicodeScalarView()
-        spaced.append(contentsOf: name.unicodeScalars.map { breaks.contains($0) ? " " : $0 })
+        spaced.append(
+            contentsOf: MacroText.normalisingLineEnds(name).unicodeScalars.map {
+                breaks.contains($0) ? " " : $0
+            })
         return String(SSHErrorClassifier.displayable(String(spaced)).prefix(MacroLimits.nameLength))
     }
 

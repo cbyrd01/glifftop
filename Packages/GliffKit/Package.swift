@@ -90,12 +90,15 @@ let package = Package(
             name: "GliffMacrosTests", dependencies: ["GliffMacros", "GliffTransport", "GliffTestSupport"],
             swiftSettings: strictSettings),
         .target(
-            name: "GliffMachines", dependencies: ["GliffTransport", "GliffSession", "GliffClipboard"],
+            name: "GliffMachines",
+            dependencies: ["GliffTransport", "GliffSession", "GliffClipboard", "GliffMacros"],
             exclude: ["README.md"],
             swiftSettings: strictSettings),
         .testTarget(
             name: "GliffMachinesTests",
-            dependencies: ["GliffMachines", "GliffTransport", "GliffSession", "GliffClipboard"],
+            dependencies: [
+                "GliffMachines", "GliffMacros", "GliffTransport", "GliffSession", "GliffClipboard",
+            ],
             swiftSettings: strictSettings),
         // Test doubles shared by the test targets (a clock tests move by hand); not in the product.
         .target(name: "GliffTestSupport", exclude: ["README.md"], swiftSettings: strictSettings),

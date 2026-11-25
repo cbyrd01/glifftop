@@ -29,6 +29,16 @@ import Testing
         #expect(problems == [MacroText.Problem(line: 3, kind: hidden.kind, codePoint: hidden.scalar.value)])
     }
 
+    /// A text view draws these as line breaks, so the lines after them count as it shows them.
+    @Test(arguments: ["\u{2028}", "\u{2029}", "\u{85}", "\r"] as [Unicode.Scalar])
+    func aBreakStartsALineForTheProblemsAfterIt(_ lineBreak: Unicode.Scalar) {
+        var script = "echo a"
+        script.unicodeScalars.append(lineBreak)
+        script += "echo \u{202E}b\n"
+        #expect(MacroText.refused(in: script).last?.line == 2)
+        #expect(MacroText.refused(in: "a\r\nb\u{202E}").last?.line == 2)
+    }
+
     @Test func newlineAndTabAreKept() {
         #expect(MacroText.refused(in: "a\tb\nc\n").isEmpty)
     }
@@ -52,6 +62,17 @@ import Testing
         #expect(typed.text == "caf\\u{005C}u{00E9}")
         #expect(typed.escapedCount == 1)
         #expect(MacroText.escapedForApproval("a\\b \\u").text == "a\\b \\u")
+    }
+
+    /// A typed `\` before an escaped scalar would read as an escaped backslash.
+    @Test func aBackslashBeforeAnEscapeIsEscaped() {
+        let shown = MacroText.escapedForApproval("\\\u{00E9}")
+        #expect(shown.text == "\\u{005C}\\u{00E9}")
+        #expect(shown.escapedCount == 2)
+        // A backslash before an escaped backslash is escaped too, however many there are.
+        #expect(MacroText.escapedForApproval("\\\\u{00E9}").text == "\\u{005C}\\u{005C}u{00E9}")
+        #expect(MacroText.escapedForApproval("\\\\\u{00E9}").text == "\\u{005C}\\u{005C}\\u{00E9}")
+        #expect(MacroText.escapedForApproval("\\\\n").text == "\\\\n")
     }
 
     @Test func aDecomposedLetterShowsEachScalar() {

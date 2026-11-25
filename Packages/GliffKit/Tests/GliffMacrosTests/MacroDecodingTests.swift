@@ -115,6 +115,7 @@ import Testing
         #expect(
             Macro(name: "Open\tthe\nLayout\u{2028}now", moment: .ready, script: "true").name
                 == "Open the Layout now")
+        #expect(Macro(name: "Open\r\nLayout", moment: .ready, script: "true").name == "Open Layout")
     }
 
     @Test func changingTheMomentKeepsTheRules() {

@@ -1,4 +1,5 @@
 public import Foundation
+internal import GliffMacros
 
 /// The saved machines, in the order the list shows them: favourites, then the most recently
 /// connected, then by name. Each destination once (trimmed). Stored as JSON by the app; an
@@ -9,8 +10,10 @@ public struct MachineList: Equatable, Sendable {
 
     /// The list stored as `data`; none if nil or unreadable.
     public init(data: Data?) {
-        guard let data, let entries = try? JSONDecoder().decode([Lossy].self, from: data) else { return }
-        for case let machine? in entries.map(\.machine) where self.machine(for: machine.destination) == nil {
+        guard let data, let entries = try? JSONDecoder().decode([Lossy<Machine>].self, from: data) else {
+            return
+        }
+        for case let machine? in entries.map(\.value) where self.machine(for: machine.destination) == nil {
             machines.append(Self.trimming(machine))
         }
         sort()
@@ -42,9 +45,12 @@ public struct MachineList: Equatable, Sendable {
     }
 
     /// Adds the machine, or replaces the one with its id; its destination trimmed. Another
-    /// machine with that destination is removed, so each destination is kept once.
+    /// machine with that destination is removed, so each destination is kept once, and its
+    /// macros follow this machine's (`macrosAfterSave`). The macros kept are the first that
+    /// fit, as a read keeps them: the sheet validates `macrosAfterSave` first.
     public mutating func save(_ machine: Machine) {
-        let machine = Self.trimming(machine)
+        var machine = Self.trimming(machine)
+        machine.macros = Machine.fitting(macrosAfterSave(machine))
         machines.removeAll { $0.destination == machine.destination && $0.id != machine.id }
         if let index = machines.firstIndex(where: { $0.id == machine.id }) {
             machines[index] = machine
@@ -55,11 +61,20 @@ public struct MachineList: Equatable, Sendable {
     }
 
     /// The machine sheet saved `machine`, a copy taken when it opened: what the sheet doesn't
-    /// show (the favourite, the last connection) stays as stored.
+    /// show (the favourite, the last connection, the macros' approvals) stays as stored. A
+    /// macro keeps its stored approval only while its script (byte for byte) and moment do.
     public mutating func saveEdit(_ machine: Machine) {
         var edited = machine
-        if let stored = machines.first(where: { $0.id == machine.id }) {
+        let stored = machines.first { $0.id == machine.id }
+        if let stored {
             (edited.isFavorite, edited.lastConnected) = (stored.isFavorite, stored.lastConnected)
+        }
+        for index in edited.macros.indices {
+            let macro = edited.macros[index]
+            let old = stored?.macros.first { $0.id == macro.id }
+            edited.macros[index].approval = old.flatMap {
+                $0.moment == macro.moment && $0.hasScript(macro.script) ? $0.approval : nil
+            }
         }
         save(edited)
     }
@@ -86,16 +101,7 @@ public struct MachineList: Equatable, Sendable {
         return machine
     }
 
-    private static func trimmed(_ destination: String) -> String {
+    static func trimmed(_ destination: String) -> String {
         destination.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// An entry that decodes to nil rather than failing the whole list.
-    private struct Lossy: Decodable {
-        let machine: Machine?
-
-        init(from decoder: any Decoder) throws {
-            machine = try? Machine(from: decoder)
-        }
     }
 }
