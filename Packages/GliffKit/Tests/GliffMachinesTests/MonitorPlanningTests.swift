@@ -65,6 +65,14 @@ import Testing
         #expect(names(plan) == ["DP-2"])
     }
 
+    /// A Focused Monitor mirror whose output the server hasn't named yet shows the focused one.
+    @Test func anUnnamedFocusedMirrorShowsTheFocusedMonitor() {
+        let listed = [screen("DP-3", x: 0, y: 0), screen("DP-2", x: 2560, y: 0, focused: true)]
+        let plan = MonitorPlanning.plan(
+            listed: listed, shown: ShownMonitors(unnamedFocused: true), source: source)
+        #expect(names(plan) == ["DP-3"])
+    }
+
     @Test func anEndedWindowsMonitorStartsInPlace() {
         let listed = [screen("DP-3", x: 0, y: 0), screen("DP-2", x: 2560, y: 0)]
         let plan = MonitorPlanning.plan(listed: listed, shown: ShownMonitors(ended: ["DP-2"]), source: source)

@@ -19,7 +19,8 @@ name) and reads and writes them as JSON.
 - Window plans for a machine's monitors (Show All Monitors). `MonitorPlanning`: the host's
   monitors in host order (by position left to right, then top to bottom, then by name; those
   without a position last, by name), and which to open: every listed monitor by name, those
-  live sessions show skipped, at most 16 (the list is untrusted), an ended window of one
+  live sessions show skipped (a Focused Monitor mirror not yet named shows the focused
+  one), at most 16 (the list is untrusted), an ended window of one
   started again in place, each with the
   source window's options and the screen its monitor. `MonitorPlacement`: with the placement
   option on, which Mac display each monitor's window goes on, ordering only: displays left

@@ -13,15 +13,22 @@ import os
 /// place it: the group is joined with `addTabbedWindow`, and a window opened alone that macOS
 /// tabbed anyway (System Settings' "Prefer tabs: Always") leaves its group. The first window,
 /// with none in front, stays where macOS put it.
+///
+/// A window opened `quietFor` another (Show All Monitors) leaves that one key: as a tab, it
+/// joins unselected; alone, it opens behind it, `placement`'s cascade steps from it.
 struct WindowTabbing: NSViewRepresentable {
     static let identifier = "session"
 
     let tabOf: Int?
     let alone: Bool
+    var quietFor: Int?
+    var placement: WindowPlace?
     let changed: (_ group: (window: Int, tabs: [Int])) -> Void
     let closed: () -> Void
 
-    func makeNSView(context: Context) -> TabbingView { TabbingView(tabOf: tabOf, alone: alone) }
+    func makeNSView(context: Context) -> TabbingView {
+        TabbingView(tabOf: tabOf, alone: alone, quietFor: quietFor, placement: placement)
+    }
 
     func updateNSView(_ view: TabbingView, context: Context) {
         (view.changed, view.closed) = (changed, closed)
@@ -37,12 +44,20 @@ struct WindowTabbing: NSViewRepresentable {
     }
 }
 
+/// Where a window of its own opens (Show as Windows): `step` cascade steps from the source
+/// window's top-left (from its display's visible frame's in full screen).
+struct WindowPlace: Codable, Hashable {
+    var step: Int
+}
+
 final class TabbingView: NSView {
     private static let logger = Logger(subsystem: "me.cbyrd.Glifftop", category: "window")
     var changed: (_ group: (window: Int, tabs: [Int])) -> Void = { _ in }
     var closed: () -> Void = {}
     private let tabOf: Int?
     private let alone: Bool
+    private let quietFor: Int?
+    private let placement: WindowPlace?
     /// Whether the window has been placed: in the requested group, or alone.
     private var placed = false
     private var groupObservation: NSKeyValueObservation?
@@ -51,8 +66,8 @@ final class TabbingView: NSView {
     private var windowObservation: NSKeyValueObservation?
     private var closeObserver: (any NSObjectProtocol)?
 
-    init(tabOf: Int?, alone: Bool) {
-        (self.tabOf, self.alone) = (tabOf, alone)
+    init(tabOf: Int?, alone: Bool, quietFor: Int?, placement: WindowPlace?) {
+        (self.tabOf, self.alone, self.quietFor, self.placement) = (tabOf, alone, quietFor, placement)
         super.init(frame: .zero)
     }
 
@@ -69,9 +84,11 @@ final class TabbingView: NSView {
         window.tabbingIdentifier = WindowTabbing.identifier
         window.tabbingMode = .preferred
         var joined: NSRect?
+        var quietSource: NSWindow?
         if !placed {
             placed = true
             joined = place(window)
+            quietSource = quietFor.flatMap(NSApp.window(withWindowNumber:))
         }
         windowObservation = window.observe(\.tabGroup) { [weak self] _, _ in
             MainActor.assumeIsolated { self?.observeGroup() }
@@ -87,6 +104,38 @@ final class TabbingView: NSView {
         // until it knew it shares the window (reported just now). Back to the group's own,
         // after SwiftUI's update for that.
         if let joined { Task { window.setFrame(joined, display: true) } }
+        if let quietSource { settle(window, quietFor: quietSource) }
+    }
+
+    /// A Show All Monitors window: one of its own behind the source, cascaded from it; a tab
+    /// unselected; the source key again, now and after SwiftUI's update (which may order the
+    /// new window front).
+    private func settle(_ window: NSWindow, quietFor source: NSWindow) {
+        let ownWindow = window.tabGroup.map { $0.windows.count < 2 } ?? true
+        let rekey = {
+            // Only from a window the command made key: not after the person moved on.
+            let key = NSApp.keyWindow
+            guard key == nil || key === window || key === source else { return }
+            if ownWindow { window.order(.below, relativeTo: source.windowNumber) }
+            source.tabGroup?.selectedWindow = source
+            source.makeKeyAndOrderFront(nil)
+        }
+        rekey()
+        Task {
+            if ownWindow, let placement { Self.cascade(window, from: source, steps: placement.step + 1) }
+            rekey()
+        }
+    }
+
+    /// Puts `window`'s top-left `steps` cascade steps from the source's top-left, or from its
+    /// display's visible frame's in full screen.
+    private static func cascade(_ window: NSWindow, from source: NSWindow, steps: Int) {
+        let frame =
+            source.styleMask.contains(.fullScreen)
+            ? source.screen?.visibleFrame ?? source.frame : source.frame
+        // Each call puts the window at the point and returns the next step's.
+        var point = NSPoint(x: frame.minX, y: frame.maxY)
+        for _ in 0...steps { point = window.cascadeTopLeft(from: point) }
     }
 
     /// Joins the requested group, or the front session window's, returning the group's frame
@@ -109,7 +158,8 @@ final class TabbingView: NSView {
         let frame = Self.kept(source)
         let last = source.tabbedWindows?.last { $0 !== window } ?? source
         last.addTabbedWindow(window, ordered: .above)
-        window.makeKeyAndOrderFront(nil)
+        // Show All Monitors' tabs join unselected.
+        if quietFor == nil { window.makeKeyAndOrderFront(nil) }
         return frame
     }
 

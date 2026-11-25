@@ -121,6 +121,8 @@ import os
     var sheetScreen: ScreenChoice?
     /// The host's monitors, from Get Screens (or View ▸ Screen's Refresh Screen List).
     let screenList = ScreenList()
+    /// Show All Monitors' alert, while shown (`SessionModel+Monitors`).
+    var monitorsAlert: MonitorsAlert?
     /// The window's sign-in questions, from its sessions, reconnects and Get Screens.
     let signIn = SignInPrompter()
     /// The video view's drawable size in pixels, last reported (with `backingScale`), and

@@ -43,6 +43,15 @@ struct RootView: View {
             EditMachineView(model: model, machine: $0.machine, isNew: $0.isNew)
         }
         .signInSheet(model.signIn, shown: model.machineEdit == nil)
+        .alert(
+            model.monitorsAlert?.title ?? "",
+            isPresented: $model.showsMonitorsAlert,
+            presenting: model.monitorsAlert
+        ) { _ in
+            Button("OK") {}
+        } message: { alert in
+            if let message = alert.message { Text(message) }
+        }
         .background {
             AttentionTracker(question: model.signIn.current?.id) { [signIn = model.signIn] in
                 signIn.windowReady = $0
