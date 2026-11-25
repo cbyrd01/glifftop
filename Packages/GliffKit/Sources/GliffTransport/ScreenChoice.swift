@@ -8,6 +8,12 @@ public enum ScreenChoice: Hashable, Sendable {
     case named(String)
     case virtual
 
+    /// Whether `name` may be a `named` choice: one Get Screens could offer
+    /// (`ScreenListParser.isValidName`), and no session's virtual screen.
+    public static func isMonitorName(_ name: String) -> Bool {
+        ScreenListParser.isValidName(name) && !OutputName.isVirtualScreen(name)
+    }
+
     public var serverArguments: [String] {
         switch self {
         case .focused: ["--output", "auto"]
@@ -17,10 +23,9 @@ public enum ScreenChoice: Hashable, Sendable {
     }
 }
 
-/// Stored with a machine. A name read back becomes a server argument, so it must be one Get
-/// Screens could offer (`ScreenListParser.isValidName`, and no session's virtual screen); else
-/// decoding fails. Encoding is
-/// Swift's own, which `Stored` mirrors case for case.
+/// Stored with a machine. A name read back becomes a server argument, so it must pass
+/// `isMonitorName`; else decoding fails. Encoding is Swift's own, which `Stored` mirrors case
+/// for case.
 extension ScreenChoice: Codable {
     private enum Stored: Codable {
         case focused
@@ -33,7 +38,7 @@ extension ScreenChoice: Codable {
         case .focused: self = .focused
         case .virtual: self = .virtual
         case .named(let name):
-            guard ScreenListParser.isValidName(name), !OutputName.isVirtualScreen(name) else {
+            guard ScreenChoice.isMonitorName(name) else {
                 throw DecodingError.dataCorrupted(
                     .init(codingPath: decoder.codingPath, debugDescription: "screen name"))
             }

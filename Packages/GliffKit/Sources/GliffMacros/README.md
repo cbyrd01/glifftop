@@ -10,6 +10,17 @@ connection, before the session, once the screen exists, on demand and at Disconn
 - `MacroText`: the character rules for scripts. Control, format and separator characters are
   refused (but `\n` and `\t`); other characters outside printable ASCII are shown escaped in the
   approval sheet.
+- `MacroContext`: a run's `GLIFF_*` variables (moment, reconnect, screen, and the server's
+  output once the session exists), each name checked as Get Screens checks one.
+  `preview(for:screen:)` is what the editor and the approval sheet show.
+- `MacroScript`: the text a run writes on stdin: a comment, `unset` of the wrapper's and the
+  `GLIFF_*` variables, the `export` lines (values quoted), the Hyprland lookup, the script
+  evaluated on its own, and the line `#TOKEN`. A script that can't run builds nothing.
+- `MacroWrapper`: the host side, `sh -c '<wrapper>' glifftop-macro LEN LIMIT TOKEN`. It sends
+  its stderr to stdout, runs the text only when all of it arrived, prints a start line and a
+  trailer, and ends the run's process group at the limit or when the channel closes.
+- `MacroToken`: a run's 32 hex digits from `SystemRandomNumberGenerator`; it never prints
+  itself.
 - **Trust:** only the person's own scripts run, each approved once with its full text in front
   of them. A script travels on the channel's stdin, never on a command line. No script, name,
   output byte, exported value, destination, path, token or key ever reaches `os.Logger`, an

@@ -52,7 +52,7 @@ public enum ScreenListParser {
         /// A virtual screen, this session's or another's, isn't offered: it goes when its
         /// session ends.
         var screen: RemoteScreen? {
-            guard disabled != true, isValidName(name), !OutputName.isVirtualScreen(name),
+            guard disabled != true, ScreenChoice.isMonitorName(name),
                 sides.contains(width), sides.contains(height),
                 scales.contains(scale)
             else { return nil }

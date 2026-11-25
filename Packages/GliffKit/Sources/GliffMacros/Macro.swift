@@ -112,7 +112,10 @@ public struct Macro: Codable, Equatable, Identifiable, Sendable {
     }
 
     /// Whether the script keeps `MacroText`'s rules and size limit, so it may be run or approved.
-    public var canRun: Bool {
+    public var canRun: Bool { Self.canRun(script) }
+
+    /// Whether `script` keeps `MacroText`'s rules and size limit.
+    static func canRun(_ script: String) -> Bool {
         script.utf8.count <= MacroLimits.scriptBytes && MacroText.allows(script)
     }
 
