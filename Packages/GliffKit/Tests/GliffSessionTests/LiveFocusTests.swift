@@ -78,7 +78,11 @@
             where current.contains(where: { $0.id == monitor.id && $0.name == monitor.name }) {
                 closing.formUnion((try? LiveHyprland.windows(on: monitor.id)) ?? [])
             }
-            try? LiveHyprland.closeWindows(closing)
+            do {
+                try await LiveHyprland.closeWindows(closing)
+            } catch {
+                Issue.record(error, "closing the test's windows")
+            }
             try? await nap(1)
             for (screen, _) in screens { await screen.end() }
             await connections.closeAll()

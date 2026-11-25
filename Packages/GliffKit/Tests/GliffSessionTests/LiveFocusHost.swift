@@ -10,7 +10,13 @@
     /// The host side of `LiveFocusTests`: `hyprctl` over the Mac's own ssh (`BatchMode`), read
     /// as JSON. Only numbers and ids are kept.
     enum LiveHyprland {
-        static func run(_ script: String) throws -> String {
+        enum Failure: Error {
+            /// `hyprctl` (or ssh) exited with this status.
+            case status(Int32)
+        }
+
+        /// `script` on the host, its output; with `checked`, a nonzero exit throws.
+        static func run(_ script: String, checked: Bool = false) throws -> String {
             let process = Process()
             process.executableURL = URL(filePath: "/usr/bin/ssh")
             process.arguments = [
@@ -23,6 +29,7 @@
             try process.run()
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
+            if checked, process.terminationStatus != 0 { throw Failure.status(process.terminationStatus) }
             return String(decoding: data, as: UTF8.self)
         }
 
@@ -65,7 +72,7 @@
             let clients = try #require(try json("clients") as? [[String: Any]])
             return clients.compactMap { client in
                 guard monitor == nil || client["monitor"] as? Int == monitor,
-                    let address = client["address"] as? String, address.wholeMatch(of: /0x[0-9a-f]+/) != nil
+                    let address = client["address"] as? String, isAddress(address)
                 else { return nil }
                 return address
             }
@@ -73,11 +80,42 @@
 
         static func windowCount(on monitor: Int) throws -> Int { try windows(on: monitor).count }
 
-        /// Closes the windows the test opened, by address, those still open: never another.
-        static func closeWindows(_ addresses: Set<String>) throws {
-            for address in try windows() where addresses.contains(address) {
-                _ = try run("hyprctl dispatch closewindow address:\(address)")
+        /// A window address as `hyprctl` gives it: `0x` and lowercase hex digits.
+        static func isAddress(_ text: String) -> Bool { text.wholeMatch(of: /0x[0-9a-f]+/) != nil }
+
+        /// Hyprland's Lua dispatcher closing the window at `address`; nil unless `address` is
+        /// `0x` and lowercase hex digits, as `hyprctl` gives them.
+        static func closeCommand(address: String) -> String? {
+            guard isAddress(address) else { return nil }
+            return #"hyprctl dispatch 'hl.dsp.window.close({ window = "address:"# + address + #"" })'"#
+        }
+
+        /// Runs each address's `closeCommand` through `run`, every one even after a failure;
+        /// the failures.
+        static func close(_ addresses: [String], with run: (String) throws -> Void) -> [any Error] {
+            addresses.compactMap(closeCommand).compactMap { command in
+                do {
+                    try run(command)
+                    return nil
+                } catch {
+                    return error
+                }
             }
+        }
+
+        /// Closes the windows the test opened, by address, those still open: never another.
+        /// Then waits up to 2 s for them to go, and expects none left.
+        static func closeWindows(_ addresses: Set<String>) async throws {
+            let open = try windows().filter(addresses.contains)
+            for failure in close(open, with: { _ = try run($0, checked: true) }) {
+                Issue.record(failure, "closing a window the test opened")
+            }
+            var left = addresses.intersection(try windows())
+            for _ in 0..<20 where !left.isEmpty {
+                try await Task.sleep(for: .milliseconds(100))
+                left = addresses.intersection(try windows())
+            }
+            #expect(left.isEmpty, "\(left.count) windows the test opened are still open")
         }
 
         static func cursor() throws -> (x: Double, y: Double) {
