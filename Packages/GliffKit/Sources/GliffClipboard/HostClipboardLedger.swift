@@ -4,7 +4,7 @@ public import Foundation
 /// each host's clipboard holds, whose offers it supersedes, the fence after an empty offer,
 /// and who takes the copy over when its holder ends. Keyed by the destination as typed, each
 /// session an opaque id; it never sees a session, a target or clipboard data. Times are
-/// `Duration`s since the caller's origin. Only sessions with sharing on take part.
+/// `Duration`s since the caller's origin. Only sessions with sharing on take a handover.
 public struct HostClipboardLedger: Sendable {
     /// The sessions that may offer the Mac clipboard to `host` because its holder ended, the
     /// first to ask first.
@@ -16,11 +16,23 @@ public struct HostClipboardLedger: Sendable {
     }
 
     /// How long after a host's empty offer another session's offer to it waits: two channels
-    /// may reorder within a few milliseconds.
+    /// may reorder within a few milliseconds. It runs from the empty offer's withdrawal, not
+    /// its write, so it covers the channels' reordering, not a queue still full ahead of it.
     public static let fence = Duration.milliseconds(30)
+
+    /// How long after the holder's offer an empty report from its own session is taken as
+    /// stale: the selection an earlier holder's destroyed source left, sent before the host
+    /// took the offer (a handover as a window closes).
+    public static let settle = Duration.seconds(1)
 
     /// The app is quitting: nothing is handed over.
     public var quitting = false
+
+    private struct Holder {
+        let session: UUID
+        let changeCount: Int
+        let since: Duration
+    }
 
     private struct Member {
         let host: String
@@ -33,7 +45,7 @@ public struct HostClipboardLedger: Sendable {
     }
 
     private var members: [UUID: Member] = [:]
-    private var holders: [String: (session: UUID, changeCount: Int)] = [:]
+    private var holders: [String: Holder] = [:]
     private var lastEmpty: [String: Duration] = [:]
     private var registered = 0
 
@@ -72,10 +84,9 @@ public struct HostClipboardLedger: Sendable {
         -> (superseded: [UUID], sendAt: Duration?)
     {
         guard let host = members[session]?.host else { return ([], nil) }
-        holders[host] = (session, changeCount)
-        let others = members.compactMap {
-            $0.key != session && $0.value.host == host && $0.value.sharing ? $0.key : nil
-        }
+        holders[host] = Holder(session: session, changeCount: changeCount, since: time)
+        // Sharing or not: a holder that just turned sharing off still has its offer live.
+        let others = members.compactMap { $0.key != session && $0.value.host == host ? $0.key : nil }
         let sendAt = lastEmpty[host].map { $0 + Self.fence }.flatMap { time < $0 ? $0 : nil }
         return (others, sendAt)
     }
@@ -84,7 +95,8 @@ public struct HostClipboardLedger: Sendable {
     /// detaching session, which sends nothing: its end alone retires its source.
     @discardableResult
     public mutating func withdrew(_ session: UUID, empty: Bool, at time: Duration) -> Bool {
-        guard let member = members[session], !member.detaching else { return false }
+        guard let member = members[session] else { return true }
+        guard !member.detaching else { return false }
         release(session, member.host)
         if empty { lastEmpty[member.host] = time }
         return true
@@ -93,10 +105,19 @@ public struct HostClipboardLedger: Sendable {
     /// The session reported a host copy (not the selection a new server finds, which may
     /// predate the holder's offer). A real copy clears the holder whoever reports it; an empty
     /// one only from the holder's own session, as every other session reports the empty
-    /// selection a destroyed source leaves.
-    public mutating func hostCopy(_ session: UUID, isFirst: Bool, isEmpty: Bool) {
-        guard !isFirst, let host = members[session]?.host else { return }
-        if isEmpty { release(session, host) } else { holders[host] = nil }
+    /// selection a destroyed source leaves. Returns false for the holder's empty report within
+    /// `settle` of its offer: stale, not the host's clipboard now.
+    public mutating func hostCopy(_ session: UUID, isFirst: Bool, isEmpty: Bool, at time: Duration) -> Bool {
+        guard !isFirst, let host = members[session]?.host else { return true }
+        guard isEmpty else {
+            holders[host] = nil
+            return true
+        }
+        if let holder = holders[host], holder.session == session, time < holder.since + Self.settle {
+            return false
+        }
+        release(session, host)
+        return true
     }
 
     /// The sessions are ending together (a window, or every tab of a group). Each host whose
@@ -114,9 +135,15 @@ public struct HostClipboardLedger: Sendable {
         return handovers
     }
 
+    /// Sessions told they were ending that didn't (a tab of a closed group that stayed open):
+    /// they withdraw and take a handover again.
+    public mutating func stayed(_ sessions: Set<UUID>) {
+        for session in sessions { members[session]?.detaching = false }
+    }
+
     /// The holder of `host`'s clipboard is gone: its copy to the host's other sessions with
     /// sharing on, unless the app quits or the Mac clipboard has moved on.
-    private func handover(_ host: String, from holder: (session: UUID, changeCount: Int), macCount: Int)
+    private func handover(_ host: String, from holder: Holder, macCount: Int)
         -> [Handover]
     {
         let candidates = candidates(host)

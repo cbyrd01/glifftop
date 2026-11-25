@@ -32,7 +32,8 @@ struct WindowTabbing: NSViewRepresentable {
         // A sheet's window is its parent's.
         guard let key = NSApp.keyWindow ?? NSApp.mainWindow else { return }
         let window = key.sheetParent ?? key
-        for tab in window.tabbedWindows ?? [window] { tab.performClose(nil) }
+        // The tabs' sessions end together: none takes the host's clipboard from another.
+        HostClipboards.shared.closeGroup(window.tabbedWindows ?? [window]) { $0.performClose(nil) }
     }
 }
 

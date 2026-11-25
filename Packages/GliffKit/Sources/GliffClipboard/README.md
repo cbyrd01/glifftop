@@ -54,15 +54,18 @@ file request refused; GliffProtocol still reads and writes both.
   copied since (a real copy, not the empty selection an ending source leaves).
 - **`HostClipboardLedger`:** one clipboard per host across the app's windows, pure, keyed by
   the destination as typed with each session an opaque `UUID`; it never sees a session, a
-  target or clipboard data, and only sessions with sharing on take part. Two destinations
+  target or clipboard data, and only sessions with sharing on take a handover. Two destinations
   that reach one host (an alias and `user@host`) count as two.
   - The holder: the session whose offer of which Mac `changeCount` the host holds; set by an
     offer, cleared by the holder's own withdrawal, by a real host copy any session reports,
-    and by the holder's own report of an empty one (never by a first report).
-  - An offer supersedes the host's other sessions; inside 30 ms after the host's last empty
-    offer it waits until then (two channels may reorder).
+    and by the holder's own report of an empty one (never by a first report, nor within 1 s
+    of its offer: the empty selection an earlier holder's source left, sent before the host
+    took the offer).
+  - An offer supersedes the host's other sessions, sharing or not (a holder that just turned
+    sharing off still has its offer live); inside 30 ms after the host's last empty withdrawal
+    it waits until then (two channels may reorder; a channel's full queue isn't covered).
   - Sessions ending together (`detaching`, every tab of a group at once), or the holder
     turning sharing off, hand the held copy, while the Mac clipboard is still it, to the
     host's other sessions in turn until one offers, the last in front first (those never in
-    front after, the later registered first); a detaching session sends nothing, and nothing
-    is handed over while the app quits.
+    front after, the later registered first); a detaching session sends nothing until it
+    `stayed` (a tab that didn't close), and nothing is handed over while the app quits.

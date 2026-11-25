@@ -320,6 +320,16 @@ AppKit adapters for what SwiftUI can't do:
   window; another host's window offers it, host to host.
   `PasteboardSource` reads the data when the remote pastes, only from the copy the offer was
   made from, a TIFF converted to PNG with ImageIO, at most 32 MiB.
+  `HostClipboards` is the app's one `HostClipboardLedger` (GliffClipboard): each controller
+  registers its session with a fresh id and the destination as typed, and reports when it
+  comes in front, its sharing, its offers and withdrawals, and the host copies it sees. A Mac
+  copy another window's session to the host holds isn't offered again from the front; an offer
+  supersedes the host's other sessions; one made within 30 ms after another window's empty
+  offer to the host waits until then. When the holder's session ends (closed, Disconnect, a
+  lost link, another screen) or turns sharing off, the copy goes to the host's other windows,
+  the last in front first, until one offers it, under the settings in force then. ⇧⌘W tells
+  it every tab of the group first, so the tabs don't hand it to each other, and a tab that
+  stays open (a sheet up) takes part again; quitting hands nothing over.
 
 - the clipboard, remote → Mac: the host's offers reach the same policy, which
   puts them on the Mac while the window is in front, or holds them until it is back if the

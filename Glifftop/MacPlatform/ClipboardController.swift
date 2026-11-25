@@ -23,7 +23,9 @@ final class ClipboardController {
     private var sharing: Bool { current != .off }
     private var includePasswords: Bool { current == .withPasswords }
     private var front = false
-    private weak var window: NSWindow?
+    private(set) weak var window: NSWindow?
+    /// The session as `HostClipboards` knows it, new for each session.
+    private var id = UUID()
     private var changeCount = NSPasteboard.general.changeCount
     /// The pasteboard's count after we last put the remote's offer there.
     private var written: Int?
@@ -53,11 +55,13 @@ final class ClipboardController {
     /// A session started: a fresh policy for it, the current clipboard offered if in front.
     func attach(_ session: Session, host: String) {
         detach()
-        (self.session, self.host) = (session, host)
+        (self.session, self.host, id) = (session, host, UUID())
         current = inForce()
         policy = ClipboardPolicy(sharing: sharing)
         changeCount = NSPasteboard.general.changeCount
         front = isFront
+        HostClipboards.shared.register(self, id: id, host: host, sharing: sharing)
+        if front { HostClipboards.shared.front(id) }
         carryOut(policy.handle(.front(front, mac())))
         poll = Task { [weak self] in
             while true {
@@ -67,12 +71,14 @@ final class ClipboardController {
         }
     }
 
-    /// The session is going or has ended: nothing more is offered to it, and the remote's copy
-    /// we put on the Mac goes if it is still there: it can no longer be fetched, and the next
-    /// session would otherwise offer it back as the Mac's.
+    /// The session is going or has ended: nothing more is offered to it, the Mac copy it gave the
+    /// host goes to another window's session to the host, and the remote's copy we put on the
+    /// Mac goes if it is still there: it can no longer be fetched, and the next session would
+    /// otherwise offer it back as the Mac's.
     func detach() {
         poll?.cancel()
         poll = nil
+        HostClipboards.shared.detach(id)
         session = nil
         PasteProvider.afterPaste { [weak self] in self?.clearWritten() }
     }
@@ -123,6 +129,7 @@ final class ClipboardController {
         let now = isFront
         guard now != front else { return }
         front = now
+        if now { HostClipboards.shared.front(id) }
         carryOut(policy.handle(.front(now, mac())))
     }
 
@@ -131,14 +138,41 @@ final class ClipboardController {
     func sharingChanged() {
         let (wasSharing, wasIncluding) = (sharing, includePasswords)
         current = inForce()
-        if sharing != wasSharing { carryOut(policy.handle(.sharing(sharing, mac()))) }
+        if sharing != wasSharing {
+            // The ledger first: a holder turning sharing off hands its copy over, and the new
+            // holder's offer supersedes ours, so no empty offer of ours clears it.
+            HostClipboards.shared.sharing(id, sharing)
+            carryOut(policy.handle(.sharing(sharing, mac())))
+        }
         if includePasswords != wasIncluding { carryOut(policy.handle(.recheck(mac()))) }
     }
 
     /// The host's clipboard changed: ours is no longer there, so withdrawing it later sends no
     /// empty offer over the host's copy.
     func remoteOffered(_ offer: RemoteClipboardOffer) {
+        // A stale empty report (an earlier holder's source gone) leaves our offer standing.
+        guard
+            HostClipboards.shared.hostCopy(
+                id, isFirst: offer.isFirst, isEmpty: !offer.hasFiles && offer.isEmpty)
+        else { return }
         carryOut(policy.handle(.remoteOffer(offer, mac())))
+    }
+
+    /// Another window's session to the host offered: ours is no longer on the host.
+    func superseded() {
+        _ = policy.handle(.superseded)
+    }
+
+    /// The host's holder ended while the Mac clipboard was its copy: offers it, if it may.
+    /// Returns whether it did.
+    func handOver() -> Bool {
+        guard session != nil else { return false }
+        // Settings may have just changed, its notice not yet here: the copy goes only as they
+        // now allow.
+        sharingChanged()
+        let actions = policy.handle(.handOver(mac()))
+        carryOut(actions)
+        return !actions.isEmpty
     }
 
     private func pasteboardChecked() {
@@ -167,7 +201,8 @@ final class ClipboardController {
                 && ClipboardPolicy.offerable(
                     typeCount: PasteboardTypes.mimes(for: read.types).count,
                     isPassword: PasteboardTypes.isPassword(read.types), includePasswords: includePasswords,
-                    cameFromThisHost: ClipboardOrigin.destination(of: read.changeCount) == host)
+                    cameFromThisHost: ClipboardOrigin.destination(of: read.changeCount) == host),
+            heldElsewhere: HostClipboards.shared.heldElsewhere(id, changeCount: read.changeCount)
         )
     }
 
@@ -179,13 +214,18 @@ final class ClipboardController {
                 // The types the policy judged, never read again: they could be another copy's.
                 guard let lastRead, lastRead.changeCount == count else { continue }
                 let mimes = PasteboardTypes.mimes(for: lastRead.types)
-                Self.log.info("Mac clipboard offered: \(mimes.count, privacy: .public) types")
-                session.offerClipboard(
-                    LocalClipboardOffer(
-                        mimeTypes: mimes, token: count, isPassword: PasteboardTypes.isPassword(lastRead.types)
-                    )
-                )
+                let offer = LocalClipboardOffer(
+                    mimeTypes: mimes, token: count, isPassword: PasteboardTypes.isPassword(lastRead.types))
+                // Sent at once, or once the fence after another window's empty offer ends, if
+                // this session is still the one attached.
+                HostClipboards.shared.offer(id, changeCount: count) { [weak self] in
+                    guard self?.session === session else { return }
+                    Self.log.info("Mac clipboard offered: \(mimes.count, privacy: .public) types")
+                    session.offerClipboard(offer)
+                }
             case .revokeMac(let sendEmpty):
+                // A session handing its copy over sends nothing: its end retires its source.
+                guard HostClipboards.shared.withdrew(id, empty: sendEmpty) else { continue }
                 Self.log.info("Mac clipboard withdrawn, empty offer: \(sendEmpty, privacy: .public)")
                 session.revokeClipboard(sendEmpty: sendEmpty)
             case .putOnMac(let offer):
