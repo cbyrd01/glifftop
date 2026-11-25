@@ -28,6 +28,10 @@ enum AppSettings {
     static let showsStatusBarKey = "showsStatusBar"
     /// The input mode a new window starts in (`CaptureMode.stored`); Integrated by default.
     static let inputModeKey = "inputMode"
+    /// Show All Monitors ▸ Show as Windows puts the windows on the Mac's displays in the host's
+    /// order (`MonitorPlacement`); off by default. An app setting: it depends on this Mac's
+    /// displays.
+    static let placeMonitorWindowsKey = "placeMonitorWindows"
 
     /// Settings' input mode, which each new window starts in.
     static var inputMode: CaptureMode {
@@ -44,6 +48,7 @@ enum AppSettings {
             scaleToFit: defaults.bool(forKey: scaleToFitKey),
             reconnects: defaults.object(forKey: reconnectsKey) as? Bool ?? true)
     }
+    static var placesMonitorWindows: Bool { UserDefaults.standard.bool(forKey: placeMonitorWindowsKey) }
     /// Settings' Share the clipboard, which a machine with no setting of its own follows.
     static var clipboardSharing: ClipboardSharing {
         let defaults = UserDefaults.standard
@@ -54,7 +59,7 @@ enum AppSettings {
 }
 
 /// Settings ▸ General: the options each new host or machine starts from, the clipboard, and
-/// the input mode.
+/// the input mode, and where Show as Windows puts its windows.
 struct SettingsView: View {
     @AppStorage(AppSettings.connectScreenKey) private var connectScreen = "focused"
     @AppStorage(AppSettings.virtualTextSizeKey) private var virtualTextSize = TextSize.mac.factor
@@ -62,6 +67,7 @@ struct SettingsView: View {
     @AppStorage(AppSettings.resolutionKey) private var resolution = VirtualResolution.automatic
     @AppStorage(AppSettings.reconnectsKey) private var reconnects = true
     @AppStorage(AppSettings.inputModeKey) private var inputMode = CaptureMode.integrated.stored
+    @AppStorage(AppSettings.placeMonitorWindowsKey) private var placeMonitorWindows = false
     @StoredClipboardSharing private var clipboardSharing
     @State private var askingClipboard: ClipboardQuestion?
 
@@ -93,6 +99,12 @@ struct SettingsView: View {
             Text(
                 "Integrated: the pointer moves freely; over the toolbar ⌘ shortcuts are the Mac's. "
                     + "Capture: the pointer stays in the picture until Shift+Esc."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            Toggle("Place monitor windows in the host's order", isOn: $placeMonitorWindows)
+            Text(
+                "Show All Monitors ▸ Show as Windows puts the host's leftmost monitor on the Mac's leftmost display, and so on. Extra windows go on the last display."
             )
             .font(.callout)
             .foregroundStyle(.secondary)

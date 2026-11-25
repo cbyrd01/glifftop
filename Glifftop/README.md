@@ -71,7 +71,9 @@ beside it); Connection Info, a popover of `StatsView`'s numbers and "The host dr
 and Disconnect), the Connection menu (`ConnectionCommands`: Disconnect ⇧⌘D, Reconnect ⇧⌘R,
 Connection Info ⌘I, Edit Machine… ⌘E, and `ShowAllMonitorsMenu`: Show All Monitors ▸ Show
 as Tabs and Show as Windows, enabled while the key window streams over a live link with
-nothing listing, Show as Tabs not while the window shows one of its sheets; and File's New
+nothing listing, Show as Tabs not while the window shows one of its sheets, and Place Windows in the Host's
+Order, the same setting as Settings' "Place monitor windows in the host's order"
+(`AppSettings.placeMonitorWindowsKey`, off by default); and File's New
 Tab, New Window, New Machine… and Close Window), Show All Monitors
 (`SessionModel+Monitors.swift`: each press lists the host's monitors afresh through the
 window's `ScreenList`, whose completion always runs, cancelled when a session starts; the
@@ -80,7 +82,11 @@ the monitors no window to the destination shows, counting `OpenSessions.shown(fo
 mirrors, a Focused Monitor mirror not yet named as the focused monitor, and its ended named
 mirrors, which start again in place; each other opens by name with the window's options in
 a window or tab from a `TabRequest` whose `WindowStart` connects it as it opens, its screen
-its own, carrying `joined` for start macros; alerts on the window when the listing fails,
+its own, carrying `joined` for start macros; with the placement setting on, Show as Windows
+gives each window its `MonitorPlacement` slot (a display and a cascade step), counting the
+windows already showing a monitor, and moves the key window to its own when it is a mirror
+of a listed monitor alone in its window and not in full screen (`WindowPlacement.move`, then
+`WindowSizer.fit`); alerts on the window when the listing fails,
 the host has no monitors, or every one is shown), the View menu (Actual Size ⌘0, disabled on a virtual
 screen, turning Scale to Fit off; Scale to Fit ⌥⌘0; Show Status Bar ⌘/, app-wide, off by default; `ScreenMenus.swift`: Text Size, a virtual screen only, its steps
 showing the remote scale on the window's display and the ones that change nothing off;
@@ -191,9 +197,11 @@ AppKit adapters for what SwiftUI can't do:
   number and its group's in tab order (KVO on the group's windows) and the window's close;
   Close Window closes every tab of the key window's group; a window opened for Show All
   Monitors leaves the window it ran from key: its tab joins unselected, its window of its own
-  is ordered behind, `WindowPlace`'s cascade steps from the source's top-left (from its
-  display's visible frame in full screen), and the source is made key again then and after
-  SwiftUI's update;
+  is ordered behind, at its `WindowPlace`: its step's cascade steps from its display's
+  visible top-left (`WindowPlacement`; a display gone leaves it where macOS put it), else
+  from the source's top-left (from its display's visible frame in full screen), and the
+  source is made key again then and after SwiftUI's update, unless the person has moved to
+  another window;
 - switching tabs (`TabSwitcher`): Window ▸ Previous Tab and Next Tab (⇧⌘[, ⇧⌘]), and the same
   chord over the picture, taken by `CaptureController`'s key monitor before the remote (while
   captured, too), select the window's previous or next tab; in a window of one tab, the

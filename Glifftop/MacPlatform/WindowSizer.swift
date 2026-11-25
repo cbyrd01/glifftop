@@ -18,10 +18,10 @@ enum WindowSizer {
     }
 
     /// A mirror's window: `view` 1:1 if it fits, with `extraHeight` points of content under the
-    /// picture (the status bar).
-    static func fit(_ window: NSWindow, view: PixelSize, extraHeight: CGFloat) {
+    /// picture (the status bar); on `target`, at its scale, when the window has just moved there.
+    static func fit(_ window: NSWindow, view: PixelSize, extraHeight: CGFloat, on target: NSScreen? = nil) {
         // The video letterboxes inside a full-screen window.
-        guard let screen = screen(for: window) else { return }
+        guard let screen = target ?? screen(for: window) else { return }
         let visible = screen.visibleFrame
         // What the titlebar and toolbar take from the frame, whether or not the content runs
         // under it, and the status bar: the video gets only the rest of the layout rect, so
@@ -30,7 +30,7 @@ enum WindowSizer {
             width: window.frame.width - window.contentLayoutRect.width,
             height: window.frame.height - window.contentLayoutRect.height + extraHeight)
         let size = VideoFit.contentSize(
-            view: view, backingScale: window.backingScaleFactor,
+            view: view, backingScale: Double(target?.backingScaleFactor ?? window.backingScaleFactor),
             available: (width: visible.width - covered.width, height: visible.height - covered.height))
         var frame = NSRect(
             x: 0, y: 0, width: size.width + covered.width, height: size.height + covered.height)
