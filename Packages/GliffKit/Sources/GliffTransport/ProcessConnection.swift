@@ -192,9 +192,8 @@
             await end()
         }
 
-        /// Ends the process now and returns once it has exited: SIGTERM, then SIGKILL after 1 s.
-        /// Foundation starts each process as its own process group's leader, and `terminate()`
-        /// signals the group: an ssh's ProxyJump or ProxyCommand children end with it.
+        /// Ends the process now and returns once it has exited: SIGTERM, then SIGKILL after 1 s,
+        /// each to its whole group (`terminate()`).
         func end() async {
             terminate()
             if await waitForExit(within: .seconds(1)) { return }
@@ -202,7 +201,7 @@
             // to a recycled pid (short of the instant between this check and the signal).
             if process.isRunning {
                 Self.log.debug("pid \(self.processIdentifier) still running after SIGTERM: SIGKILL")
-                kill(processIdentifier, SIGKILL)
+                if killpg(processIdentifier, SIGKILL) != 0 { kill(processIdentifier, SIGKILL) }
             }
             if await !waitForExit(within: .seconds(5)) {
                 Self.log.error("pid \(self.processIdentifier) survived SIGKILL for 5 s")
@@ -212,11 +211,33 @@
         /// Ends the process now (SIGTERM), without `close()`'s wait on stdin: for a one-shot
         /// command whose answer is no longer wanted, so its output stops piling up. `close()`
         /// still reaps it.
+        ///
+        /// Foundation starts each process as its own process group's leader, and the whole group
+        /// is ended (`endGroup`): an ssh's ProxyJump or ProxyCommand children and its askpass
+        /// helpers end with it. A process that has left its group is signalled by itself.
         func terminate() {
             state.withLock { state in
                 if state.exitStatus == nil { state.closing = true }
             }
-            if process.isRunning { process.terminate() }
+            // isRunning turns false when Foundation reaps the child: the group is still its own.
+            guard process.isRunning else { return }
+            if !Self.endGroup(processIdentifier) { kill(processIdentifier, SIGTERM) }
+        }
+
+        /// Sends `group` SIGTERM while it is stopped, and whether it could. The kernel signals a
+        /// group's newest member first, and a member running between two of them could act on
+        /// the other's end: an ssh woken by its askpass helper's exit sends an empty answer.
+        /// Stopped, none of it runs until all of it has the signal; continued, a member whose
+        /// SIGTERM does the default (ssh's, while it waits on a helper) ends before running any
+        /// code, and one that catches it runs its handler.
+        @discardableResult
+        static func endGroup(
+            _ group: pid_t, signal: (pid_t, Int32) -> Int32 = { killpg($0, $1) }
+        ) -> Bool {
+            _ = signal(group, SIGSTOP)
+            let sent = signal(group, SIGTERM) == 0
+            _ = signal(group, SIGCONT)
+            return sent
         }
 
         private func closeStdin() {

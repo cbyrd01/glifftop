@@ -132,22 +132,27 @@
             await connection.close()
         }
 
+        /// The limit leaves a busy machine time to start ssh and the helper before the question.
         @Test func aQuestionPausesTheSignInLimit() async throws {
-            let connection = try await open("STUB_ASK=\"\(Self.password)\"", limit: .seconds(1)) { _ in
-                try? await Task.sleep(for: .seconds(2))
+            let connection = try await open("STUB_ASK=\"\(Self.password)\"", limit: .seconds(3)) { _ in
+                try? await Task.sleep(for: .seconds(4))
                 return .secret(SignInSecret(copying: "pw"))
             }
             #expect(file("answer") == "pw")
             await connection.close()
         }
 
+        /// The ceiling leaves a busy machine time to start ssh and the helper before the question.
         @Test func theCeilingEndsALongQuestion() async throws {
+            let asked = Mutex(false)
             await #expect(throws: TransportError.exited(status: 255, failure: .signInTimedOut)) {
-                try await self.open("STUB_ASK=\"\(Self.password)\"", ceiling: .milliseconds(300)) { _ in
+                try await self.open("STUB_ASK=\"\(Self.password)\"", ceiling: .seconds(3)) { _ in
+                    asked.withLock { $0 = true }
                     try? await Task.sleep(for: .seconds(30))
                     return .cancel
                 }
             }
+            #expect(asked.withLock { $0 })
             #expect(kill(try masterPID(), 0) != 0)
         }
 
@@ -169,7 +174,7 @@
                     questions: Asker { _ in .cancel }, helper: Self.helper, executable: executable,
                     ssh: "/bin/bash")
             }
-            try await Task.sleep(for: .milliseconds(300))
+            #expect(await eventually { self.writtenMasterPID() != nil })
             opening.cancel()
             await #expect(throws: TransportError.cancelled) { try await opening.value }
             try await Task.sleep(for: .milliseconds(300))
@@ -223,8 +228,13 @@
         /// A jump host's ssh asking is ended with the master (its process group) before its
         /// helper goes, so it never sends an empty answer.
         @Test func cancelEndsAJumpHostsSSHBeforeItAnswers() async throws {
-            let failure = await failure(of: "STUB_JUMP=\"\(Self.password)\"") { _ in .cancel }
+            let asked = Mutex(0)
+            let failure = await failure(of: "STUB_JUMP=\"\(Self.password)\"") { _ in
+                asked.withLock { $0 += 1 }
+                return .cancel
+            }
             #expect(failure == .signInCancelled)
+            #expect(asked.withLock { $0 } == 1)
             try await Task.sleep(for: .milliseconds(300))
             #expect(file("jump") == nil)
         }
@@ -303,11 +313,13 @@
             #expect(!FileManager.default.fileExists(atPath: socket))
         }
 
-        /// The master's pid, which the stub writes beside the socket.
-        func masterPID() throws -> Int32 {
-            let text = try String(contentsOf: root.appending(path: "master.pid"), encoding: .utf8)
-            return try #require(Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)))
+        /// The master's pid, which the stub writes beside the socket, once it has.
+        func writtenMasterPID() -> Int32? {
+            (try? String(contentsOf: root.appending(path: "master.pid"), encoding: .utf8))
+                .flatMap { Int32($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
         }
+
+        func masterPID() throws -> Int32 { try #require(writtenMasterPID()) }
 
         @Test func aMasterEndingByItselfIsALoss() async throws {
             let connection = try await open()
@@ -351,7 +363,7 @@
             let opening = Task {
                 try await SystemSSHConnection.open(command: command, executable: executable)
             }
-            try await Task.sleep(for: .milliseconds(300))
+            #expect(await eventually { self.writtenMasterPID() != nil })
             opening.cancel()
             let cancelled = ContinuousClock.now
             await #expect(throws: TransportError.cancelled) { try await opening.value }
