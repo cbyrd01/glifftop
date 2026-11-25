@@ -78,6 +78,9 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   the lease to a further connection once and is replayed there, unseen by the reader. A channel
   with no first byte in 15 s, while no other channel on the connection was heard from, means a
   dead link: the connection is invalidated and the stream ends as `sharedConnectionLost`.
+  In its one-shot mode (a start macro's run) what was written is never run twice: only a
+  channel refused before its first byte moves, once, to a connection already open with room,
+  and gets the kept bytes there; any other end, the first channel's included, is passed on.
   `ByteConnection.abandon()` (a session found its link dead) closes the channel and invalidates
   the connection too, unless another channel on it was heard from after this one's last byte.
   `SSHErrorClassifier.classifyChannel` reads a channel's stderr: refused by the master, or the

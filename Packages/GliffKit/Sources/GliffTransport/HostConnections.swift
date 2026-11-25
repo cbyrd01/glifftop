@@ -346,8 +346,8 @@ public actor HostConnections {
 
     /// `lease`'s connection refused a channel: it is full at the leases it has left, and the
     /// lease moves to another. A lease that has ended, or was taken before a `closeAll()`,
-    /// moves nowhere.
-    func move(_ lease: HostLease) async throws(TransportError) {
+    /// moves nowhere. It opens a connection only when `opening` and the lease allow it.
+    func move(_ lease: HostLease, opening: Bool) async throws(TransportError) {
         guard lease.generation == generation else { throw .cancelled }
         let key = lease.key
         guard let (id, _) = lease.beginMove() else { return }
@@ -357,7 +357,8 @@ public actor HostConnections {
             hosts[key]?.live[index].limit = left
             if left == 0 { startGrace(key, id) }
         }
-        let place = try await acquire(lease.target, fresh: false, asker: lease.asker, opening: lease.opening)
+        let place = try await acquire(
+            lease.target, fresh: false, asker: lease.asker, opening: opening && lease.opening)
         if !lease.moved(to: place) { give(back: place.id, key) }
     }
 }

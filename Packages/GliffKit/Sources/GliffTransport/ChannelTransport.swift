@@ -15,8 +15,15 @@ import Synchronization
 ///   another channel on it was heard from after this one's last byte: then only its own server
 ///   is silent.
 /// - `fresh`: an attempt the person starts, which asks for a sign-in again even when one just
-///   failed (`HostConnections.lease(for:fresh:asker:)`).
+///   failed (`HostConnections.lease(for:fresh:asker:opening:)`).
 /// - `asker`: the window that answers the sign-in's questions while it waits.
+/// - `oneShot` (a start macro's run): what it wrote is never run twice. Only a channel refused
+///   before its first byte moves, once, to a connection already open with room; any other end,
+///   the first channel's included, is passed on as is. Its command sends its own stderr to
+///   stdout and writes a line at once, so only ssh's words read as a refusal and the watchdog
+///   stops judging; its `silenceLimit` is longer than its run may take.
+/// - `opening: false`: the lease takes a place only on a connection already open with room.
+/// - `logsStderr`: as `HostConnection.channel(command:logsStderr:)`.
 public struct ChannelTransport: Transport {
     private let connections: HostConnections
     private let target: SSHTarget
@@ -24,45 +31,66 @@ public struct ChannelTransport: Transport {
     private let silenceLimit: Duration
     private let fresh: Bool
     private let asker: (any SignInAsker)?
+    private let mode: ChannelMode
+    private let opening: Bool
     private let clock: any Clock<Duration>
 
     public init(
         connections: HostConnections, target: SSHTarget, command: String,
         silenceLimit: Duration = .seconds(15), fresh: Bool = false, asker: (any SignInAsker)? = nil,
+        oneShot: Bool = false, opening: Bool = true, logsStderr: Bool = true,
         clock: any Clock<Duration> = ContinuousClock()
     ) {
         (self.connections, self.target, self.command) = (connections, target, command)
         (self.silenceLimit, self.fresh, self.asker, self.clock) = (silenceLimit, fresh, asker, clock)
+        (mode, self.opening) = (ChannelMode(oneShot: oneShot, logsStderr: logsStderr), opening)
     }
 
     public func connect() async throws(TransportError) -> any ByteConnection {
         if Task.isCancelled { throw .cancelled }
-        let lease = try await connections.lease(for: target, fresh: fresh, asker: asker)
+        let lease = try await connections.lease(for: target, fresh: fresh, asker: asker, opening: opening)
         let channel: any ByteConnection
         do {
-            channel = try await Self.firstChannel(on: lease, command: command)
+            channel = try await Self.firstChannel(on: lease, command: command, mode: mode)
         } catch {
             await lease.end()
             throw error
         }
         let connection = LeasedChannel(
-            lease: lease, command: command, channel: channel, silenceLimit: silenceLimit, clock: clock)
+            lease: lease, command: command, mode: mode, channel: channel, silenceLimit: silenceLimit,
+            clock: clock)
         connection.start()
         return connection
     }
 
-    /// The command's channel; on a connection found lost (its master died before anyone
-    /// noticed), the lease moves once and opens it on the next.
-    private static func firstChannel(on lease: HostLease, command: String) async throws(TransportError)
-        -> any ByteConnection
+    /// The command's channel; on a connection found lost, the lease moves once and opens it on
+    /// the next (`ChannelMode.moves(after:)`).
+    private static func firstChannel(on lease: HostLease, command: String, mode: ChannelMode)
+        async throws(TransportError) -> any ByteConnection
     {
         do {
-            return try await lease.channel(command: command)
-        } catch .exited(_, .sharedConnectionLost) {
+            return try await lease.channel(command: command, logsStderr: mode.logsStderr)
+        } catch .exited(_, .sharedConnectionLost) where mode.moves(after: .sharedConnectionLost) {
             try await lease.channelRefused()
-            return try await lease.channel(command: command)
+            return try await lease.channel(command: command, logsStderr: mode.logsStderr)
         }
     }
+}
+
+/// How a `ChannelTransport`'s channels behave: see its `oneShot` and `logsStderr`.
+struct ChannelMode: Sendable {
+    let oneShot: Bool
+    let logsStderr: Bool
+
+    /// Whether a channel that ended this way before its first byte is opened again elsewhere:
+    /// refused (its connection is full, and the command never started), or, unless one-shot,
+    /// its connection was lost (a master that died after a wake, before anyone noticed).
+    func moves(after why: ConnectFailure) -> Bool {
+        why == .channelRefused || (why == .sharedConnectionLost && !oneShot)
+    }
+
+    /// Whether that move may open a connection; a one-shot's takes one already open with room.
+    var movesOpen: Bool { !oneShot }
 }
 
 /// The stream `ChannelTransport` hands out: the current channel's bytes, through refusals.
@@ -71,6 +99,7 @@ final class LeasedChannel: ByteConnection {
     private let continuation: AsyncThrowingStream<[UInt8], any Error>.Continuation
     private let lease: HostLease
     private let command: String
+    private let mode: ChannelMode
     private let silenceLimit: Duration
     private let clock: any Clock<Duration>
 
@@ -90,11 +119,12 @@ final class LeasedChannel: ByteConnection {
     private let state: Mutex<State>
 
     init(
-        lease: HostLease, command: String, channel: any ByteConnection, silenceLimit: Duration,
-        clock: any Clock<Duration>
+        lease: HostLease, command: String, mode: ChannelMode, channel: any ByteConnection,
+        silenceLimit: Duration, clock: any Clock<Duration>
     ) {
         (incoming, continuation) = AsyncThrowingStream.makeStream()
-        (self.lease, self.command, self.silenceLimit, self.clock) = (lease, command, silenceLimit, clock)
+        (self.lease, self.command, self.mode) = (lease, command, mode)
+        (self.silenceLimit, self.clock) = (silenceLimit, clock)
         state = Mutex(State(channel: channel, lastHeard: lease.activityMark))
     }
 
@@ -137,7 +167,7 @@ final class LeasedChannel: ByteConnection {
     private func pump() async {
         var channel = state.withLock { $0.channel }
         var failure = await relay(channel)
-        if Self.movable(failure), state.withLock({ $0.kept != nil }) {
+        if movable(failure), state.withLock({ $0.kept != nil }) {
             await channel.close()
             do throws(TransportError) {
                 channel = try await replay()
@@ -154,12 +184,11 @@ final class LeasedChannel: ByteConnection {
         await close()
     }
 
-    /// A channel that ended this way before its first byte is opened again elsewhere: refused
-    /// (its connection is full), or its connection was lost (a master that died after a wake,
-    /// before anyone noticed).
-    private static func movable(_ failure: (any Error)?) -> Bool {
+    /// A channel that ended this way before its first byte is opened again elsewhere
+    /// (`ChannelMode.moves(after:)`).
+    private func movable(_ failure: (any Error)?) -> Bool {
         guard case TransportError.exited(_, let why)? = failure else { return false }
-        return why == .channelRefused || why == .sharedConnectionLost
+        return mode.moves(after: why)
     }
 
     /// Passes `channel`'s bytes on until it ends: nil when it finished, else why it failed.
@@ -196,16 +225,17 @@ final class LeasedChannel: ByteConnection {
         }
     }
 
-    /// Moves the lease, opens the command again, and writes what was kept before anything new.
+    /// Moves the lease (`ChannelMode.movesOpen`), opens the command again, and writes what was
+    /// kept before anything new.
     private func replay() async throws(TransportError) -> any ByteConnection {
-        try await lease.channelRefused()
+        try await lease.channelRefused(opening: mode.movesOpen)
         // A new connection: what the watchdog found was the old one's.
         let closed = state.withLock { state in
             state.linkDead = false
             return state.closed
         }
         if closed { throw .cancelled }
-        let channel = try await lease.channel(command: command)
+        let channel = try await lease.channel(command: command, logsStderr: mode.logsStderr)
         var sent = 0
         while true {
             let (closed, pending) = state.withLock { state in

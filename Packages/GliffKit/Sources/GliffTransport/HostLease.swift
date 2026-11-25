@@ -81,8 +81,9 @@ public final class HostLease: Sendable {
 
     /// The host refused a channel on this connection (sshd's `MaxSessions`): no new lease goes
     /// to it, and this lease moves to a further connection, which may mean a sign-in.
-    public func channelRefused() async throws(TransportError) {
-        try await owner.move(self)
+    /// `opening: false` (or a lease taken that way) moves only to a connection open with room.
+    public func channelRefused(opening: Bool = true) async throws(TransportError) {
+        try await owner.move(self, opening: opening)
     }
 
     /// A new channel gave no first byte in time: the link is dead, so the connection ends.
