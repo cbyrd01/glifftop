@@ -27,5 +27,19 @@ extension SignInQuestion {
         return SSHErrorClassifier.displayable(rest[..<close])
     }
 
+    /// A password question's user, from ssh's USER@HOST split at the last "@" (a host name has
+    /// none), cleaned as remote text is; nil for any other question, or an account without one.
+    public var user: String? {
+        guard case .password(_, let account, _) = self, let at = account.lastIndex(of: "@") else {
+            return nil
+        }
+        let user = SSHErrorClassifier.displayable(account[..<at])
+        return user.isEmpty ? nil : user
+    }
+
+    /// The host as a heading names it: the host part of what was typed (no user or ssh://,
+    /// the port kept), never ssh's resolved HostName; or a jump host's name as ssh wrote it.
+    public var hostShown: String { SSHErrorClassifier.displayable(SSHTarget.host(of: host)) }
+
     private static let keyQuestion = "Enter passphrase for key '"
 }

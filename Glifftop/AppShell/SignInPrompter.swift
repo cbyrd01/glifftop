@@ -40,7 +40,7 @@ private struct SignInSheet: View {
         let answer = { (answer: consuming SignInAnswer) in prompter.answer(answer, for: pending.id) }
         switch pending.question {
         case .hostKey, .confirm: HostKeySheet(question: pending.question, answer: answer)
-        case .notice(let host, let text): NoticeSheet(host: host, text: text)
+        case .notice(_, let text): NoticeSheet(host: pending.question.hostShown, text: text)
         case .passphrase, .password, .fromHost: SecretSheet(question: pending.question, answer: answer)
         }
     }
@@ -67,12 +67,13 @@ struct HostTextBox: View {
 
 /// Something ssh shows until it is done (a security key's touch): nothing to answer.
 private struct NoticeSheet: View {
+    /// The host as `SignInQuestion.hostShown` names it.
     let host: String
     let text: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Signing in to \(SSHErrorClassifier.displayable(host))")
+            Text("Signing in to \(host)")
                 .font(.headline)
             HStack(alignment: .top, spacing: 12) {
                 ProgressView()

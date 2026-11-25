@@ -49,7 +49,7 @@ a menu of Connect, Edit…, Favourite and Remove, which asks), the machine sheet
 can Connect, Connection ▸ Edit Machine… ⌘E edits the session's; a machine shown in any window
 keeps its host), the windows and tabs (`SessionWindow`: each window or native tab its own
 `SessionModel` and session, opened from a `TabRequest`; File ▸ New Tab ⌘T joins the key
-window's tab group, New Window ⌘N opens one alone, Close Window ⇧⌘W closes every tab, and
+window's tab group, disabled while that window shows one of its model's sheets, New Window ⌘N opens one alone, Close Window ⇧⌘W closes every tab, and
 closing a tab ends its session as Disconnect does; `OpenSessions`, the open windows' models;
 a host already open elsewhere starts on a virtual screen, which its machine never keeps
 (`TabPlanning`); the menus act on the key window's model, `FocusedSession.swift`), the session view, the streaming view (the picture below
@@ -92,8 +92,11 @@ sheet's included; one question at a time as a sheet, on the machine sheet while 
 `HostKeySheet`, a key ssh doesn't know (its type and fingerprint, selectable, and how to check
 it) or ssh's yes/no question about one, with Deny (Escape) and Allow and no default;
 `SecretSheet`, a passphrase, PIN or password, or the host's own question set apart under
-"HOST asks:", in a secure field that Show turns to text, with Continue and Cancel, the field
-emptied as the answer goes; a notice, such as a security key's touch, with no buttons, until
+"HOST asks:", laid out as the Mac's sign-in sheets: a heading saying what it is for ("Sign
+in to HOST", "Unlock the key PATH"), a password's user on a row of its own, a labelled
+secure field (marked as a password for AutoFill, for a password or a key's passphrase) with
+a checkbox to show it as text ("Show password"), Continue and Cancel, the field emptied as
+the answer goes; each sheet names the host as typed (`SignInQuestion.hostShown`); a notice, such as a security key's touch, with no buttons, until
 ssh is done; only an answer, or the question ending, dismisses one) and (Debug builds) the Debug menu: Protocol Inspector (⌥⌘I: `InspectorView`, a
 section per open window titled as its tab, with each message type's count, bytes, last seen
 and rate per direction, and the last 200 messages, refreshed once a second, with Pause and
@@ -152,7 +155,9 @@ AppKit adapters for what SwiftUI can't do:
   and closing the last window quits;
 - native tabs (`WindowTabbing`): a SwiftUI window is already ordered in when its content
   reaches it, so a new tab joins its group with `addTabbedWindow`, after the group's last tab,
-  and a window opened alone that macOS tabbed anyway leaves its group; it reports the window's
+  and a window opened alone that macOS tabbed anyway leaves its group, as does a new window
+  whose group has a sheet up on any tab (AppKit would lay the group out at the sheet's size);
+  it reports the window's
   number and its group's in tab order (KVO on the group's windows) and the window's close;
   Close Window closes every tab of the key window's group;
 - switching tabs (`TabSwitcher`): Window ▸ Previous Tab and Next Tab (⇧⌘[, ⇧⌘]), and the same

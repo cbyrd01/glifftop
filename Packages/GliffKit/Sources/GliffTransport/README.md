@@ -31,8 +31,9 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   other is a jump host's. `SignInQueue` (main actor) is a window's asker: its questions shown
   one at a time as `current`, each ask that is cancelled answered `.cancel` and taken away.
   `SignInQuestion.shownHostText` is the host's own text as a sheet may show it (line breaks
-  kept, no other control or format characters, at most 8 KiB), and `keyPath` the key file a
-  passphrase question names.
+  kept, no other control or format characters, at most 8 KiB), `keyPath` the key file a
+  passphrase question names, `user` a password's user (from ssh's USER@HOST), and
+  `hostShown` the host as typed, for a heading (never ssh's resolved HostName).
 - **A master that may ask:** `MasterAsking`, from the resolved config (nil under `BatchMode
   yes`), drops `BatchMode=yes` from the master only, gives ssh `-n`, keeps
   `StrictHostKeyChecking=yes` when the config says so and asks otherwise (never `accept-new`

@@ -11,8 +11,8 @@ struct HostKeySheet: View {
         VStack(alignment: .leading, spacing: 12) {
             switch question {
             case .hostKey(let key): unknownKey(key)
-            case .confirm(let host, let text):
-                Text("ssh asks about \(SSHErrorClassifier.displayable(host))’s key")
+            case .confirm(_, let text):
+                Text("ssh asks about \(question.hostShown)’s key")
                     .font(.title3)
                 HostTextBox(text: text)
             default: EmptyView()
@@ -29,7 +29,7 @@ struct HostKeySheet: View {
     }
 
     @ViewBuilder private func unknownKey(_ key: HostKeyQuestion) -> some View {
-        Text("This Mac doesn’t know \(SSHErrorClassifier.displayable(key.host))’s key")
+        Text("This Mac doesn’t know \(question.hostShown)’s key")
             .font(.title3)
         VStack(alignment: .leading, spacing: 4) {
             Text("\(SSHErrorClassifier.displayable(key.keyType)) key fingerprint")

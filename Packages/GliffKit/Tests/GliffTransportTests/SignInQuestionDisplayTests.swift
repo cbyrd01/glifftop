@@ -41,4 +41,27 @@ import Testing
                 == nil)
         #expect(SignInQuestion.password(host: "omarchy", account: "me@omarchy", text: "pw: ").keyPath == nil)
     }
+
+    /// The user from ssh's USER@HOST, split at the last "@" (a host name has none), cleaned.
+    @Test func aPasswordNamesItsUser() {
+        let question = SignInQuestion.password(
+            host: "omarchy", account: "a@b\u{202E}@192.168.1.196", text: "pw: ")
+        #expect(question.user == "a@b")
+    }
+
+    @Test func anAccountWithNoUserOrAnotherQuestionHasNone() {
+        #expect(SignInQuestion.password(host: "omarchy", account: "omarchy", text: "pw: ").user == nil)
+        let hiddenUser = SignInQuestion.password(host: "omarchy", account: "\u{202E}@omarchy", text: "pw: ")
+        #expect(hiddenUser.user == nil)
+        #expect(SignInQuestion.passphrase(host: "omarchy", text: "PIN: ").user == nil)
+    }
+
+    /// The host as typed, without a user or ssh://, not the one ssh resolved (its HostName).
+    @Test func theHostShownIsTheTypedHost() {
+        let typed = SignInQuestion.password(
+            host: "ssh://me@omarchy:2222", account: "me@192.168.1.196", text: "pw: ")
+        #expect(typed.hostShown == "omarchy:2222")
+        #expect(SignInQuestion.passphrase(host: "omarchy", text: "PIN: ").hostShown == "omarchy")
+        #expect(SignInQuestion.confirm(host: "jump\u{202E}.example", text: "?").hostShown == "jump.example")
+    }
 }

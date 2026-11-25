@@ -1,11 +1,13 @@
 import AppKit
 import SwiftUI
+import os
 
 /// The window's native tabs: once, joins the tab group of window `tabOf` (File ▸ New Tab), or
 /// of the session window in front when no group is named (the tab bar's +), as a new tab
 /// after its last; or leaves any group when opened `alone`. It reports the window's number and
 /// its group's, in tab order, at each change (a tab added, closed, moved or torn off), and the
-/// window's close.
+/// window's close. A group with a sheet up on any of its tabs takes no tab: the new window
+/// stays on its own (File ▸ New Tab is disabled while the key window's own sheets show).
 ///
 /// A SwiftUI window is already ordered in when its content reaches it, so `tabbingMode` can't
 /// place it: the group is joined with `addTabbedWindow`, and a window opened alone that macOS
@@ -35,6 +37,7 @@ struct WindowTabbing: NSViewRepresentable {
 }
 
 final class TabbingView: NSView {
+    private static let logger = Logger(subsystem: "me.cbyrd.Glifftop", category: "window")
     var changed: (_ group: (window: Int, tabs: [Int])) -> Void = { _ in }
     var closed: () -> Void = {}
     private let tabOf: Int?
@@ -93,16 +96,28 @@ final class TabbingView: NSView {
             return nil
         }
         // Already in a group: macOS tabbed it ("Prefer tabs: Always").
-        if let other = window.tabGroup?.windows.first(where: { $0 !== window }) { return Self.kept(other) }
-        let source = tabOf.flatMap(NSApp.window(withWindowNumber:)) ?? NSApp.mainWindow
-        guard let source, source !== window, source.tabbingIdentifier == WindowTabbing.identifier else {
+        if let group = window.tabGroup, let other = group.windows.first(where: { $0 !== window }) {
+            guard Self.showsSheet(group.windows) else { return Self.kept(other) }
+            group.removeWindow(window)
             return nil
         }
+        let source = tabOf.flatMap(NSApp.window(withWindowNumber:)) ?? NSApp.mainWindow
+        guard let source, source !== window, source.tabbingIdentifier == WindowTabbing.identifier,
+            !Self.showsSheet(source.tabbedWindows ?? [source])
+        else { return nil }
         let frame = Self.kept(source)
         let last = source.tabbedWindows?.last { $0 !== window } ?? source
         last.addTabbedWindow(window, ordered: .above)
         window.makeKeyAndOrderFront(nil)
         return frame
+    }
+
+    /// A group with a sheet up takes no tab: AppKit lays the group out at the sheet's size. The
+    /// new window stays on its own.
+    private static func showsSheet(_ tabs: [NSWindow]) -> Bool {
+        guard tabs.contains(where: { $0.attachedSheet != nil }) else { return false }
+        logger.info("tab group shows a sheet: new window left alone")
+        return true
     }
 
     private static func kept(_ tab: NSWindow) -> NSRect? {

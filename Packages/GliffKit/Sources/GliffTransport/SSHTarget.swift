@@ -43,7 +43,7 @@ public struct SSHTarget: Equatable, Sendable {
 
     /// The host, with its port: what follows the last `@`, else the whole target (after
     /// `ssh://`).
-    private static func host(of target: String) -> Substring {
+    static func host(of target: String) -> Substring {
         let rest = withoutScheme(target)
         let start = rest.lastIndex(of: UInt8(ascii: "@")).map { rest.index(after: $0) } ?? rest.startIndex
         return Substring(rest[start...])
