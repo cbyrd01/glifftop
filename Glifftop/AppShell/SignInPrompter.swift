@@ -9,6 +9,9 @@ import SwiftUI
     @ObservationIgnored let queue = SignInQueue()
     /// The question the sheet shows.
     private(set) var current: SignInQueue.Pending?
+    /// Whether the window may take a new question's sheet: Glifftop is active and the window
+    /// isn't minimized (`AttentionTracker` says).
+    var windowReady = false
 
     init() {
         queue.changed = { [weak self] in self?.current = self?.queue.current }
@@ -27,22 +30,22 @@ extension View {
     }
 }
 
-/// Presents the window's question while Glifftop is the active app. AppKit brings a window
-/// forward, over the app in front, to attach a sheet: while Glifftop is in the background a new
-/// question waits and the Dock icon bounces (`AttentionTracker`). A sheet shown stays shown
-/// while the person switches away.
+/// Presents the window's question while the window is ready (`SignInPrompter.windowReady`).
+/// AppKit brings a window forward, over the app in front or out of the Dock, to attach a sheet:
+/// while Glifftop is in the background or the window is minimized, a new question waits and the
+/// Dock icon bounces (`AttentionTracker`). A sheet shown stays shown after that.
 private struct SignInSheetPresenter: ViewModifier {
     let prompter: SignInPrompter
     let shown: Bool
-    /// The question shown while Glifftop was active, kept shown after it isn't.
+    /// The question shown while the window was ready, kept shown after it isn't.
     @State private var released: Int?
 
-    private var appIsActive: Bool { AppActivity.shared.isActive }
+    private var ready: Bool { prompter.windowReady }
 
     /// The question to present: none while a sheet over this view is in front, and a new one
-    /// only while Glifftop is active.
+    /// only while the window is ready.
     private var presented: SignInQueue.Pending? {
-        guard shown, let pending = prompter.current, appIsActive || pending.id == released else { return nil }
+        guard shown, let pending = prompter.current, ready || pending.id == released else { return nil }
         return pending
     }
 
@@ -56,12 +59,12 @@ private struct SignInSheetPresenter: ViewModifier {
                     .id(pending.id)
                     .interactiveDismissDisabled()
             }
-            .onChange(of: appIsActive, initial: true) { release() }
+            .onChange(of: ready, initial: true) { release() }
             .onChange(of: prompter.current?.id) { release() }
     }
 
     private func release() {
-        if appIsActive { released = prompter.current?.id }
+        if ready { released = prompter.current?.id }
     }
 }
 

@@ -89,8 +89,8 @@ every window to the machine follows it), in `UserDefaults` through
 `AppSettings`), the sign-in's questions (`SignInPrompter`, one per window, its
 `SignInQueue` the asker for the window's sessions, reconnects and Get Screens, the machine
 sheet's included; one question at a time as a sheet, on the machine sheet while that shows,
-shown while Glifftop is active and kept shown after (AppKit would bring a window forward,
-over the app in front, to attach a sheet; `AppActivity` says whether Glifftop is active):
+shown while Glifftop is active and the window isn't minimized, and kept shown after (AppKit
+would bring a window forward, over the app in front or out of the Dock, to attach a sheet):
 `HostKeySheet`, a key ssh doesn't know (its type and fingerprint, selectable, and how to check
 it) or ssh's yes/no question about one, with Deny (Escape) and Allow and no default;
 `SecretSheet`, a passphrase, PIN or password, or the host's own question set apart under
@@ -192,8 +192,10 @@ AppKit adapters for what SwiftUI can't do:
   machines stay resizable and Actual Size is off; a mirror left alone (torn off) is fitted
   again;
 - `AttentionTracker`: a new sign-in question selects its window's tab and brings it forward
-  while Glifftop is active, else bounces the Dock icon once (`requestUserAttention`); the
-  window that bounced last comes forward, once, when Glifftop is next made active;
+  while Glifftop is active and it isn't minimized, else bounces the Dock icon once
+  (`requestUserAttention`); the window that bounced last comes forward, once, when Glifftop is
+  next made active and it isn't minimized, and Glifftop's Dock icon counts the questions open
+  in minimized windows; it tells `SignInPrompter.windowReady`;
 - `LiveResizeTracker`: the window's live resize (a drag of its edge), for
   `SessionModel.liveResizeChanged`, which tells the session (no Resize during one) and any
   session started during one. It reports the end a turn after AppKit's, once the video view
