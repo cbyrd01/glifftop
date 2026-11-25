@@ -42,13 +42,18 @@ public enum MonitorPlanning {
         screens.sorted { sortKey($0) < sortKey($1) }
     }
 
+    /// The most windows one plan opens: the host's list is untrusted.
+    public static let maxOpenings = 16
+
     /// Each listed monitor not shown, in host order, by name (the focused one too, so each
-    /// window means one monitor for its life), with the source window's options.
+    /// window means one monitor for its life), with the source window's options; the first
+    /// `maxOpenings` of them.
     public static func plan(listed: [RemoteScreen], shown: ShownMonitors, source: MachineOptions)
         -> MonitorPlan
     {
         guard !listed.isEmpty else { return .empty }
-        let openings = hostOrder(listed).filter { !shown.live.contains($0.name) }.map { screen in
+        let unshown = hostOrder(listed).filter { !shown.live.contains($0.name) }.prefix(maxOpenings)
+        let openings = unshown.map { screen in
             var options = source
             options.screen = .named(screen.name)
             return MonitorOpening(
