@@ -11,10 +11,14 @@ the latest commit on `main` is supported.
 
 ## What Glifftop trusts
 
-- **ssh.** Glifftop runs the system's `/usr/bin/ssh` with `BatchMode=yes` and
-  `StrictHostKeyChecking=yes`, ahead of anything in your ssh config: it never prompts and
-  never accepts an unknown or changed host key. It uses your ssh config, keys and agent;
-  it stores no credentials of its own.
+- **ssh.** Glifftop runs the system's `/usr/bin/ssh`, with its own options ahead of anything
+  in your ssh config. Opening a connection to a host asks ssh's questions in the window
+  through Glifftop's askpass helper: an unknown host key (Allow adds it to `known_hosts`), a
+  password, a passphrase or the host's own question. `StrictHostKeyChecking` is `yes` or
+  `ask`, never `accept-new` or `no`, so a changed host key is always refused. The helper
+  answers only ssh processes Glifftop started, over a socket only you can open, with a
+  one-time token. Everything else runs with `BatchMode=yes`. It uses your ssh config, keys
+  and agent; it stores no credentials, and never logs or writes what you type.
 - **The remote computer** is trusted with what you send it: your keystrokes while captured,
   and your clipboard while sharing is on. Everything it sends back (video, cursor images,
   clipboard data, the monitor list) is read as untrusted and checked for size and shape.

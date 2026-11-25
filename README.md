@@ -14,7 +14,8 @@ The name combines *gliff*, the Scots word for a glimpse, with *desktop* and *cli
 
 **Works:**
 
-- Connecting over ssh, with your own ssh config, keys and agent.
+- Connecting over ssh, with your own ssh config, keys and agent. ssh's questions come up in
+  the window: a new host's key to allow or deny, a password, or a key's passphrase.
 - Sharp 4:4:4 colour: H.264 decoded with VideoToolbox and recombined on the GPU.
 - Keyboard and pointer capture with your own keyboard layout, and the remote cursor shape.
 - Choosing the screen: one of the host's monitors, the focused one, or a virtual screen that
@@ -27,7 +28,6 @@ The name combines *gliff*, the Scots word for a glimpse, with *desktop* and *cli
 **Not yet:**
 
 - Files over the clipboard.
-- Tabs.
 - ⌘Space and ⌘Tab stay with the Mac.
 - Signed releases: for now, build it yourself.
 
@@ -40,8 +40,9 @@ there the Mac pointer is hidden and the host's shows, a frame behind.
 
 - A Mac with Apple silicon and macOS 27. Glifftop supports only the newest major macOS.
 - A machine running Hyprland and `gliff-server` 0.4.3, which you can reach with
-  `ssh <host>` without a prompt: a key in an ssh agent (such as 1Password's), and the host's
-  key already in `~/.ssh/known_hosts`. Glifftop never accepts a new host key.
+  `ssh <host>`. Glifftop asks ssh's questions in the window: a host key it doesn't know (Allow
+  adds it to `~/.ssh/known_hosts`), a password, a key's passphrase or the host's own question.
+  It never accepts a changed host key.
 
 Tested with gliff-server 0.4.3 and Hyprland 0.56.2 on an NVIDIA RTX 3070 Ti (Vulkan Video
 encode).

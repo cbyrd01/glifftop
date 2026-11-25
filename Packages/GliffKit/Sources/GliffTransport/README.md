@@ -47,7 +47,9 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   fingerprint; a secret is written from its own memory. Cancel or any refusal ends the master
   before the helper's socket closes unanswered, so ssh never sends an empty answer;
   `revoke()` ends the token, and `revoke(ready: true)`, once the master is ready, closes what
-  is left without ending it. A question it can't recognise fails as `unknownQuestion`.
+  is left without ending it. A question it can't recognise fails as `unknownQuestion`. It
+  logs a question's number and kind only: never its text, an answer, a destination, a
+  socket or a key path.
 - **Shared connections:** `HostConnection` is one signed-in connection to a host that runs
   shell commands as channels (`ByteConnection`s); a system ssh ControlMaster or an embedded ssh
   can each be one. `HostConnections` (an actor) keeps one per destination as typed, held by

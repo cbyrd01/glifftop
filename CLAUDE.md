@@ -12,7 +12,8 @@ desktop for Hyprland/Omarchy, written in Swift. Not affiliated with Gliff.
 ## Status
 
 - **Works:**
-  - connecting over ssh;
+  - connecting over ssh, with ssh's questions (a new host key, a password, a passphrase) in
+    sheets;
   - the picture (H.264 through VideoToolbox, Dual420 recombined in Metal);
   - keyboard and pointer capture, and the remote cursor shape;
   - choosing the screen (a monitor, the focused one, or a virtual screen that follows the window);
@@ -274,7 +275,8 @@ GliffKit       Packages/GliffKit/, platform-neutral, one target per module
     the GPU work, not after display.
   - Skip unknown messages and variants.
   - The client allocates odd clipboard transfer ids.
-  - Use `BatchMode=yes`, and never `StrictHostKeyChecking=accept-new`.
+  - Use `BatchMode=yes`, except for a master that asks through the askpass helper
+    (`StrictHostKeyChecking` `yes` or `ask`); never `accept-new` or `no`.
 - Upstream's Rust at the pinned release is the source of truth for wire behaviour: when in
   doubt, read `crates/gliff-proto/src/{msg,frame,clipboard}.rs` and
   `crates/gliff/src/net.rs`. The pinned source is in cargo's git checkout of gliff-proto.
