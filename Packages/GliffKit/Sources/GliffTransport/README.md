@@ -45,8 +45,10 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   under it (`AskpassPeer`: uid, the audit token's executable, the parent chain), with the
   one-time token, one question at a time, at most 10. Allow on a host key answers its
   fingerprint; a secret is written from its own memory. Cancel or any refusal ends the master
-  before the helper is refused, so ssh never sends an empty answer; every connection it doesn't
-  answer is refused (`.refuse`), as a helper whose socket closes with no reply ends its ssh;
+  before the helper is refused, so ssh never sends an empty answer: ending a process ends its
+  process group (`ProcessConnection.endGroup`), stopped while it is signalled, so no ssh in it
+  that waits on a helper runs on after the helper's end. Every connection it doesn't answer is refused (`.refuse`),
+  as a helper whose socket closes with no reply ends its ssh;
   `revoke()` ends the token, and `revoke(ready: true)`, once the master is ready, refuses what
   is left without ending it. A question it can't recognise fails as `unknownQuestion`. It
   logs a question's number and kind only: never its text, an answer, a destination, a

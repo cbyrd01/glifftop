@@ -28,6 +28,11 @@ expect "a failure far above the tail is shown" "$out" "✘ Test aTest()"
 expect "then the tail" "$out" "--- the last 60 lines:"
 expect "the tail's last line" "$out" "200"
 
+out=$(run step detail bash -c 'echo "✘ Test aTest() recorded an issue at a.swift:3:5: Expectation failed: x == 2"
+    echo "↳ x == 2 → false"; echo "↳   x → 7"; echo "◇ Test other() started."; seq 200; exit 1')
+expect "a failure's values follow it" "$out" "↳   x → 7"
+refute "lines after its values don't" "$(echo "$out" | sed '/the last 60 lines/,$d')" "other()"
+
 out=$(run step many bash -c 'for i in $(seq 5000); do echo "f.swift:$i:1: error: e$i"; done; exit 1')
 expect "many failures still end with 1" "$out" "rc=1"
 expect "many failures still show the tail" "$out" "f.swift:5000:1: error: e5000"

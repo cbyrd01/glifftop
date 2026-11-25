@@ -1,6 +1,7 @@
 #if os(macOS)
     import Darwin
     import Foundation
+    import Synchronization
     import Testing
 
     @testable import GliffTransport
@@ -161,10 +162,10 @@
 
         /// A failure that happened before close() is still reported.
         @Test func failureBeforeCloseIsStillReported() async throws {
-            // The background sleep keeps the pipes open for a moment after sh exits.
+            // The background sleep keeps the pipes open after sh exits.
             let connection = try await shell(
-                "echo 'Permission denied (publickey).' >&2; (sleep 0.5) & exit 255")
-            try await Task.sleep(for: .milliseconds(200))
+                "echo 'Permission denied (publickey).' >&2; (sleep 2) & exit 255")
+            #expect(await eventually { connection.exitStatus != nil })
             await connection.close()
             let result = await drain(connection)
             #expect(result.error as? TransportError == .exited(status: 255, failure: .permissionDenied))
@@ -238,6 +239,63 @@
                 maxBytes: 16, timeout: .seconds(5))
             #expect(output == .failure(.cancelled))
             #expect(!FileManager.default.fileExists(atPath: marker.path))
+        }
+
+        /// The kernel signals a group's newest member first: an ssh woken by its askpass
+        /// helper's end could send an empty answer before its own signal came. So the group is
+        /// stopped before it is signalled, and continued once all of it has the signal.
+        @Test func endingAGroupStopsItFirst() {
+            let sent = Mutex<[[Int32]]>([])
+            let ended = ProcessConnection.endGroup(42) { group, signal in
+                sent.withLock { $0.append([group, signal]) }
+                return 0
+            }
+            #expect(sent.withLock { $0 } == [[42, SIGSTOP], [42, SIGTERM], [42, SIGCONT]])
+            #expect(ended)
+            #expect(!ProcessConnection.endGroup(42) { _, _ in -1 })
+        }
+
+        /// The whole group ends, and none of it is left stopped.
+        @Test func endEndsTheWholeGroup() async throws {
+            let file = FileManager.default.temporaryDirectory.appending(path: "glifftop-\(UUID())")
+            defer { try? FileManager.default.removeItem(at: file) }
+            let connection = try await shell("sleep 30 & echo $! > '\(file.path)'; wait")
+            let written = {
+                (try? String(contentsOf: file, encoding: .utf8)).flatMap {
+                    Int32($0.trimmingCharacters(in: .whitespacesAndNewlines))
+                }
+            }
+            #expect(await eventually { written() != nil })
+            let member = try #require(written())
+            await connection.end()
+            #expect(await exits(member, within: .seconds(2)))
+        }
+
+        /// A process that has moved to another group still gets its SIGTERM.
+        @Test func terminateEndsAProcessThatLeftItsGroup() async throws {
+            let connection = try await shell(
+                "exec /usr/bin/perl -e 'setpgrp(0, getpgrp(getppid())) or exit 3; sleep 30'")
+            let pid = connection.processIdentifier
+            #expect(await eventually { getpgid(pid) != pid })
+            connection.terminate()
+            #expect(await exits(pid, within: .seconds(2)))
+            await connection.close()
+        }
+
+        /// A group that ignores SIGTERM is killed, all of it.
+        @Test func endKillsAGroupThatIgnoresSIGTERM() async throws {
+            let file = FileManager.default.temporaryDirectory.appending(path: "glifftop-\(UUID())")
+            defer { try? FileManager.default.removeItem(at: file) }
+            let connection = try await shell("trap '' TERM; sleep 30 & echo $! > '\(file.path)'; wait")
+            let written = {
+                (try? String(contentsOf: file, encoding: .utf8)).flatMap {
+                    Int32($0.trimmingCharacters(in: .whitespacesAndNewlines))
+                }
+            }
+            #expect(await eventually { written() != nil })
+            let member = try #require(written())
+            await connection.end()
+            #expect(await exits(member, within: .seconds(2)))
         }
     }
 #endif

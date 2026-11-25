@@ -128,10 +128,19 @@
             let directory = try ControlSocketDirectory.prepare(
                 preferred: root.appending(path: "ssh"), fallback: root.appending(path: "f"))
             for number in 1...3 { try makeSocket(directory.path + "/111-\(number)") }
-            let started = ContinuousClock.now
-            await directory.removeStale(
-                isRunning: { _ in false }, ending: { _ in try? await Task.sleep(for: .milliseconds(300)) })
-            #expect(ContinuousClock.now - started < .milliseconds(600))
+            // Each ending waits for all three to begin: one at a time, the first would give up.
+            let begun = Mutex(0)
+            let metAll = Mutex(0)
+            let ending: @Sendable (String) async -> Void = { _ in
+                begun.withLock { $0 += 1 }
+                let deadline = ContinuousClock.now + .seconds(5)
+                while begun.withLock({ $0 }) < 3, ContinuousClock.now < deadline {
+                    try? await Task.sleep(for: .milliseconds(10))
+                }
+                if begun.withLock({ $0 }) == 3 { metAll.withLock { $0 += 1 } }
+            }
+            await directory.removeStale(isRunning: { _ in false }, ending: ending)
+            #expect(metAll.withLock { $0 } == 3)
             #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
         }
 
