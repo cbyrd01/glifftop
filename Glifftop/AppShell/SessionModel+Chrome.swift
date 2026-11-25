@@ -39,4 +39,9 @@ extension SessionModel {
 
     /// Whether Disconnect has a session to end.
     var canDisconnect: Bool { isActive && (phase != .ended || isReconnecting) }
+
+    /// Whether the window shows one of the model's own sheets or alerts: the machine sheet, a
+    /// sign-in question or the clipboard's. New Tab waits for it; any other sheet in the group
+    /// (another tab's, a view's own alert) leaves the new window on its own (`WindowTabbing`).
+    var showsSheet: Bool { machineEdit != nil || signIn.current != nil || askingClipboard != nil }
 }

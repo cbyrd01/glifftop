@@ -3,8 +3,9 @@ import SwiftUI
 
 /// The Connection menu: Disconnect (⇧⌘D), Reconnect (⇧⌘R: Reconnect Now, or Try Again), Connection
 /// Info (⌘I) and Edit Machine… (⌘E, the session's machine once it has one); and in File, New Tab
-/// (⌘T), New Window (⌘N), New Machine… (⌥⌘N) and Close Window (⇧⌘W, every tab of the window); in
-/// Window, Previous Tab (⇧⌘[) and Next Tab (⇧⌘]), to the next window when the window has one tab.
+/// (⌘T, disabled while the window shows one of its model's sheets), New Window (⌘N), New
+/// Machine… (⌥⌘N) and Close Window (⇧⌘W, every tab of the window); in Window, Previous Tab
+/// (⇧⌘[) and Next Tab (⇧⌘]), to the next window when the window has one tab.
 /// They act on the key window's session, disabled without one. Everything they read changes only
 /// with its value (`SessionModel+Chrome`), never with the stats each second.
 struct ConnectionCommands: Commands {
@@ -34,6 +35,8 @@ struct ConnectionCommands: Commands {
                 openWindow(value: TabRequest(tabOf: tabOf, alone: tabOf == nil, host: model?.host))
             }
             .keyboardShortcut("t")
+            // A window with a sheet can't take a tab (`WindowTabbing`).
+            .disabled(model?.showsSheet == true)
             Button("New Window") { openWindow(value: TabRequest(alone: true)) }
                 .keyboardShortcut("n")
             Button("New Machine…") { model?.newMachine() }

@@ -10,7 +10,9 @@ struct ReconnectPolicyTests {
     }
 
     @Test(arguments: [
-        SessionEnd.disconnected, .connectFailed(.permissionDenied), .connectFailed(.changedHostKey),
+        SessionEnd.disconnected, .connectFailed(.permissionDenied),
+        .connectFailed(.changedHostKey(fingerprint: nil, knownHostsName: nil)),
+        .connectFailed(.hostKeyDenied), .connectFailed(.signInCancelled), .connectFailed(.tooManyQuestions),
         .connectFailed(.serverNotInstalled), .remoteNotGliff, .incompatible("x"), .protocolError("x"),
         .decoderFailed("x"),
     ])
@@ -29,8 +31,9 @@ struct ReconnectPolicyTests {
         #expect(policy.next(after: end) == .seconds(1))
     }
 
-    /// After a wake or a network change, DNS or the host's sshd may still be coming back.
-    @Test(arguments: [ConnectFailure.hostNotFound, .connectionRefused])
+    /// After a wake or a network change, DNS or the host's sshd may still be coming back, or ssh
+    /// may fail in words it doesn't classify ("Connection closed by … port 22").
+    @Test(arguments: [ConnectFailure.hostNotFound, .connectionRefused, .other("Connection closed")])
     func aPassingConnectFailureRetriesOnARetry(_ failure: ConnectFailure) {
         var policy = ReconnectPolicy()
         _ = policy.next(after: .connectionLost)
@@ -42,12 +45,6 @@ struct ReconnectPolicyTests {
     func aConnectFailureFirstNeverRetries(_ failure: ConnectFailure) {
         var policy = ReconnectPolicy()
         #expect(policy.next(after: .connectFailed(failure)) == nil)
-    }
-
-    @Test func anUnknownConnectFailureNeverRetries() {
-        var policy = ReconnectPolicy()
-        _ = policy.next(after: .connectionLost)
-        #expect(policy.next(after: .connectFailed(.other("x"))) == nil)
     }
 
     @Test func givingUpStartsOver() {

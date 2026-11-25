@@ -2,14 +2,15 @@
     import Foundation
 
     /// Where the masters' sockets live: a directory only this user can enter, short enough for a
-    /// socket path. A socket there is named `<pid>-<n>`, so one left by an app that crashed is
-    /// known by its pid.
+    /// socket path. A master's socket there is named `<pid>-<n>`, an askpass bridge's
+    /// `<pid>-<n>-a`, so one left by an app that crashed is known by its pid.
     struct ControlSocketDirectory {
         /// `sockaddr_un.sun_path`'s size on macOS, its terminating NUL included.
         static let sunPathLimit = 104
         /// What ssh adds to a master's socket path while creating it (`.` and 16 random letters).
         static let sshSuffix = 17
-        /// The longest socket name: a pid of up to 6 digits, `-`, a `UInt32` of up to 10.
+        /// The longest master's name: a pid of up to 6 digits, `-`, a `UInt32` of up to 10. A
+        /// bridge's adds only `-a`, which `sshSuffix` covers, as ssh never makes a bridge's.
         static let nameLimit = 17
 
         struct Refused: Error, Equatable {
@@ -45,30 +46,35 @@
 
         func socketPath(number: UInt32) -> String { path + "/\(getpid())-\(number)" }
 
-        /// Removes the sockets of Glifftops no longer running, calling `ending` with each path
-        /// first (its master may have outlived its app). Run before the app's first master: a
-        /// socket with this app's own pid is then an earlier Glifftop's. Anything that isn't a
-        /// socket named `<pid>-<n>` is left alone.
+        /// The askpass bridge's socket beside the master's at `socket`.
+        static func bridgePath(forMaster socket: String) -> String { socket + "-a" }
+
+        /// Removes the sockets of Glifftops no longer running, calling `ending` with each master's
+        /// path first (its master may have outlived its app); a bridge's socket is only removed.
+        /// Run before the app's first master: a socket with this app's own pid is then an earlier
+        /// Glifftop's. Anything that isn't a socket named `<pid>-<n>` or `<pid>-<n>-a` is left
+        /// alone.
         func removeStale(
             isRunning: (Int32) -> Bool = Self.isRunning,
             ending: @escaping @Sendable (String) async -> Void = { _ in }
         ) async {
             let files = FileManager.default
             let own = getpid()
-            let stale = ((try? files.contentsOfDirectory(atPath: path)) ?? []).compactMap { name -> String? in
-                let parts = name.split(separator: "-")
+            let stale = ((try? files.contentsOfDirectory(atPath: path)) ?? []).compactMap {
+                name -> (socket: String, isMaster: Bool)? in
+                let parts = name.split(separator: "-", omittingEmptySubsequences: false)
                 let socket = path + "/" + name
-                guard parts.count == 2, UInt32(parts[1]) != nil, let pid = Int32(parts[0]),
-                    pid == own || !isRunning(pid),
+                guard parts.count == 2 || (parts.count == 3 && parts[2] == "a"), UInt32(parts[1]) != nil,
+                    let pid = Int32(parts[0]), pid == own || !isRunning(pid),
                     (try? files.attributesOfItem(atPath: socket))?[.type] as? FileAttributeType == .typeSocket
                 else { return nil }
-                return socket
+                return (socket, parts.count == 2)
             }
             // Each master is ended before its socket goes, all at once.
             await withTaskGroup(of: Void.self) { group in
-                for socket in stale {
+                for (socket, isMaster) in stale {
                     group.addTask {
-                        await ending(socket)
+                        if isMaster { await ending(socket) }
                         try? FileManager.default.removeItem(atPath: socket)
                     }
                 }

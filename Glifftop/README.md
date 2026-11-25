@@ -24,6 +24,17 @@ line with its `ictool` (into `.build/`, which git ignores):
   --rendition Default --width 512 --height 512 --scale 1
 ```
 
+## The askpass helper
+
+`glifftop-askpass/` (beside this folder) is the `glifftop-askpass` tool target: one `main`
+calling `AskpassHelper.run()`. The app's Copy Files phase signs it into
+`Glifftop.app/Contents/Helpers`, and ssh runs it to ask its sign-in questions through the app.
+
+- **Owns:** nothing but that `main`; its settings are `Config/GlifftopAskpass.xcconfig` (no
+  entitlements, no sandbox).
+- **Imports:** Foundation and GliffKit's `GliffAskpass`, never the app's modules or any other
+  GliffKit library.
+
 ## AppShell
 
 The SwiftUI side of the app: the window, the machines (`MachinesView`: "Connect to a host",
@@ -38,7 +49,7 @@ a menu of Connect, Edit…, Favourite and Remove, which asks), the machine sheet
 can Connect, Connection ▸ Edit Machine… ⌘E edits the session's; a machine shown in any window
 keeps its host), the windows and tabs (`SessionWindow`: each window or native tab its own
 `SessionModel` and session, opened from a `TabRequest`; File ▸ New Tab ⌘T joins the key
-window's tab group, New Window ⌘N opens one alone, Close Window ⇧⌘W closes every tab, and
+window's tab group, disabled while that window shows one of its model's sheets, New Window ⌘N opens one alone, Close Window ⇧⌘W closes every tab, and
 closing a tab ends its session as Disconnect does; `OpenSessions`, the open windows' models;
 a host already open elsewhere starts on a virtual screen, which its machine never keeps
 (`TabPlanning`); the menus act on the key window's model, `FocusedSession.swift`), the session view, the streaming view (the picture below
@@ -75,7 +86,21 @@ the clipboard (`ClipboardSharing`: Not shared by default, Shared, or Shared incl
 step up asks first; at once for an open session following Settings. A machine may have its
 own, which the options form and the toolbar's button set; Settings' doesn't override it, and
 every window to the machine follows it), in `UserDefaults` through
-`AppSettings`) and (Debug builds) the Debug menu: Protocol Inspector (⌥⌘I: `InspectorView`, a
+`AppSettings`), the sign-in's questions (`SignInPrompter`, one per window, its
+`SignInQueue` the asker for the window's sessions, reconnects and Get Screens, the machine
+sheet's included; one question at a time as a sheet, on the machine sheet while that shows,
+shown while Glifftop is active and the window isn't minimized, and kept shown after (AppKit
+would bring a window forward, over the app in front or out of the Dock, to attach a sheet):
+`HostKeySheet`, a key ssh doesn't know (its type and fingerprint, selectable, and how to check
+it) or ssh's yes/no question about one, with Deny (Escape) and Allow and no default;
+`SecretSheet`, a passphrase, PIN or password, or the host's own question set apart under
+"HOST asks:", laid out as the Mac's sign-in sheets: a heading saying what it is for ("Sign
+in to HOST", "Unlock the key PATH"), a password's user on a row of its own, a labelled
+secure field (marked as a password for AutoFill, for a password or a key's passphrase),
+Continue and Cancel, the field
+emptied as the answer goes; each sheet names the host as typed (`SignInQuestion.hostShown`);
+a notice, such as a security key's touch, with no buttons, until
+ssh is done; only an answer, or the question ending, dismisses one) and (Debug builds) the Debug menu: Protocol Inspector (⌥⌘I: `InspectorView`, a
 section per open window titled as its tab, with each message type's count, bytes, last seen
 and rate per direction, and the last 200 messages, refreshed once a second, with Pause and
 Clear; `InspectorModel` holds a `ProtocolTally` per window behind a `Mutex`, filled by the
@@ -104,7 +129,8 @@ and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes
   lost on the end screen); `SessionEndedView` after
   an end the person didn't choose, with Try Again, Edit Machine… and Close: Disconnect and
   Cancel go straight back to the machines), `AppConnections` (the app's one `HostConnections`:
-  each session and Get Screens is a channel on its host's one signed-in ssh), `ScreenList`
+  each session and Get Screens is a channel on its host's one signed-in ssh, which asks its
+  questions through the bundle's askpass helper), `ScreenList`
   (the host's monitors, listed through a lister closure, by default on the host's shared
   connection, and never saved:
   one listing at a time, stopped (its error dismissed) when a session starts; a refresh keeps the list until the
@@ -132,7 +158,9 @@ AppKit adapters for what SwiftUI can't do:
   and closing the last window quits;
 - native tabs (`WindowTabbing`): a SwiftUI window is already ordered in when its content
   reaches it, so a new tab joins its group with `addTabbedWindow`, after the group's last tab,
-  and a window opened alone that macOS tabbed anyway leaves its group; it reports the window's
+  and a window opened alone that macOS tabbed anyway leaves its group, as does a new window
+  whose group has a sheet up on any tab (AppKit would lay the group out at the sheet's size);
+  it reports the window's
   number and its group's in tab order (KVO on the group's windows) and the window's close;
   Close Window closes every tab of the key window's group;
 - switching tabs (`TabSwitcher`): Window ▸ Previous Tab and Next Tab (⇧⌘[, ⇧⌘]), and the same
@@ -163,6 +191,11 @@ AppKit adapters for what SwiftUI can't do:
   group's size: no session sizes it, a mirror draws fitted (`SessionModel.sharesWindow`), the
   machines stay resizable and Actual Size is off; a mirror left alone (torn off) is fitted
   again;
+- `AttentionTracker`: a new sign-in question selects its window's tab and brings it forward
+  while Glifftop is active and it isn't minimized, else bounces the Dock icon once
+  (`requestUserAttention`); the window that bounced last comes forward, once, when Glifftop is
+  next made active and it isn't minimized, and Glifftop's Dock icon counts the questions open
+  in minimized windows; it tells `SignInPrompter.windowReady`;
 - `LiveResizeTracker`: the window's live resize (a drag of its edge), for
   `SessionModel.liveResizeChanged`, which tells the session (no Resize during one) and any
   session started during one. It reports the end a turn after AppKit's, once the video view

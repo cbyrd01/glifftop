@@ -13,6 +13,8 @@ final class ConnectionActivity: Sendable {
 public final class HostLease: Sendable {
     private let owner: HostConnections
     let target: SSHTarget
+    /// Asks the sign-in's questions if a move opens another connection.
+    let asker: (any SignInAsker)?
     var key: String { target.value }
     /// The `HostConnections` generation it was taken in: after a `closeAll()` it moves nowhere.
     let generation: Int
@@ -24,8 +26,12 @@ public final class HostLease: Sendable {
     }
     private let state: Mutex<State>
 
-    init(owner: HostConnections, target: SSHTarget, place: HostConnections.Place, generation: Int) {
-        (self.owner, self.target, self.generation) = (owner, target, generation)
+    init(
+        owner: HostConnections, target: SSHTarget, asker: (any SignInAsker)? = nil,
+        place: HostConnections.Place,
+        generation: Int
+    ) {
+        (self.owner, self.target, self.asker, self.generation) = (owner, target, asker, generation)
         state = Mutex(State(id: place.id, connection: place.connection, activity: place.activity))
     }
 

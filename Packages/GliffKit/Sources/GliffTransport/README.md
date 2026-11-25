@@ -2,9 +2,9 @@
 
 Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
 
-- **Imports:** Foundation and GliffProtocol (`OutputName`), plus the platform layers under it:
-  `os` (Logger), `Synchronization` (Mutex, Swift's standard library); signals come through
-  Foundation. Must not import GliffSession,
+- **Imports:** Foundation, GliffProtocol (`OutputName`) and GliffAskpass (the helper's
+  wire), plus the platform layers under it: `os` (Logger), `Synchronization` (Mutex, Swift's
+  standard library); signals come through Foundation. Must not import GliffSession,
   GliffVideo, AppKit or UIKit.
 - **Seam:** `Transport.connect()` gives a `ByteConnection` (`incoming` chunks, `write`,
   `close`). The session only sees this, so tests run against `tools/fake-server` instead
@@ -14,17 +14,56 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   `SSHCommand` builds the argv (`BatchMode=yes`,
   `StrictHostKeyChecking=yes` first so nothing can relax it, `IPQoS=ef`, keepalives that
   end a dead link after about a minute, a 10 s `ConnectTimeout` for a host that drops
-  packets, added only when `ssh -G` shows the person's ssh_config sets no timeout and no
-  proxy (`SSHConnectTimeout`), `--` before the target, server arguments
+  packets, added only when `ssh -G` (`SSHResolvedConfig`, read once per open, never logged)
+  shows the person's ssh_config sets no timeout and no proxy (`SSHConnectTimeout`), `--` before the target, server arguments
   shell-quoted for the remote login shell), and `SSHErrorClassifier` turns ssh's stderr
-  into a `ConnectFailure` with a plain-language `message`.
+  into a `ConnectFailure` with a plain-language `message` (for a changed host key, with the
+  key ssh printed; the `ssh-keygen -R` name of the old key comes from the person's ssh config,
+  never from that text, which a host can write).
+- **Sign-in questions:** `SignInQuestion` (an unknown host key, a passphrase or PIN, a
+  password, the host's own question, a notice) and `SignInAnswer` are the same whichever ssh
+  asks them; a `SignInAsker` (the app's window) answers. A `SignInSecret` holds a typed secret
+  in memory of its own, cleared when it goes, and lends its bytes only to `withBytes`.
+  `AskpassPrompt` tells ssh's questions apart by its own templates, anchored at the prompt's
+  first byte; a prompt starting "(" is the host's text after ssh's "(USER@HOST) ", never
+  matched against a template, and an unknown prompt is nil. A name ssh writes for the
+  destination (its HostName or HostKeyAlias, from `ssh -G`) is shown as the host typed; any
+  other is a jump host's. `SignInQueue` (main actor) is a window's asker: its questions shown
+  one at a time as `current`, each ask that is cancelled answered `.cancel` and taken away.
+  `SignInQuestion.shownHostText` is the host's own text as a sheet may show it (line breaks
+  kept, no other control or format characters, at most 8 KiB), `keyPath` the key file a
+  passphrase question names, `user` a password's user (from ssh's USER@HOST), and
+  `hostShown` the host as typed, for a heading (never ssh's resolved HostName).
+- **A master that may ask:** `MasterAsking`, from the resolved config (nil under `BatchMode
+  yes`), drops `BatchMode=yes` from the master only, gives ssh `-n`, keeps
+  `StrictHostKeyChecking=yes` when the config says so and asks otherwise (never `accept-new`
+  or `no`), and turns a config's `UpdateHostKeys ask` and `AddKeysToAgent ask` off. `check`, `exit` and channels keep
+  their guards.
+- **The askpass bridge:** `AskpassBridge` listens on a 0600 socket beside the master's
+  (`<pid>-<n>-a` in `ControlSocketDirectory`), for the helper ssh runs. It serves a
+  connection only from this user's helper whose parent is the master's ssh or a jump host's
+  under it (`AskpassPeer`: uid, the audit token's executable, the parent chain), with the
+  one-time token, one question at a time, at most 10. Allow on a host key answers its
+  fingerprint; a secret is written from its own memory. Cancel or any refusal ends the master
+  before the helper is refused, so ssh never sends an empty answer; every connection it doesn't
+  answer is refused (`.refuse`), as a helper whose socket closes with no reply ends its ssh;
+  `revoke()` ends the token, and `revoke(ready: true)`, once the master is ready, refuses what
+  is left without ending it. A question it can't recognise fails as `unknownQuestion`. It
+  logs a question's number and kind only: never its text, an answer, a destination, a
+  socket or a key path.
 - **Shared connections:** `HostConnection` is one signed-in connection to a host that runs
   shell commands as channels (`ByteConnection`s); a system ssh ControlMaster or an embedded ssh
   can each be one. `HostConnections` (an actor) keeps one per destination as typed, held by
   `HostLease`s: everyone asking while one opens waits for that one sign-in; it closes 10 s after
   its last lease ends; a sign-in that asked and failed (the agent or the key refused, no
-  approval in a minute) answers that destination for 10 s unless a connection there has room,
-  and a `fresh` lease (an attempt the person starts) asks again; an open nobody has waited for
+  approval in a minute, the person's Cancel, a denied key, too many questions) answers that
+  destination for 10 s unless a connection there has room, and a `fresh` lease (an attempt the
+  person starts) asks again; an open started by a lease with an asker (a window) asks its
+  sign-in questions through `SignInRouter`: each goes to the oldest waiting lease with an
+  asker, a question about a host key (`.hostKey`, `.confirm`) only to a `fresh` one (with
+  none, it is denied and the open fails as `hostKeyUnchecked`), and a waiter that leaves hands
+  its question to the next; with none, it waits 1 s for one, then cancels it, a cancel not
+  remembered; an open nobody has waited for
   in 1 s is cancelled (so a session that starts as a listing stops shares its sign-in); a connection takes at most 10 leases (sshd's `MaxSessions`), and one that
   refuses a channel takes no more, its lease moving to a further connection; a lost connection is
   forgotten at once, so the next lease opens anew; `closeAll()` ends them all and cancels anyone
@@ -49,11 +88,18 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   0700, and refused if it is a symbolic link, not a directory or another user's. Sockets are named
   `<pid>-<n>`; before the app's first master, those of Glifftops no longer running (or with this app's own pid) are
   removed, sockets only, each master first ended with `-O exit`.
-  `SystemSSHConnection` (macOS) is a `HostConnection` on such a master: `open` waits until the
-  socket answers `-O check`, up to 60 s (then `ConnectFailure.signInTimedOut`, not retried);
-  each channel is one ssh through the socket; the master's own exit, even a clean one, is a lost
-  connection, and `close()` ends it with `-O exit`. `SystemSSH.opener()` is the app's opener for
-  `HostConnections`; every opener shares one socket directory and one numbering.
+  `SystemSSHConnection` (macOS) is a `HostConnection` on such a master: `open` reads the
+  config once (`ssh -G`) and waits until the socket answers `-O check`, up to 60 s not counting
+  time a sign-in question is open, and 5 min in all (then `ConnectFailure.signInTimedOut`, not
+  retried). With a `SignInAsker`, the askpass helper and a config that allows it, the master asks
+  (`SSH_ASKPASS`, `SSH_ASKPASS_REQUIRE=force`, its stderr unlogged) through a bridge revoked once
+  the master is ready or has failed; the bridge's outcome names the failure (`hostKeyDenied`,
+  `signInCancelled`, `tooManyQuestions`, `unknownQuestion`), and a changed key's known_hosts
+  name is the config's, none when it keeps its own known_hosts file.
+  Without them, or when the probe fails, the master runs in batch mode. Each channel is one ssh
+  through the socket; the master's own exit, even a clean one, is a lost connection, and
+  `close()` ends it with `-O exit`. `SystemSSH.opener(helper:)` is the app's opener for
+  `HostConnections`, asking through the asker `HostConnections` gives it; every opener shares one socket directory and one numbering.
 - **Screens:** `ScreenChoice` is what a session shows (the focused monitor, one by name,
   or a virtual screen) as gliff-server's arguments. `ScreenListParser` reads the host's
   `hyprctl -j monitors` as untrusted input into `RemoteScreen`s: at most 1 MiB, names only

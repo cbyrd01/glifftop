@@ -1,3 +1,5 @@
+import Foundation
+
 /// Turns ssh's exit status and stderr into a `ConnectFailure`, by the messages OpenSSH
 /// prints. ssh itself exits 255 on its own failures; anything else is the remote command's.
 public enum SSHErrorClassifier {
@@ -32,7 +34,7 @@ public enum SSHErrorClassifier {
 
         if exitStatus == 255 {
             // A changed key also prints "Host key verification failed.": check it first.
-            if has("REMOTE HOST IDENTIFICATION HAS CHANGED") { return .changedHostKey }
+            if has("REMOTE HOST IDENTIFICATION HAS CHANGED") { return changedHostKey(stderr) }
             if has("Host key verification failed") { return .unknownHostKey }
             if has("agent refused operation") { return .agentRefused }
             if has("Permission denied") { return .permissionDenied }
@@ -53,10 +55,24 @@ public enum SSHErrorClassifier {
         return .other(lastLine.map { displayable($0) } ?? fallback)
     }
 
+    /// The changed key's fingerprint, from the line after "… sent by the remote host is". The
+    /// text may be the host's own (a remote command's stderr), so it is shown only as what the
+    /// host sent, and the old key's known_hosts name is never read from it.
+    private static func changedHostKey(_ stderr: String) -> ConnectFailure {
+        let lines = stderr.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
+        guard let index = lines.firstIndex(where: { $0.hasSuffix("sent by the remote host is") }),
+            index + 1 < lines.count
+        else { return .changedHostKey() }
+        let line = lines[index + 1]
+        guard AskpassPrompt.isFingerprint(line) else { return .changedHostKey() }
+        return .changedHostKey(fingerprint: line.hasSuffix(".") ? String(line.dropLast()) : line)
+    }
+
     /// Longest remote line shown to the person.
     static let maxShownLength = 200
 
-    private static let hidden: Set<Unicode.GeneralCategory> = [
+    /// What remote text never shows: control and format characters, line and paragraph breaks.
+    static let hidden: Set<Unicode.GeneralCategory> = [
         .control, .format, .lineSeparator, .paragraphSeparator,
     ]
 

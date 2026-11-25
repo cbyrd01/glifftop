@@ -195,6 +195,28 @@ import Testing
         #expect(stopped.ended(by: nil, afterFrames: 2) == [])
     }
 
+    /// A transport whose connect fails (a shared connection's sign-in) fails before the Hello
+    /// goes: still a failure to connect, with ssh's reason, not a lost link.
+    @Test func aConnectThatFailsIsAFailureToConnect() {
+        var core = SessionCore(
+            configuration: SessionConfiguration(maxWidth: 5120, maxHeight: 2880), features: [:])
+        #expect(
+            core.ended(by: TransportError.exited(status: 255, failure: .unknownHostKey), afterFrames: 0) == [
+                .finish(.connectFailed(.unknownHostKey))
+            ])
+    }
+
+    /// Before the session starts there is no reader to bring ssh's exit: a write failure ends
+    /// it as a failure to connect.
+    @Test func aWriteFailureBeforeTheStartEndsTheConnect() {
+        var core = SessionCore(
+            configuration: SessionConfiguration(maxWidth: 5120, maxHeight: 2880), features: [:])
+        #expect(
+            core.ended(by: TransportError.writeFailed("Broken pipe"), afterFrames: 0) == [
+                .finish(.connectFailed(.other("Broken pipe")))
+            ])
+    }
+
     @Test func protocolErrorAfterTheFirstFrameIsNotABanner() {
         var core = Self.core()
         let actions = core.ended(by: ProtocolError.bodyTooLarge(1 << 21), afterFrames: 3)
@@ -207,9 +229,10 @@ import Testing
         var core = Self.core()
         #expect(core.ended(by: TransportError.writeFailed("Broken pipe"), afterFrames: 0) == [])
         #expect(
-            core.ended(by: TransportError.exited(status: 255, failure: .changedHostKey), afterFrames: 0) == [
-                .finish(.connectFailed(.changedHostKey))
-            ])
+            core.ended(by: TransportError.exited(status: 255, failure: .changedHostKey()), afterFrames: 0)
+                == [
+                    .finish(.connectFailed(.changedHostKey()))
+                ])
         var streaming = Self.core()
         _ = streaming.receive(Self.helloAck(), payloadLength: 0, now: 0)
         #expect(

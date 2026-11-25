@@ -24,6 +24,55 @@ import Testing
         #expect(timed.master.contains("ConnectTimeout=10"))
     }
 
+    static let asking = MasterAsking(config: SSHResolvedConfig(resolved: "updatehostkeys ask\n"))
+
+    /// The master that may ask: no BatchMode, the host-key rule first (ssh keeps the first
+    /// value), UpdateHostKeys off when the config would ask, and ssh's stdin /dev/null (`-n`).
+    @Test func anAskingMasterHasNoBatchMode() throws {
+        let master = try SSHMasterCommand(target: SSHTarget("omarchy"), socket: "/s/1-1", asking: Self.asking)
+            .master
+        #expect(!master.contains("BatchMode=yes"))
+        #expect(Array(master.prefix(4)) == ["-T", "-n", "-o", "StrictHostKeyChecking=ask"])
+        let strict = try #require(master.firstIndex(of: "StrictHostKeyChecking=ask"))
+        let control = try #require(master.firstIndex(of: "ControlMaster=yes"))
+        #expect(strict < control)
+        #expect(master.contains("UpdateHostKeys=no"))
+        #expect(master.filter { $0.hasPrefix("StrictHostKeyChecking=") }.count == 1)
+        #expect(Array(master.suffix(2)) == ["--", "omarchy"])
+    }
+
+    @Test func anAskingMastersRequestsKeepTheirGuards() throws {
+        let asking = try SSHMasterCommand(
+            target: SSHTarget("omarchy"), socket: "/s/1-1", sshArguments: ["-p", "2222"], asking: Self.asking)
+        #expect(asking.check == command.check && asking.exit == command.exit)
+        #expect(asking.channel("x") == command.channel("x"))
+    }
+
+    @Test func aMasterWithoutAskingIsUnchanged() throws {
+        let plain = try SSHMasterCommand(target: SSHTarget("omarchy"), socket: "/s/1-1")
+        #expect(
+            plain.master == [
+                "-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "Compression=no",
+                "-o", "IPQoS=ef", "-o", "ControlMaster=yes", "-o", "ControlPersist=no", "-S", "/s/1-1", "-N",
+                "-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=6", "--", "omarchy",
+            ])
+    }
+
+    /// Each config value at the argv: strict `yes` kept, anything else `ask`; UpdateHostKeys
+    /// turned off only for `ask`.
+    @Test(arguments: [
+        ("stricthostkeychecking true\nupdatehostkeys true\n", "StrictHostKeyChecking=yes", false),
+        ("stricthostkeychecking accept-new\nupdatehostkeys false\n", "StrictHostKeyChecking=ask", false),
+        ("stricthostkeychecking ask\nupdatehostkeys ask\n", "StrictHostKeyChecking=ask", true),
+    ])
+    func anAskingMasterFollowsTheConfig(_ text: String, strict: String, updateOff: Bool) throws {
+        let asking = MasterAsking(config: SSHResolvedConfig(resolved: text))
+        let master = try SSHMasterCommand(target: SSHTarget("omarchy"), socket: "/s/1-1", asking: asking)
+            .master
+        #expect(master[3] == strict)
+        #expect(master.contains("UpdateHostKeys=no") == updateOff)
+    }
+
     static let guards = [
         "-o", "ControlMaster=no", "-o", "ProxyCommand=/usr/bin/false", "-o", "BatchMode=yes",
     ]

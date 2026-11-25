@@ -95,12 +95,13 @@ struct SessionCore {
 
     /// The incoming stream ended: cleanly (`error == nil`) or with a transport or parse
     /// error. `afterFrames` is how many frames had been parsed: a parse error on the very
-    /// first one means stdout carried something other than Gliff (a login banner).
+    /// first one means stdout carried something other than Gliff (a login banner). Also the
+    /// transport's connect failing, before the session started: a failure to connect.
     mutating func ended(by error: (any Error)?, afterFrames: Int) -> [SessionAction] {
         guard !isFinished else { return [] }
         // Before HelloAck, the connection never got going: a failure to connect, not a link
-        // to retry.
-        let connecting = state == .awaitingHelloAck
+        // to retry. Not started: the transport's connect failed (a shared connection's sign-in).
+        let connecting = state == .notStarted || state == .awaitingHelloAck
         switch error {
         case nil where connecting:
             return finish(.connectFailed(.other("The host closed the connection before Gliff started.")))
@@ -115,9 +116,11 @@ struct SessionCore {
             case .launchFailed(let reason):
                 return finish(.connectFailed(.other(reason)))
             // The writer's EPIPE can beat the reader's classified exit (a changed host key):
-            // while connecting, wait for that exit instead.
-            case .writeFailed where connecting:
+            // after the Hello, wait for that exit instead. Before it there is no reader.
+            case .writeFailed where state == .awaitingHelloAck:
                 return []
+            case .writeFailed(let reason) where connecting:
+                return finish(.connectFailed(.other(reason)))
             case .writeFailed:
                 return finish(.connectionLost)
             case .cancelled:

@@ -15,27 +15,29 @@ import Synchronization
 ///   another channel on it was heard from after this one's last byte: then only its own server
 ///   is silent.
 /// - `fresh`: an attempt the person starts, which asks for a sign-in again even when one just
-///   failed (`HostConnections.lease(for:fresh:)`).
+///   failed (`HostConnections.lease(for:fresh:asker:)`).
+/// - `asker`: the window that answers the sign-in's questions while it waits.
 public struct ChannelTransport: Transport {
     private let connections: HostConnections
     private let target: SSHTarget
     private let command: String
     private let silenceLimit: Duration
     private let fresh: Bool
+    private let asker: (any SignInAsker)?
     private let clock: any Clock<Duration>
 
     public init(
         connections: HostConnections, target: SSHTarget, command: String,
-        silenceLimit: Duration = .seconds(15), fresh: Bool = false,
+        silenceLimit: Duration = .seconds(15), fresh: Bool = false, asker: (any SignInAsker)? = nil,
         clock: any Clock<Duration> = ContinuousClock()
     ) {
         (self.connections, self.target, self.command) = (connections, target, command)
-        (self.silenceLimit, self.fresh, self.clock) = (silenceLimit, fresh, clock)
+        (self.silenceLimit, self.fresh, self.asker, self.clock) = (silenceLimit, fresh, asker, clock)
     }
 
     public func connect() async throws(TransportError) -> any ByteConnection {
         if Task.isCancelled { throw .cancelled }
-        let lease = try await connections.lease(for: target, fresh: fresh)
+        let lease = try await connections.lease(for: target, fresh: fresh, asker: asker)
         let channel: any ByteConnection
         do {
             channel = try await Self.firstChannel(on: lease, command: command)

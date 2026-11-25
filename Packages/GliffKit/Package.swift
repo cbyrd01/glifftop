@@ -16,14 +16,16 @@ let package = Package(
     name: "GliffKit",
     platforms: [.macOS(.v27), .iOS(.v27)],
     products: [
-        // The app links only GliffKit; each module joins its target list (GliffTestSupport,
-        // for tests only, never does).
+        // The app links only GliffKit; each module joins its target list, but GliffTestSupport
+        // (for tests only) and GliffAskpass (for the app's helper tool, which links only it).
         .library(
             name: "GliffKit",
             targets: [
                 "GliffProtocol", "GliffTransport", "GliffVideo", "GliffInput", "GliffClipboard",
                 "GliffSession", "GliffMachines",
-            ])
+            ]),
+        // The askpass helper's logic, for the app's helper tool, which links only this.
+        .library(name: "GliffAskpass", targets: ["GliffAskpass"]),
     ],
     targets: [
         .target(name: "GliffProtocol", exclude: ["README.md"], swiftSettings: strictSettings),
@@ -33,11 +35,20 @@ let package = Package(
             resources: [.copy("Fixtures")],
             swiftSettings: strictSettings
         ),
-        .target(
-            name: "GliffTransport", dependencies: ["GliffProtocol"], exclude: ["README.md"],
+        .target(name: "GliffAskpass", exclude: ["README.md"], swiftSettings: strictSettings),
+        // The helper as SwiftPM builds it, for the tests and the live check; the app embeds its own.
+        .executableTarget(
+            name: "glifftop-askpass-swiftpm", dependencies: ["GliffAskpass"], exclude: ["README.md"],
             swiftSettings: strictSettings),
         .testTarget(
-            name: "GliffTransportTests", dependencies: ["GliffTransport", "GliffTestSupport"],
+            name: "GliffAskpassTests", dependencies: ["GliffAskpass", "GliffTestSupport"],
+            swiftSettings: strictSettings),
+        .target(
+            name: "GliffTransport", dependencies: ["GliffProtocol", "GliffAskpass"], exclude: ["README.md"],
+            swiftSettings: strictSettings),
+        .testTarget(
+            name: "GliffTransportTests",
+            dependencies: ["GliffTransport", "GliffAskpass", "GliffTestSupport"],
             swiftSettings: strictSettings),
         .target(
             name: "GliffVideo", dependencies: ["GliffProtocol"], exclude: ["README.md"],

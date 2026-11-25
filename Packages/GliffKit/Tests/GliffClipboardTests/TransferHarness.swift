@@ -60,22 +60,38 @@ final class BackToBack: Sendable {
     }
 }
 
-/// A sink or source that stalls, ignoring cancellation, until released.
+/// A sink or source that stalls, ignoring cancellation, until released. A wait suspends: a
+/// polling one would spin once cancelled, holding a thread of the cooperative pool.
 final class Stall: Sendable {
-    private let released = Mutex(false)
-    private let calls = Mutex(0)
+    private struct State {
+        var released = false
+        var calls = 0
+        var waiting: [CheckedContinuation<Void, Never>] = []
+    }
+    private let state = Mutex(State())
 
-    var callCount: Int { calls.withLock { $0 } }
+    var callCount: Int { state.withLock { $0.calls } }
 
-    func release() { released.withLock { $0 = true } }
+    func release() {
+        let waiting = state.withLock { state in
+            state.released = true
+            defer { state.waiting = [] }
+            return state.waiting
+        }
+        for continuation in waiting { continuation.resume() }
+    }
 
-    /// Stalls every wait again, one already waiting included, until the next release.
-    func rearm() { released.withLock { $0 = false } }
+    /// Stalls every later wait until the next release.
+    func rearm() { state.withLock { $0.released = false } }
 
     func wait() async {
-        calls.withLock { $0 += 1 }
-        while !released.withLock({ $0 }) {
-            try? await Task.sleep(for: .milliseconds(10))
+        await withCheckedContinuation { continuation in
+            let released = state.withLock { state in
+                state.calls += 1
+                if !state.released { state.waiting.append(continuation) }
+                return state.released
+            }
+            if released { continuation.resume() }
         }
     }
 }

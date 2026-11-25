@@ -12,7 +12,8 @@ desktop for Hyprland/Omarchy, written in Swift. Not affiliated with Gliff.
 ## Status
 
 - **Works:**
-  - connecting over ssh;
+  - connecting over ssh, with ssh's questions (a new host key, a password, a passphrase) in
+    sheets;
   - the picture (H.264 through VideoToolbox, Dual420 recombined in Metal);
   - keyboard and pointer capture, and the remote cursor shape;
   - choosing the screen (a monitor, the focused one, or a virtual screen that follows the window);
@@ -226,6 +227,14 @@ This file wins over any skill, including a skill's "supersedes prior training" c
     the end): activation moves the host's focus to the screen in front, the host's pointer
     matches `hyprctl cursorpos`, and Super held on one screen types no digit on the other.
   - It writes numbers-only `live-*.txt` files. It is off in the gate.
+- **Loopback sign-in check** (no host needed): `GLIFFTOP_LIVE_SSHD=1 swift test --no-parallel
+  --filter LiveSignInTests` in `Packages/GliffKit`.
+  - It runs the system's sshd as you on a free 127.0.0.1 port, in a temporary directory with
+    its own host key, keys, `known_hosts` and `ssh_config`; your own ssh files are never read.
+  - Through the askpass helper and the real peer check: an unknown key allowed (added by its
+    fingerprint) and denied, an encrypted key's passphrase, Cancel (no signature sent), and a
+    banner imitating ssh's words. A user-run sshd has no PAM, so passwords aren't tested.
+  - It is off in the gate.
 - **Captures:** screenshots, screen recordings and `.gliffrec` stream recordings stay local in
   `.recordings/` (git-ignored).
   - Committing one needs the maintainer's approval of that exact file:
@@ -252,6 +261,8 @@ GliffKit       Packages/GliffKit/, platform-neutral, one target per module
   GliffTransport  `Transport` protocol; HostConnections: one ssh ControlMaster per host, each
                   session a channel on it (ChannelTransport) running gliff-server --stdio
   GliffProtocol   frame header, minimal CBOR, ClientMessage/ServerMessage; pure, no I/O
+  GliffAskpass    the askpass helper's logic and its wire to the app; the app's helper tool
+                  links only this
   GliffTestSupport  test doubles shared by the test targets (ManualClock); never in the product
 ```
 
@@ -264,7 +275,8 @@ GliffKit       Packages/GliffKit/, platform-neutral, one target per module
     the GPU work, not after display.
   - Skip unknown messages and variants.
   - The client allocates odd clipboard transfer ids.
-  - Use `BatchMode=yes`, and never `StrictHostKeyChecking=accept-new`.
+  - Use `BatchMode=yes`, except for a master that asks through the askpass helper
+    (`StrictHostKeyChecking` `yes` or `ask`); never `accept-new` or `no`.
 - Upstream's Rust at the pinned release is the source of truth for wire behaviour: when in
   doubt, read `crates/gliff-proto/src/{msg,frame,clipboard}.rs` and
   `crates/gliff/src/net.rs`. The pinned source is in cargo's git checkout of gliff-proto.

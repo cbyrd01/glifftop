@@ -1,4 +1,5 @@
 import GliffSession
+import GliffTransport
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -40,6 +41,12 @@ struct RootView: View {
         }
         .sheet(item: $model.machineEdit) {
             EditMachineView(model: model, machine: $0.machine, isNew: $0.isNew)
+        }
+        .signInSheet(model.signIn, shown: model.machineEdit == nil)
+        .background {
+            AttentionTracker(question: model.signIn.current?.id) { [signIn = model.signIn] in
+                signIn.windowReady = $0
+            }
         }
         // Kept while View ▸ Screen or a lost session reconnects: the new session opens in full
         // screen too.

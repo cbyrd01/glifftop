@@ -73,7 +73,10 @@ struct EditMachineView: View {
         }
         .padding(20)
         .frame(width: 460)
+        .onAppear { screenList.asker = model.signIn.queue }
         .onDisappear { screenList.stop() }
+        // Over this sheet: the window's own sheet can't show while this one does.
+        .signInSheet(model.signIn)
     }
 
     /// Whether it's the machine of a window's session, running or ended: a window finds its
