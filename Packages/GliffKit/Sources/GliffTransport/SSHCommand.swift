@@ -80,7 +80,7 @@ public struct SSHCommand: Equatable, Sendable {
 
     /// `text` as one word for a POSIX shell: unchanged when every character is safe,
     /// otherwise in single quotes, with each `'` written as `'\''`.
-    static func shellQuoted(_ text: String) -> String {
+    package static func shellQuoted(_ text: String) -> String {
         if !text.isEmpty && text.allSatisfy(shellSafe.contains) { return text }
         return "'" + text.replacing("'", with: "'\\''") + "'"
     }

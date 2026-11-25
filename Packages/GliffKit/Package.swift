@@ -96,7 +96,7 @@ let package = Package(
             swiftSettings: strictSettings),
         .testTarget(
             name: "GliffPortsTests", dependencies: ["GliffPorts", "GliffTransport", "GliffTestSupport"],
-            swiftSettings: strictSettings),
+            resources: [.copy("Fixtures")], swiftSettings: strictSettings),
         // Test doubles shared by the test targets (a clock tests move by hand); not in the product.
         .target(name: "GliffTestSupport", exclude: ["README.md"], swiftSettings: strictSettings),
     ]

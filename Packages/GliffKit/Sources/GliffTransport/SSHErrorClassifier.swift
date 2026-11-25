@@ -72,7 +72,7 @@ public enum SSHErrorClassifier {
     static let maxShownLength = 200
 
     /// What remote text never shows: control and format characters, line and paragraph breaks.
-    static let hidden: Set<Unicode.GeneralCategory> = [
+    package static let hidden: Set<Unicode.GeneralCategory> = [
         .control, .format, .lineSeparator, .paragraphSeparator,
     ]
 
