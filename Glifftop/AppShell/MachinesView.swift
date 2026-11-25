@@ -118,7 +118,7 @@ struct MachinesView: View {
                     .font(.callout)
             }
             GroupBox {
-                DisclosureGroup("Options", isExpanded: $showsOptions) {
+                RowDisclosureGroup("Options", isExpanded: $showsOptions) {
                     VStack(alignment: .leading, spacing: 8) {
                         Form {
                             MachineOptionsForm(

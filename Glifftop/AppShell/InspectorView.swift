@@ -69,7 +69,7 @@
                         .monospacedDigit()
                     }
                 }
-                DisclosureGroup("Last \(section.recent.count) Messages") {
+                RowDisclosureGroup("Last \(section.recent.count) Messages") {
                     LazyVStack(alignment: .leading, spacing: 1) {
                         ForEach(Array(section.recent.enumerated().reversed()), id: \.offset) { _, event in
                             Text(line(event, now: section.now)).font(.caption.monospacedDigit())
