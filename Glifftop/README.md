@@ -88,15 +88,18 @@ own, which the options form and the toolbar's button set; Settings' doesn't over
 every window to the machine follows it), in `UserDefaults` through
 `AppSettings`), the sign-in's questions (`SignInPrompter`, one per window, its
 `SignInQueue` the asker for the window's sessions, reconnects and Get Screens, the machine
-sheet's included; one question at a time as a sheet, on the machine sheet while that shows:
+sheet's included; one question at a time as a sheet, on the machine sheet while that shows,
+shown while Glifftop is active and kept shown after (AppKit would bring a window forward,
+over the app in front, to attach a sheet; `AppActivity` says whether Glifftop is active):
 `HostKeySheet`, a key ssh doesn't know (its type and fingerprint, selectable, and how to check
 it) or ssh's yes/no question about one, with Deny (Escape) and Allow and no default;
 `SecretSheet`, a passphrase, PIN or password, or the host's own question set apart under
 "HOST asks:", laid out as the Mac's sign-in sheets: a heading saying what it is for ("Sign
 in to HOST", "Unlock the key PATH"), a password's user on a row of its own, a labelled
-secure field (marked as a password for AutoFill, for a password or a key's passphrase) with
-a checkbox to show it as text ("Show password"), Continue and Cancel, the field emptied as
-the answer goes; each sheet names the host as typed (`SignInQuestion.hostShown`); a notice, such as a security key's touch, with no buttons, until
+secure field (marked as a password for AutoFill, for a password or a key's passphrase),
+Continue and Cancel, the field
+emptied as the answer goes; each sheet names the host as typed (`SignInQuestion.hostShown`);
+a notice, such as a security key's touch, with no buttons, until
 ssh is done; only an answer, or the question ending, dismisses one) and (Debug builds) the Debug menu: Protocol Inspector (⌥⌘I: `InspectorView`, a
 section per open window titled as its tab, with each message type's count, bytes, last seen
 and rate per direction, and the last 200 messages, refreshed once a second, with Pause and
@@ -189,7 +192,8 @@ AppKit adapters for what SwiftUI can't do:
   machines stay resizable and Actual Size is off; a mirror left alone (torn off) is fitted
   again;
 - `AttentionTracker`: a new sign-in question selects its window's tab and brings it forward
-  while Glifftop is active, else bounces the Dock icon once (`requestUserAttention`);
+  while Glifftop is active, else bounces the Dock icon once (`requestUserAttention`); the
+  window that bounced last comes forward, once, when Glifftop is next made active;
 - `LiveResizeTracker`: the window's live resize (a drag of its edge), for
   `SessionModel.liveResizeChanged`, which tells the session (no Resize during one) and any
   session started during one. It reports the end a turn after AppKit's, once the video view

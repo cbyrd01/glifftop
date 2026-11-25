@@ -3,15 +3,14 @@ import SwiftUI
 
 /// A passphrase, PIN, password or the host's own question, laid out as the Mac's own sign-in
 /// sheets are: a bold heading saying what the secret is for ("Sign in to HOST", "Unlock the
-/// key …") without naming it, a password's user on a row of its own, a labelled secure field
-/// with a "Show password" checkbox under it, then Cancel and Continue. The host's words are
-/// set apart under "HOST asks:", so they never read as Glifftop's. The typed text becomes a
+/// key …") without naming it, a password's user on a row of its own, a labelled secure field,
+/// then Cancel and Continue. The host's words are set apart under "HOST asks:", so they never
+/// read as Glifftop's. The typed text becomes a
 /// `SignInSecret` and the field is emptied before the answer goes.
 struct SecretSheet: View {
     let question: SignInQuestion
     let answer: (consuming SignInAnswer) -> Void
     @State private var text = ""
-    @State private var showsText = false
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -24,20 +23,10 @@ struct SecretSheet: View {
                     LabeledContent("User", value: user)
                         .textSelection(.enabled)
                 }
-                Group {
-                    if showsText {
-                        TextField(secretName.label, text: $text)
-                    } else {
-                        SecureField(secretName.label, text: $text)
-                    }
-                }
-                .autocorrectionDisabled()
-                // A password manager's AutoFill offers its passwords here.
-                .textContentType(isPassword ? .password : nil)
-                .focused($focused)
-                // The field changes with the checkbox: the new one takes the focus.
-                Toggle(secretName.show, isOn: $showsText)
-                    .onChange(of: showsText) { focused = true }
+                SecureField(secretName, text: $text)
+                    // A password manager's AutoFill offers its passwords here.
+                    .textContentType(isPassword ? .password : nil)
+                    .focused($focused)
             }
             HStack {
                 Spacer()
@@ -85,12 +74,12 @@ struct SecretSheet: View {
         }
     }
 
-    /// What is typed: the field's label and the checkbox's words.
-    private var secretName: (label: String, show: String) {
+    /// What is typed, as the field's label.
+    private var secretName: String {
         switch question {
-        case .password: ("Password", "Show password")
-        case .fromHost: ("Answer", "Show answer")
-        default: question.keyPath == nil ? ("PIN", "Show PIN") : ("Passphrase", "Show passphrase")
+        case .password: "Password"
+        case .fromHost: "Answer"
+        default: question.keyPath == nil ? "PIN" : "Passphrase"
         }
     }
 

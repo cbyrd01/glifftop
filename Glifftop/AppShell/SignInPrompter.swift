@@ -23,11 +23,45 @@ extension View {
     /// (`shown`): the root's, or the machine sheet's over it. Only an answer, or the question
     /// ending, dismisses it.
     func signInSheet(_ prompter: SignInPrompter, shown: Bool = true) -> some View {
-        sheet(item: Binding(get: { shown ? prompter.current : nil }, set: { _ in })) { pending in
-            SignInSheet(pending: pending, prompter: prompter)
-                .id(pending.id)
-                .interactiveDismissDisabled()
-        }
+        modifier(SignInSheetPresenter(prompter: prompter, shown: shown))
+    }
+}
+
+/// Presents the window's question while Glifftop is the active app. AppKit brings a window
+/// forward, over the app in front, to attach a sheet: while Glifftop is in the background a new
+/// question waits and the Dock icon bounces (`AttentionTracker`). A sheet shown stays shown
+/// while the person switches away.
+private struct SignInSheetPresenter: ViewModifier {
+    let prompter: SignInPrompter
+    let shown: Bool
+    /// The question shown while Glifftop was active, kept shown after it isn't.
+    @State private var released: Int?
+
+    private var appIsActive: Bool { AppActivity.shared.isActive }
+
+    /// The question to present: none while a sheet over this view is in front, and a new one
+    /// only while Glifftop is active.
+    private var presented: SignInQueue.Pending? {
+        guard shown, let pending = prompter.current, appIsActive || pending.id == released else { return nil }
+        return pending
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(
+                item: Binding(get: { presented }, set: { _ in })
+            ) {
+                pending in
+                SignInSheet(pending: pending, prompter: prompter)
+                    .id(pending.id)
+                    .interactiveDismissDisabled()
+            }
+            .onChange(of: appIsActive, initial: true) { release() }
+            .onChange(of: prompter.current?.id) { release() }
+    }
+
+    private func release() {
+        if appIsActive { released = prompter.current?.id }
     }
 }
 
