@@ -37,7 +37,7 @@ public struct InputResult: Sendable, Equatable {
 /// from its flags (`syncModifiers`), so a modifier pressed where its press went to the Mac
 /// (⌘Tab back with ⌘ held) joins it, and one whose release went missing is let go.
 /// In Integrated, a ⌘ chord with the pointer over Glifftop's chrome is the Mac's
-/// (`key(_:overChrome:)`).
+/// (`key(_:overChrome:)`). Confined, deltas move a virtual pointer (`InputController+Confined`).
 public struct InputController: Sendable {
     private var capture: InputCapture
     var ledger = InputLedger()
@@ -47,14 +47,21 @@ public struct InputController: Sendable {
     /// ⌘ chord keys whose key-down went to the Mac over the chrome.
     private var chordKeys = MacChordKeys()
     /// The button whose click took input back: until its up, nothing from the pointer is sent.
-    private var recapturingButton: Int?
+    var recapturingButton: Int?
     /// A recapturing click that capture ended before its up: its up still stays from the Mac.
     private var strayUp: Int?
     /// Where the remote pointer was last sent, while that is known. Motion isn't sent while
     /// released (nor reported while the window isn't key), so a press or scroll elsewhere moves
     /// it there first. A captured key may move it (a focus binding warps it), and motion may
     /// have been dropped as the link went: those forget it, so the next press moves it.
-    private var remoteAt: (x: Double, y: Double)?
+    var remoteAt: (x: Double, y: Double)?
+    /// The confined pointer (`InputController+Confined`): nil unless confined.
+    var virtual: VirtualPointer?
+    /// The picture the virtual pointer's coordinates belong to.
+    var virtualGeometry: PictureGeometry?
+    /// Where the virtual pointer was when confinement last ended, for the app to put the Mac
+    /// cursor there; nil once confinement starts again.
+    public internal(set) var unconfinedAt: (x: Double, y: Double)?
     /// Precise axes scrolled since their last stop: capture ending stops them. A wheel has no
     /// gesture to end.
     private var scrolling: Set<Axis> = []
@@ -172,10 +179,10 @@ public struct InputController: Sendable {
             // A fresh press of it: its up was missed.
             case .button(held, pressed: true, _, _, _): recapturingButton = nil
             // Its up moves the remote pointer to where it was let go, so keys typed next go
-            // where the Mac's pointer is.
+            // where the Mac's pointer is (confined, the virtual pointer, dragged on).
             case .button(held, pressed: false, let x, let y, _):
                 recapturingButton = nil
-                return InputResult(consumed: true, messages: move(x, y))
+                return InputResult(consumed: true, messages: move(virtual?.x ?? x, virtual?.y ?? y))
             default: return InputResult(consumed: true)
             }
         }
@@ -190,7 +197,9 @@ public struct InputController: Sendable {
         }
         let messages: [InputMessage]
         switch event {
-        case .moved(let x, let y): return InputResult(consumed: true, messages: move(x, y))
+        // Confined, the Mac pointer's place isn't the remote's: deltas move it.
+        case .moved(let x, let y):
+            return InputResult(consumed: true, messages: virtual == nil ? move(x, y) : [])
         case .button(let number, let pressed, _, _, _):
             guard let code = PointerButtons.code(forButtonNumber: number) else {
                 return InputResult(consumed: true)
@@ -203,10 +212,11 @@ public struct InputController: Sendable {
             }
         }
         guard !messages.isEmpty else { return InputResult(consumed: true) }
-        // The held modifiers, then the motion to its position, then the button or scroll.
+        // The held modifiers, then the motion to its position (confined, the virtual pointer's),
+        // then the button or scroll.
         let sync = syncModifiers(event.flags)
-        return InputResult(
-            consumed: true, messages: sync + move(event.position.x, event.position.y) + messages)
+        let at = virtual.map { (x: $0.x, y: $0.y) } ?? event.position
+        return InputResult(consumed: true, messages: sync + move(at.x, at.y) + messages)
     }
 
     /// The window came to the front: while captured, two motions, the first a pixel off and
@@ -222,7 +232,7 @@ public struct InputController: Sendable {
     }
 
     /// A motion to (x, y), unless the remote pointer is there already.
-    private mutating func move(_ x: Double, _ y: Double) -> [InputMessage] {
+    mutating func move(_ x: Double, _ y: Double) -> [InputMessage] {
         if let remoteAt, remoteAt == (x, y) { return [] }
         remoteAt = (x, y)
         return [.pointerMotion(x: x, y: y)]
@@ -230,6 +240,7 @@ public struct InputController: Sendable {
 
     public mutating func capture(_ event: CaptureEvent) -> InputResult {
         let change = capture.apply(event)
+        if !capture.isConfined { unconfine() }
         var result = InputResult(showHint: change.showHint, activates: change.activates)
         // A recapturing click cut short (its up gone elsewhere, or never coming after sleep or
         // a lock) is forgotten.

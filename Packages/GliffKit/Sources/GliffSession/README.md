@@ -62,7 +62,8 @@ the feature seam.
   session. A CursorPos is published to the session's `RemotePointerSlot` (capture-buffer
   pixels, which can exceed a shrunk stream's, and whether the host shows a pointer; one that
   isn't a number is dropped), cleared by a StreamConfig that brings a new picture and by the
-  session's end. A shape
+  session's end. Each publish moves its generation (`read()`), so a poller sees a report at
+  the same place. A shape
   or a position before the first StreamConfig is a protocol error (upstream).
 - **`SessionSnapshot`:** the statuses folded into what a window shows (phase, the server's
   session (headless or not), its own output from HelloAck (`output`; nil when HelloAck lists

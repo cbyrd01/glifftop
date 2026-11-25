@@ -62,13 +62,26 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   button or scroll. Every way capture ends (and `.away`: sleep, lock) releases what the
   remote holds, an open menu's included. A result's `activates` says the host's focus should
   follow (`activate(at:)`). A keymap is sent only when its text changes.
+  Confined (`InputController+Confined.swift`, Capture mode once the pointer entered the
+  picture): the app's logical deltas (`pointerMoved`) move a `VirtualPointer`, absolute motion
+  sends nothing, and clicks and scrolls land at the virtual position; the host's CursorPos
+  (`hostPointer`) moves it when it is a warp, not an echo. Confinement ends whenever
+  `isConfined` falls, leaving its place in `unconfinedAt` for the app to put the Mac cursor
+  there. A recapturing click's drag moves it but sends nothing until the up.
+- **`VirtualPointer`:** the confined pointer's logical place: deltas clamped to the output, and
+  the host's reports, of which one within 1.5 on both axes of a position sent in the last
+  second (at most 1024 kept, a 1 kHz mouse's second, each as the host rounds it) or of the
+  current one is an echo, any other a warp it adopts. A hidden report only hides it, and the
+  first shown one at the place it hid is no warp (upstream's Enter re-sends it). A new size
+  clamps it; the same output fitted into a new stream size scales it and its echoes first.
 - **`XKBLayout`, `XKBKeymap`:** an xkeyboard-config layout and variant, and the include-only
   keymap text a Keymap carries (`pc+<symbols>+inet(evdev)`, with `numpad(mac)` types so the
   keypad types digits with no NumLock), compiled by the server. The app sends Hello with no
   keymap: one the server can't compile would fail its setup, a failed Keymap is ignored.
 - **`PointerMapper`, `PictureRect`, `PictureGeometry`:** a point over the drawn picture to the
   remote's logical coordinates (upstream `to_remote`): undo the fit, stretch the view box to
-  the stream, clamp to its edges, divide by the remote scale.
+  the stream, clamp to its edges, divide by the remote scale. `remoteDelta` scales a delta the
+  same way, without the clamp; `local` is the inverse, a logical point to backing pixels.
 - **`FocusTarget`:** where a window's activation puts the remote pointer, in logical
   coordinates: the Mac pointer over the uncovered picture, else the remote cursor's last
   position, hidden or not (capture-buffer pixels, converted and clamped), else the centre;
@@ -96,7 +109,9 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   its size only while captured; captured without one, hidden when the video carries the
   pointer (`videoHasPointer`: a virtual screen, this session's or another's mirrored, or a
   monitor of Hyprland's headless backend named `HEADLESS-N`, such as a container's, whose
-  cursor is drawn into the picture), else the arrow; released, the arrow.
+  cursor is drawn into the picture), else the arrow; confined, hidden (the app draws the
+  virtual pointer with the captured look, nothing when the video carries the pointer);
+  released, the arrow.
 - **`CursorClaim`:** the cursor the picture last showed. When the pointer stops being the
   picture's, the arrow replaces it only if it is still the cursor shown (by identity), never
   one set since by the toolkit, an overlay or another window; not during a live resize. Every

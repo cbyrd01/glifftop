@@ -10,13 +10,22 @@ public final class RemotePointerSlot: Sendable {
         public init(x: Double, y: Double, visible: Bool) { (self.x, self.y, self.visible) = (x, y, visible) }
     }
 
-    private let position = Mutex<Position?>(nil)
+    private let state = Mutex<(position: Position?, generation: UInt64)>((nil, 0))
 
     public init() {}
 
     /// The last CursorPos: nil before one, after a StreamConfig that brings a new picture (a
     /// new size or codec), and once the session has ended.
-    public var latest: Position? { position.withLock { $0 } }
+    public var latest: Position? { state.withLock { $0.position } }
 
-    func publish(_ latest: Position?) { position.withLock { $0 = latest } }
+    /// The last CursorPos and how many have been published: a reader that polls sees a new
+    /// report, even one at the same place, by its generation.
+    public func read() -> (position: Position?, generation: UInt64) { state.withLock { $0 } }
+
+    func publish(_ latest: Position?) {
+        state.withLock {
+            $0.position = latest
+            $0.generation &+= 1
+        }
+    }
 }

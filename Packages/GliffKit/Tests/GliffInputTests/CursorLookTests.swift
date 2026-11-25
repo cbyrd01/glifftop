@@ -13,6 +13,15 @@ import Testing
     }
     private var clear: CursorImage { CursorImage(shape, payload: [UInt8](repeating: 0, count: 16))! }
 
+    /// Confined, the Mac cursor stays put: the app draws the virtual pointer instead.
+    @Test(arguments: [false, true])
+    func confinedHidesTheMacCursor(_ videoHasPointer: Bool) {
+        #expect(
+            CursorLook.choose(
+                captured: true, videoHasPointer: videoHasPointer, image: visible, pointsPerPixel: 0.5,
+                confined: true) == .hidden)
+    }
+
     @Test func releasedIsAlwaysTheArrow() {
         #expect(
             CursorLook.choose(captured: false, videoHasPointer: false, image: visible, pointsPerPixel: 0.5)
