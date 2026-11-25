@@ -13,6 +13,8 @@
         enum Failure: Error {
             /// `hyprctl` (or ssh) exited with this status.
             case status(Int32)
+            /// `hyprctl dispatch` answered something other than "ok" (its output isn't kept).
+            case notOK
         }
 
         /// `script` on the host, its output; with `checked`, a nonzero exit throws.
@@ -91,12 +93,14 @@
         }
 
         /// Runs each address's `closeCommand` through `run`, every one even after a failure;
-        /// the failures.
-        static func close(_ addresses: [String], with run: (String) throws -> Void) -> [any Error] {
+        /// the failures. `hyprctl dispatch` answers "ok" when it ran the dispatcher, and exits
+        /// nonzero on a Lua error; any other answer counts as a failure too.
+        static func close(_ addresses: [String], with run: (String) throws -> String) -> [any Error] {
             addresses.compactMap(closeCommand).compactMap { command in
                 do {
-                    try run(command)
-                    return nil
+                    let output = try run(command)
+                    return output.trimmingCharacters(in: .whitespacesAndNewlines) == "ok"
+                        ? nil : Failure.notOK
                 } catch {
                     return error
                 }
@@ -107,7 +111,7 @@
         /// Then waits up to 2 s for them to go, and expects none left.
         static func closeWindows(_ addresses: Set<String>) async throws {
             let open = try windows().filter(addresses.contains)
-            for failure in close(open, with: { _ = try run($0, checked: true) }) {
+            for failure in close(open, with: { try run($0, checked: true) }) {
                 Issue.record(failure, "closing a window the test opened")
             }
             var left = addresses.intersection(try windows())

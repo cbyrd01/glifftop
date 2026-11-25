@@ -10,16 +10,13 @@ import Testing
 @Suite struct InputControllerPointerTests {
     /// Captured, with the remote pointer at (0, 0).
     private func captured() -> InputController {
-        var controller = InputController(keymap: "k1")
-        for event: CaptureEvent in [.windowKey(true), .appActive(true), .picture(true)] {
-            _ = controller.capture(event)
-        }
+        var controller = capturedController()
         _ = controller.pointer(.moved(x: 0, y: 0))
         return controller
     }
 
     private func button(_ number: Int, _ pressed: Bool, at point: (Double, Double) = (0, 0)) -> PointerEvent {
-        .button(number: number, pressed: pressed, x: point.0, y: point.1)
+        .button(number: number, pressed: pressed, x: point.0, y: point.1, flags: 0)
     }
 
     private func scroll(
@@ -27,8 +24,7 @@ import Testing
     ) -> PointerEvent {
         .scroll(
             ScrollEvent(deltaX: 0, deltaY: deltaY, isPrecise: true, phase: phase, isMomentum: false),
-            x: point.0,
-            y: point.1)
+            x: point.0, y: point.1, flags: 0)
     }
 
     private let axis = InputMessage.pointerAxis(axis: .vertical, value: -2, discrete: nil, stop: false)
@@ -225,7 +221,8 @@ import Testing
     @Test func aWheelLeavesNoStopOnRelease() {
         var controller = captured()
         let wheel = PointerEvent.scroll(
-            ScrollEvent(deltaX: 0, deltaY: 1, isPrecise: false, phase: .none, isMomentum: false), x: 0, y: 0)
+            ScrollEvent(deltaX: 0, deltaY: 1, isPrecise: false, phase: .none, isMomentum: false), x: 0, y: 0,
+            flags: 0)
         _ = controller.pointer(wheel)
         #expect(shiftEsc(&controller).messages.isEmpty)
     }

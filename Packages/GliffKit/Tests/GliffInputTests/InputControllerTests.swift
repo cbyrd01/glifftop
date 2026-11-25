@@ -7,27 +7,7 @@ import Testing
 @Suite struct InputControllerTests {
     private typealias Flags = MacModifierFlags
 
-    private func captured() -> InputController {
-        var controller = InputController(keymap: "k1")
-        for event: CaptureEvent in [.windowKey(true), .appActive(true), .picture(true)] {
-            _ = controller.capture(event)
-        }
-        return controller
-    }
-
-    private func down(_ code: UInt16, _ flags: Flags = [], isRepeat: Bool = false) -> MacKeyEvent {
-        MacKeyEvent(keyCode: code, kind: .down(isRepeat: isRepeat), flags: flags.rawValue)
-    }
-
-    private func up(_ code: UInt16, _ flags: Flags = []) -> MacKeyEvent {
-        MacKeyEvent(keyCode: code, kind: .up, flags: flags.rawValue)
-    }
-
-    private func flags(_ code: UInt16, _ flags: Flags = []) -> MacKeyEvent {
-        MacKeyEvent(keyCode: code, kind: .flagsChanged, flags: flags.rawValue)
-    }
-
-    private func key(_ code: UInt32, _ pressed: Bool) -> InputMessage { .key(code: code, pressed: pressed) }
+    private func captured() -> InputController { capturedController() }
 
     @Test func notCapturedPassesThrough() {
         var controller = InputController(keymap: "k1")
@@ -200,7 +180,7 @@ import Testing
         var controller = captured()
         _ = controller.activate(at: (x: 100, y: 50))
         let left = try #require(PointerButtons.code(forButtonNumber: 0))
-        let click = controller.pointer(.button(number: 0, pressed: true, x: 100, y: 50))
+        let click = controller.pointer(.button(number: 0, pressed: true, x: 100, y: 50, flags: 0))
         #expect(click.messages == [.pointerButton(code: left, pressed: true)])
     }
 }

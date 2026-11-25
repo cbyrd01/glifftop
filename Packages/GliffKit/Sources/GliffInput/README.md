@@ -25,7 +25,8 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   captured). Says when to show the "Shift+Esc releases input" hint: first capture, and the
   first after each release. The other capture modes join here later.
 - **`PointerEvent`:** a pointer event over the picture, with its position in remote
-  coordinates: motion, a button by `NSEvent.buttonNumber`, a scroll.
+  coordinates: motion, a button by `NSEvent.buttonNumber`, a scroll; a button or scroll carries
+  its modifier flags.
 - **`InputController`:** the one object the app drives per session. Not captured, keys and the
   pointer pass through untouched, except a click on the picture when only Shift+Esc holds
   capture off: it takes input back, and nothing from the pointer is sent until its button is
@@ -34,9 +35,14 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   and scrolls carry their position: one away from where the remote pointer was left moves it
   there first (always after a captured key or the end of capture, which may have moved it),
   and the recapturing click's up moves it to where it was let go. Capture ending mid-scroll
-  stops the precise axes that scrolled. Each event's flags release modifiers whose key-up never came; a key-down
-  brings in a modifier held before capture. Every way capture ends (and `.away`: sleep,
-  lock) releases what the remote holds. A keymap is sent only when its text changes.
+  stops the precise axes that scrolled. Before a click, a scroll or a key that sends something
+  (not motion, a repeat or an unheld release), the held modifiers are synced from its flags
+  (`InputController+Modifiers.swift`): those the remote holds that are up are let go, last
+  pressed first, then those held that it lacks are pressed, wherever they were pressed; a
+  modifier's own event is left to itself. A repeat, Fn, an unknown key or an unheld release
+  still lets go of the stale ones. On a click or scroll: the modifiers, the motion, then the
+  button or scroll. Every way capture ends (and `.away`: sleep, lock) releases what the
+  remote holds. A keymap is sent only when its text changes.
 - **`XKBLayout`, `XKBKeymap`:** an xkeyboard-config layout and variant, and the include-only
   keymap text a Keymap carries (`pc+<symbols>+inet(evdev)`, with `numpad(mac)` types so the
   keypad types digits with no NumLock), compiled by the server. The app sends Hello with no

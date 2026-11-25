@@ -17,9 +17,18 @@
             let failures = LiveHyprland.close(["0x1", "0x2"]) { command in
                 ran.append(command)
                 if ran.count == 1 { throw Refused() }
+                return "ok"
             }
             #expect(ran.count == 2)
             #expect(ran.last?.contains(#""address:0x2""#) == true)
+            #expect(failures.count == 1)
+        }
+
+        /// Only `hyprctl dispatch`'s "ok" is success: any other answer is a failure.
+        @Test func aCloseThatDoesNotSayOkFails() {
+            let failures = LiveHyprland.close(["0x1", "0x2"]) { command in
+                command.contains("0x1") ? "ok\n" : "error: no such window\n"
+            }
             #expect(failures.count == 1)
         }
 
