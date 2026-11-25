@@ -1,4 +1,5 @@
 import GliffSFTP
+import GliffTestSupport
 import Testing
 
 @Suite struct SFTPFramerTests {

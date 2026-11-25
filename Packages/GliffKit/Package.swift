@@ -93,7 +93,9 @@ let package = Package(
             swiftSettings: strictSettings),
         // SFTP v3 packets: pure, no imports, as GliffProtocol.
         .target(name: "GliffSFTP", exclude: ["README.md"], swiftSettings: strictSettings),
-        .testTarget(name: "GliffSFTPTests", dependencies: ["GliffSFTP"], swiftSettings: strictSettings),
+        .testTarget(
+            name: "GliffSFTPTests", dependencies: ["GliffSFTP", "GliffTestSupport"],
+            swiftSettings: strictSettings),
         .target(
             name: "GliffFiles", dependencies: ["GliffSFTP", "GliffTransport"], exclude: ["README.md"],
             swiftSettings: strictSettings),

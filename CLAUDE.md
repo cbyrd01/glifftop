@@ -262,8 +262,7 @@ GliffKit       Packages/GliffKit/, platform-neutral, one target per module
   GliffVideo      H.264 → VideoToolbox (2 sessions) → Metal recombine → BGRA texture
   GliffInput      macOS keycode → evdev, key ledger, XKB keymap text, pointer mapping, cursor,
                   focus target, the tab chord
-  GliffFiles      the sftp client: a session over any byte stream, a host's transfer queue on
-                  one sftp channel, the Mac's files, quarantine
+  GliffFiles      the sftp client: a session over any byte stream
   GliffTransport  `Transport` protocol; HostConnections: one ssh ControlMaster per host, each
                   session a channel on it (ChannelTransport) running gliff-server --stdio
   GliffProtocol   frame header, minimal CBOR, ClientMessage/ServerMessage; pure, no I/O

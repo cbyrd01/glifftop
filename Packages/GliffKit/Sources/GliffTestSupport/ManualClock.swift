@@ -73,10 +73,6 @@ public final class ManualClock: Clock, Sendable {
     /// Waits until exactly `count` sleeps are waiting; false if that hasn't happened within 10 s
     /// of real time, a bound only a broken test reaches.
     public func waitForSleepers(_ count: Int) async -> Bool {
-        for _ in 0..<1000 {
-            if sleeperCount == count { return true }
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        return sleeperCount == count
+        await eventually { sleeperCount == count }
     }
 }
