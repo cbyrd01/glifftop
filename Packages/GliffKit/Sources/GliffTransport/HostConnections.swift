@@ -9,8 +9,9 @@ import os
 ///   lease that starts it has an asker.
 /// - A sign-in that asked and failed (the agent refused, the key was refused, no approval in
 ///   time, the person cancelled or denied the key) answers that destination's leases for
-///   `failureMemory`, so several tabs retrying never mean several approval prompts at once. A `fresh` lease, an attempt the person
-///   starts, asks again; a failure that asked nothing (an unreachable host) isn't remembered.
+///   `failureMemory`, so several tabs retrying never mean several approval prompts at once. A
+///   `fresh` lease, an attempt the person starts, asks again; a failure that asked nothing (an
+///   unreachable host) isn't remembered.
 /// - An open that nobody waits for any more is cancelled after `openGrace` (or at once by
 ///   `closeAll()`), so a sign-in prompt doesn't outlive its asker, yet a session that starts as
 ///   a listing stops shares the listing's sign-in.
@@ -75,17 +76,17 @@ public actor HostConnections {
         var forget: Task<Void, Never>?
     }
 
-    private let open: Open
+    let open: Open
     let clock: any Clock<Duration>
-    private let grace: Duration
-    private let failureMemory: Duration
-    private let leaseLimit: Int
+    let grace: Duration
+    let failureMemory: Duration
+    let leaseLimit: Int
     let openGrace = Duration.seconds(1)
     var hosts: [String: Host] = [:]
     var nextID = 0
     /// Moves on at `closeAll()`: an open that finishes after it is closed at once.
     var generation = 0
-    private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "HostConnections")
+    static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "HostConnections")
 
     public init(
         open: @escaping Open, clock: any Clock<Duration> = ContinuousClock(), grace: Duration = .seconds(10),
@@ -170,164 +171,6 @@ public actor HostConnections {
         hosts[key]?.live[index].grace = nil
         guard let live = hosts[key]?.live[index] else { return nil }
         return Place(id: live.id, connection: live.connection, activity: live.activity)
-    }
-
-    private func startOpen(_ target: SSHTarget, asking: Bool) {
-        let key = target.value
-        hosts[key, default: Host()].opening = true
-        hosts[key]?.verdict = nil
-        let generation = self.generation
-        let router = asking ? SignInRouter(connections: self, key: key, generation: generation) : nil
-        hosts[key]?.openTask = Task { [open] in
-            let result: Result<any HostConnection, TransportError>
-            do throws(TransportError) {
-                result = .success(try await open(target, router))
-            } catch {
-                result = .failure(error)
-            }
-            await self.opened(key, result, generation: generation)
-        }
-    }
-
-    private func opened(_ key: String, _ result: Result<any HostConnection, TransportError>, generation: Int)
-        async
-    {
-        guard generation == self.generation, hosts[key] != nil else {
-            if case .success(let connection) = result { await connection.close() }
-            return
-        }
-        var result = result
-        let verdict = hosts[key]?.verdict
-        if case .failure(.exited(let status, .hostKeyDenied)) = result, verdict == .deniedKey {
-            result = .failure(.exited(status: status, failure: .hostKeyUnchecked))
-        }
-        hosts[key]?.opening = false
-        hosts[key]?.openTask = nil
-        hosts[key]?.dropOpen?.cancel()
-        hosts[key]?.dropOpen = nil
-        switch result {
-        case .success(let connection): install(connection, key)
-        case .failure(let error): if verdict != .cancelled { remember(error, key) }
-        }
-        wakeAskerWaits(key)
-        let waiters = hosts[key].map { Array($0.waiters.values) } ?? []
-        hosts[key]?.waiters = [:]
-        let failure: TransportError? =
-            if case .failure(let error) = result { error } else { nil }
-        for waiter in waiters { waiter.continuation.resume(returning: failure) }
-        forgetIfIdle(key)
-    }
-
-    private func install(_ connection: any HostConnection, _ key: String) {
-        nextID += 1
-        let id = nextID
-        var live = Live(id: id, connection: connection, limit: leaseLimit)
-        live.watcher = Task {
-            let failure = await connection.ended()
-            self.lost(key, id, failure)
-        }
-        hosts[key]?.live.append(live)
-        // Waiters take their places at once; one that went away leaves it to close.
-        startGrace(key, id)
-        Self.log.info("connection opened (\(self.hosts[key]?.live.count ?? 0) to this host)")
-    }
-
-    private func remember(_ error: TransportError, _ key: String) {
-        guard case .exited(_, let failure) = error, Self.asked.contains(failure) else { return }
-        hosts[key]?.failure = error
-        hosts[key]?.forget?.cancel()
-        hosts[key]?.forget = Task { [clock, failureMemory] in
-            do { try await clock.sleep(for: failureMemory) } catch { return }
-            self.forgetFailure(key)
-        }
-    }
-
-    /// The failures of a sign-in that asked the person or their agent something.
-    private static let asked: [ConnectFailure] = [
-        .agentRefused, .permissionDenied, .signInTimedOut, .hostKeyDenied, .signInCancelled,
-        .tooManyQuestions, .unknownQuestion,
-    ]
-
-    private func forgetFailure(_ key: String) {
-        hosts[key]?.failure = nil
-        hosts[key]?.forget?.cancel()
-        hosts[key]?.forget = nil
-        forgetIfIdle(key)
-    }
-
-    /// Drops a destination's record once nothing about it is left to remember.
-    private func forgetIfIdle(_ key: String) {
-        guard let host = hosts[key], host.live.isEmpty, !host.opening, host.waiters.isEmpty,
-            host.askerWaits.isEmpty, host.failure == nil
-        else { return }
-        hosts[key] = nil
-    }
-
-    private func waitForOpen(_ key: String, fresh: Bool, asker: (any SignInAsker)?) async -> TransportError? {
-        nextID += 1
-        let id = nextID
-        let leaving = LeavingMark()
-        return await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                self.assumeIsolated { connections in
-                    connections.hosts[key]?.waiters[id] = Waiter(
-                        continuation: continuation, fresh: fresh, asker: asker, leaving: leaving)
-                    if asker != nil { connections.wakeAskerWaits(key) }
-                    connections.hosts[key]?.dropOpen?.cancel()
-                    connections.hosts[key]?.dropOpen = nil
-                }
-            }
-        } onCancel: {
-            // At once, so an answer its window gives as it closes isn't taken as its own.
-            leaving.set()
-            Task { await self.stopWaiting(key, id) }
-        }
-    }
-
-    private func stopWaiting(_ key: String, _ id: Int) {
-        // A waiter the open already answered left nothing behind.
-        guard let waiter = hosts[key]?.waiters.removeValue(forKey: id) else { return }
-        waiter.continuation.resume(returning: nil)
-        for asking in (hosts[key]?.asking ?? [:]).values where asking.waiter == id {
-            asking.task.cancel()
-        }
-        if hosts[key]?.waiters.isEmpty == true, hosts[key]?.opening == true {
-            hosts[key]?.dropOpen?.cancel()
-            hosts[key]?.dropOpen = Task { [clock, openGrace] in
-                do { try await clock.sleep(for: openGrace) } catch { return }
-                // Nobody's cancel: however the open fails, it isn't remembered.
-                self.hosts[key]?.verdict = .cancelled
-                self.hosts[key]?.openTask?.cancel()
-            }
-        }
-        forgetIfIdle(key)
-    }
-
-    private func lost(_ key: String, _ id: Int, _ failure: ConnectFailure?) {
-        guard let index = hosts[key]?.live.firstIndex(where: { $0.id == id }) else { return }
-        hosts[key]?.live[index].grace?.cancel()
-        hosts[key]?.live.remove(at: index)
-        forgetIfIdle(key)
-        if failure != nil { Self.log.info("connection lost") }
-    }
-
-    private func startGrace(_ key: String, _ id: Int) {
-        guard let index = hosts[key]?.live.firstIndex(where: { $0.id == id }) else { return }
-        hosts[key]?.live[index].grace?.cancel()
-        hosts[key]?.live[index].grace = Task { [clock, grace] in
-            do { try await clock.sleep(for: grace) } catch { return }
-            await self.expire(key, id)
-        }
-    }
-
-    private func expire(_ key: String, _ id: Int) async {
-        guard let index = hosts[key]?.live.firstIndex(where: { $0.id == id }),
-            let live = hosts[key]?.live[index], live.leases == 0
-        else { return }
-        live.watcher?.cancel()
-        hosts[key]?.live.remove(at: index)
-        forgetIfIdle(key)
-        await live.connection.close()
     }
 
     func release(_ lease: HostLease) {
