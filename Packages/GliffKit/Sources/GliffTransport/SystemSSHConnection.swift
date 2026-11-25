@@ -183,8 +183,7 @@
             if hasEnded { throw .exited(status: 255, failure: .sharedConnectionLost) }
             return try ProcessConnection.launch(
                 executable: executable, arguments: command.channel(line), logsStderr: logsStderr,
-                classify: logsStderr
-                    ? SSHErrorClassifier.classifyChannel : SSHErrorClassifier.classifyQuietChannel)
+                classify: SSHErrorClassifier.channelClassifier(logsStderr: logsStderr))
         }
 
         public func ended() async -> ConnectFailure? {

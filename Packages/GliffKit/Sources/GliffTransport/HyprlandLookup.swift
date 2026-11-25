@@ -4,7 +4,9 @@
 /// over.
 public enum HyprlandLookup {
     /// A POSIX shell function, `glifftop_find_hyprland`: when an instance answers, it exports
-    /// `HYPRLAND_INSTANCE_SIGNATURE` for it and returns 0; else it returns 1. It never exits,
+    /// `HYPRLAND_INSTANCE_SIGNATURE` for it and returns 0. When none answers it unsets that
+    /// variable, so what runs after it never talks to a stale instance, and returns 1; without
+    /// hyprctl it checks nothing, leaves the variable and returns 1. It never exits,
     /// prints only the monitor list it read and only when called with `print`, and leaves no
     /// variable of its own. One line with no single quote, so
     /// `SSHCommand.shellQuoted` can carry it to any login shell, csh and tcsh included.
@@ -21,7 +23,7 @@ public enum HyprlandLookup {
                 + " if [ \"${1-}\" = print ]; then printf \"%s\\n\" \"$glifftop_out\"; fi;"
                 + " unset glifftop_dir glifftop_sig glifftop_out; return 0;; esac;"
                 + " done",
-            "unset glifftop_dir glifftop_sig glifftop_out",
+            "unset glifftop_dir glifftop_sig glifftop_out HYPRLAND_INSTANCE_SIGNATURE",
             "return 1",
         ].joined(separator: "; ") + "; }"
 }

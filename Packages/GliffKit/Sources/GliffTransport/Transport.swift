@@ -30,4 +30,12 @@ public enum TransportError: Error, Equatable, Sendable {
     case writeFailed(String)
     /// Whoever asked went away (a Disconnect) before the process was started.
     case cancelled
+
+    /// How a process's output ends: nil (a clean finish) at status 0 or after a close that came
+    /// before the exit, else `exited` with `classify`'s failure.
+    public static func end(
+        status: Int32, closedFirst: Bool, classify: () -> ConnectFailure
+    ) -> TransportError? {
+        status == 0 || closedFirst ? nil : .exited(status: status, failure: classify())
+    }
 }

@@ -31,6 +31,21 @@
             #expect(try host.run(Self.probe).output == "after=1 sig=unset\n")
         }
 
+        /// A signature from a login file that no instance answers to is unset, not kept.
+        @Test func aStaleSignatureIsUnset() throws {
+            let host = try FakeHyprland(live: [])
+            try host.instance("stale")
+            let result = try host.run("export HYPRLAND_INSTANCE_SIGNATURE=stale; " + Self.probe)
+            #expect(result.output == "after=1 sig=unset\n")
+        }
+
+        /// Without hyprctl nothing was checked, so a signature is left as it was.
+        @Test func noHyprctlLeavesTheSignature() throws {
+            let host = try FakeHyprland(live: [], hyprctl: false)
+            let result = try host.run("export HYPRLAND_INSTANCE_SIGNATURE=kept; " + Self.probe)
+            #expect(result.output == "after=1 sig=kept\n")
+        }
+
         @Test func theNewestAnsweringInstanceIsExported() throws {
             let host = try FakeHyprland(live: ["live"])
             try host.instance("live")

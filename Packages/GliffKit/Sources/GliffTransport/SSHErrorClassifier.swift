@@ -26,6 +26,12 @@ public enum SSHErrorClassifier {
         channelFailure(exitStatus: exitStatus, stderr: stderr) ?? .other(exitWords(exitStatus))
     }
 
+    /// The classifier for a channel: `classifyChannel` when it logs its stderr, else
+    /// `classifyQuietChannel`.
+    public static func channelClassifier(logsStderr: Bool) -> @Sendable (Int32, String) -> ConnectFailure {
+        logsStderr ? classifyChannel : classifyQuietChannel
+    }
+
     /// ssh's own words for a channel the master refused or a master that is gone.
     private static func channelFailure(exitStatus: Int32, stderr: String) -> ConnectFailure? {
         guard exitStatus == 255 else { return nil }

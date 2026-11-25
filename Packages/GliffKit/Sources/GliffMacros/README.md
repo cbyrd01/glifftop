@@ -13,12 +13,16 @@ connection, before the session, once the screen exists, on demand and at Disconn
 - `MacroContext`: a run's `GLIFF_*` variables (moment, reconnect, screen, and the server's
   output once the session exists), each name checked as Get Screens checks one.
   `preview(for:screen:)` is what the editor and the approval sheet show.
-- `MacroScript`: the text a run writes on stdin: a comment, `unset` of the wrapper's and the
-  `GLIFF_*` variables, the `export` lines (values quoted), the Hyprland lookup, the script
-  evaluated on its own, and the line `#TOKEN`. A script that can't run builds nothing.
+- `MacroScript`: the text a run writes on stdin: a first line that defines `glifftop_run` and
+  names Glifftop in a comment, `unset` of the wrapper's and the `GLIFF_*` variables, the
+  `export` lines (values quoted), the Hyprland lookup, the script, its run, and the line
+  `#TOKEN`. The script runs on its own, as the body of `glifftop_run` (which stays defined), so
+  its errors give the editor's line numbers. A script that can't run builds nothing.
 - `MacroWrapper`: the host side, `sh -c '<wrapper>' glifftop-macro LEN LIMIT TOKEN`. It sends
   its stderr to stdout, runs the text only when all of it arrived, prints a start line and a
-  trailer, and ends the run's process group at the limit or when the channel closes.
+  trailer, and ends the run's process group after the trailer, at the limit, or when the
+  channel's stdin closes. The Mac keeps stdin open while the script runs, reads to the first
+  trailer, then closes the channel.
 - `MacroToken`: a run's 32 hex digits from `SystemRandomNumberGenerator`; it never prints
   itself.
 - **Trust:** only the person's own scripts run, each approved once with its full text in front

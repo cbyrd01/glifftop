@@ -239,6 +239,25 @@ import Testing
                 "SHA256") == false)
     }
 
+    /// A channel that logs its stderr reads all of it; a quiet one reads only ssh's channel words.
+    @Test func theChannelClassifierFollowsLogsStderr() {
+        let stderr = "ssh: connect to host omarchy port 22: Connection refused"
+        #expect(SSHErrorClassifier.channelClassifier(logsStderr: true)(255, stderr) == .connectionRefused)
+        #expect(
+            SSHErrorClassifier.channelClassifier(logsStderr: false)(255, stderr)
+                == .other("ssh exited with status 255"))
+    }
+
+    /// A process's output ends cleanly at status 0 or after a close that came before the exit;
+    /// otherwise as `exited`, with the classified failure.
+    @Test func aProcessEndsCleanlyAtZeroOrAfterAClose() {
+        #expect(TransportError.end(status: 0, closedFirst: false) { .unreachable } == nil)
+        #expect(TransportError.end(status: 3, closedFirst: true) { .unreachable } == nil)
+        #expect(
+            TransportError.end(status: 3, closedFirst: false) { .unreachable }
+                == .exited(status: 3, failure: .unreachable))
+    }
+
     @Test func everyFailureHasAMessage() {
         let all: [ConnectFailure] = [
             .unknownHostKey, .changedHostKey(), .permissionDenied, .agentRefused, .hostNotFound,

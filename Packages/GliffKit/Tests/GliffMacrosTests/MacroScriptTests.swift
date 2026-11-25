@@ -25,7 +25,10 @@ import Testing
 
     @Test func theFirstLinesNameGlifftopAndUnsetTheWrapper() throws {
         let lines = try text("true").split(separator: "\n", omittingEmptySubsequences: false)
-        #expect(lines[0].hasPrefix("# Glifftop"))
+        #expect(
+            lines[0]
+                == "glifftop_run() { eval \"unset glifftop_script;$glifftop_script\"; }"
+                + " # Glifftop start macro, prelude 1")
         #expect(
             lines[1] == "unset glifftop_text glifftop_token glifftop_limit glifftop_pid glifftop_status"
                 + " GLIFF_MOMENT GLIFF_RECONNECT GLIFF_SCREEN GLIFF_MONITOR GLIFF_OUTPUT GLIFF_HEADLESS")
@@ -90,7 +93,7 @@ import Testing
         /// text goes on stdin, as on the host: `Process` arguments are decomposed (NFD).
         func scriptAsShReadsIt(_ script: String) throws -> [UInt8] {
             let built = try text(script)
-            let run = try #require(built.range(of: "\n" + MacroScript.evalLine + "\n"))
+            let run = try #require(built.range(of: "\n" + MacroScript.runLine + "\n"))
             let probe = built[..<run.lowerBound] + "\nprintf %s \"$glifftop_script\"\n"
             let process = Process()
             process.executableURL = URL(filePath: "/bin/sh")

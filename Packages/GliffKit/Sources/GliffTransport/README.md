@@ -88,7 +88,8 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   both may reconnect. A channel opened with `logsStderr: false` (a start macro's, whose
   output is the person's) never logs its stderr tail, and its failure never carries that text
   (`SSHErrorClassifier.classifyQuietChannel`: ssh's own channel words, else the exit in fixed
-  words). `ConnectFailure.macroFailed` is a start
+  words); `SSHErrorClassifier.channelClassifier(logsStderr:)` picks between the two.
+  `ConnectFailure.macroFailed` is a start
   macro's failure that stops the session; it and `noRoomOnConnection` are never retried.
 - **The ControlMaster:** `SSHMasterCommand` builds the system ssh's arguments for one shared
   connection: the master (`SSHCommand`'s options first, then `-o ControlMaster=yes -o
@@ -129,10 +130,11 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   script that finds the Hyprland instance with `HyprlandLookup` and prints
   `hyprctl -j monitors`. `HyprlandLookup.function` is a one-line shell function,
   `glifftop_find_hyprland`, that tries each instance as gliff-server does (the session's own,
-  then the newest whose socket answers) and exports `HYPRLAND_INSTANCE_SIGNATURE` for it; it
-  never exits, prints the list it read only when called with `print` (as Get Screens does, so
-  hyprctl runs once), and leaves no variable of its own, so a start macro can run after it. `ScreenLister` (macOS) runs
-  it, as a channel on a `HostConnections` connection (`ScreenListCommand.remoteCommand`, the
+  then the newest whose socket answers) and exports `HYPRLAND_INSTANCE_SIGNATURE` for it, or
+  unsets it when hyprctl runs and none answers; it never exits, prints the list it read only
+  when called with `print` (as Get Screens does, so hyprctl runs once), and leaves no variable
+  of its own, so a start macro can run after it. `ScreenLister` (macOS) runs it, as a channel
+  on a `HostConnections` connection (`ScreenListCommand.remoteCommand`, the
   app's way) or as one ssh: output up to 1 MiB, a 60 s limit (room for a 1Password approval),
   failures in `SSHErrorClassifier`'s words; too much, too late or cancelled, it ends the
   process at once (`ProcessConnection.terminate`) or closes the channel, and it answers only
@@ -144,4 +146,5 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   `SSHCommand.arguments`, after the `ssh -G` probe; cancelled by then, it throws
   `.cancelled` without starting ssh, as `ProcessOutput` does. `close()` closes stdin, waits 2 s, SIGTERMs, waits 1 s, SIGKILLs,
   and returns once the process is reaped; it also runs when the reader of `incoming` goes
-  away.
+  away. `TransportError.end` says how its output ends: cleanly at status 0 or after a close
+  that came before the exit, else as `exited`.

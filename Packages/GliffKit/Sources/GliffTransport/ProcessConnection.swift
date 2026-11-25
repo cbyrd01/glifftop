@@ -301,13 +301,13 @@
                 )
             }
             guard let outcome else { return }
-            if outcome.status == 0 || outcome.closing {
-                continuation.finish()
-            } else {
-                if logsStderr { Self.log.debug("stderr tail: \(outcome.stderr, privacy: .private)") }
-                let failure = classify(outcome.status, outcome.stderr)
-                continuation.finish(throwing: TransportError.exited(status: outcome.status, failure: failure))
-            }
+            guard
+                let error = TransportError.end(
+                    status: outcome.status, closedFirst: outcome.closing,
+                    classify: { classify(outcome.status, outcome.stderr) })
+            else { return continuation.finish() }
+            if logsStderr { Self.log.debug("stderr tail: \(outcome.stderr, privacy: .private)") }
+            continuation.finish(throwing: error)
         }
     }
 #endif
