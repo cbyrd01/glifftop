@@ -16,8 +16,6 @@ public struct TitledTab: Sendable {
 
     /// The monitor the tab mirrors, once known.
     var monitor: String? { screen.flatMap { MonitorPlanning.monitor(shownBy: $0, output: output) } }
-
-    var isMirror: Bool { screen != nil && screen != .virtual }
 }
 
 /// The rules for tabs: what a new tab to a machine starts with, and what each tab is titled.
@@ -36,21 +34,20 @@ public enum TabPlanning {
         tab.monitor.map { "\(tab.name) · \($0)" } ?? tab.name
     }
 
-    /// Tab titles in one window, in tab order, as a tab shows its title alone. A mirror is
-    /// titled by its monitor, numbered only from a second mirror of that monitor ("omarchy ·
-    /// DP-3 2"); a Focused Monitor mirror whose output isn't named yet by its name alone. Other
-    /// tabs are numbered among a machine's tabs that aren't mirrors ("omarchy", "omarchy 2"),
-    /// so a mirror's output being named never renumbers them; a tab with no machine unnumbered.
+    /// Tab titles in one window, in tab order, as a tab shows its title alone. A mirror whose
+    /// monitor is known is titled by it, numbered only from a second mirror of that monitor
+    /// ("omarchy · DP-3 2"). Other tabs, a Focused Monitor mirror whose output isn't named yet
+    /// among them, are numbered among the machine's ("omarchy", "omarchy 2"), so no two tabs
+    /// read the same; a tab with no machine is unnumbered.
     public static func titles(_ tabs: [TitledTab]) -> [String] {
         var seen: [Key: Int] = [:]
         return tabs.map { tab in
             let key: Key
-            if tab.isMirror {
-                guard let monitor = tab.monitor else { return tab.name }
-                key = Key(machine: tab.machineID?.uuidString ?? tab.name, monitor: monitor)
+            if let monitor = tab.monitor {
+                key = Key(owner: tab.machineID.map(Owner.saved) ?? .unsaved(tab.name), monitor: monitor)
             } else {
                 guard let id = tab.machineID else { return tab.name }
-                key = Key(machine: id.uuidString, monitor: nil)
+                key = Key(owner: .saved(id), monitor: nil)
             }
             let count = (seen[key] ?? 0) + 1
             seen[key] = count
@@ -60,7 +57,12 @@ public enum TabPlanning {
     }
 
     private struct Key: Hashable {
-        let machine: String
+        let owner: Owner
         let monitor: String?
+    }
+
+    private enum Owner: Hashable {
+        case saved(UUID)
+        case unsaved(String)
     }
 }
