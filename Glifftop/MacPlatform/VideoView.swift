@@ -44,7 +44,7 @@ struct VideoView: NSViewRepresentable {
         nsView.scaleToFit = scaleToFit
         nsView.onTarget = onTarget
         nsView.onPointer = capture.pointer
-        capture.macPointer = { [weak nsView] in nsView?.macPointerOverPicture() }
+        capture.videoView = nsView
         nsView.updateCursor(slot: cursor, captured: captured, videoHasPointer: videoHasPointer)
     }
 }

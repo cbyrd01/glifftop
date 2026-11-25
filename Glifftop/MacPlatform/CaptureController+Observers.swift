@@ -24,6 +24,10 @@ extension CaptureController {
         observe(distributed, Notification.Name("com.apple.screenIsLocked")) { $0.apply(.away) }
         observe(distributed, Notification.Name("com.apple.screenIsUnlocked")) { $0.reactivate() }
         observe(distributed, InputSource.changed) { $0.keymapChanged() }
+        // Any menu of the app open holds capture off. The tracker counts from the first
+        // window's controller on, before any session.
+        _ = MenuTracker.shared
+        observe(app, MenuTracker.changed) { $0.apply(.menuOpen(MenuTracker.shared.isOpen)) }
     }
 
     func observeWindow() {

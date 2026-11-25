@@ -93,6 +93,10 @@ public struct InputCapture: Sendable {
     /// Captured but for an open menu.
     private var capturedBesideMenu: Bool { conditionsBesideMenu && !released }
 
+    /// Whether Input ▸ Release Input has something to release: captured, or held off only by an
+    /// open menu (any menu: the Input menu itself while the item is chosen).
+    public var isReleasable: Bool { capturedBesideMenu }
+
     public mutating func apply(_ event: CaptureEvent) -> CaptureChange {
         let wasCaptured = isCaptured
         let wasBesideMenu = capturedBesideMenu

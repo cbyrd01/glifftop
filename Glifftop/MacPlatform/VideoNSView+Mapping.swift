@@ -56,6 +56,11 @@ extension VideoNSView {
         return mapped.position
     }
 
+    /// The view's frame in AppKit screen coordinates; nil outside a window.
+    var frameOnScreen: NSRect? {
+        window?.convertToScreen(convert(bounds, to: nil))
+    }
+
     /// The drawable's size: the view's bounds in backing pixels.
     func drawableSize() -> PixelSize { backingPixels() }
 }

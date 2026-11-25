@@ -27,6 +27,8 @@ extension VideoNSView {
     // then on nothing shows the picture's. The display link checks again once back in focus.
     @objc func focusLost(_ notification: Notification) {
         if notification.name == NSApplication.willResignActiveNotification { focusLeaving = true }
+        // Its release may go elsewhere now; back in focus, the cursor is checked anyway.
+        pressedHere = false
         giveBackCursor()
         cursorPending = true
     }

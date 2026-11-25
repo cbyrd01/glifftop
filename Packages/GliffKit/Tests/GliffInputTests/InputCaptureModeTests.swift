@@ -14,6 +14,24 @@ import Testing
 
     private let allHold: [CaptureEvent] = [.windowKey(true), .appActive(true), .picture(true)]
 
+    /// Input ▸ Release Input stays usable from its own menu: an open menu leaves it releasable.
+    @Test func anOpenMenuLeavesItReleasable() {
+        var capture = InputCapture()
+        apply(&capture, allHold + [.menuOpen(true)])
+        #expect(!capture.isCaptured && capture.isReleasable)
+        apply(&capture, [.release])
+        #expect(!capture.isReleasable)
+        apply(&capture, [.menuOpen(false)])
+        #expect(!capture.isCaptured)
+    }
+
+    /// Without the window, the app, the picture or the link, nothing to release.
+    @Test func otherwiseNothingToRelease() {
+        var capture = InputCapture()
+        apply(&capture, [.windowKey(true), .appActive(true)])
+        #expect(!capture.isReleasable)
+    }
+
     @Test(arguments: CaptureMode.allCases)
     func bothModesCaptureOnTheSameConditions(_ mode: CaptureMode) {
         let spoilers: [CaptureEvent] = [

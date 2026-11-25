@@ -8,6 +8,8 @@ import Observation
 /// video view hands it, and sends what it says through the session.
 @Observable final class CaptureController {
     private(set) var isCaptured = false
+    /// Input ▸ Release Input has something to release (`InputController.isReleasable`).
+    private(set) var isReleasable = false
     /// The "Shift+Esc releases input" hint, for 3 s at a time.
     private(set) var showsHint = false
 
@@ -26,10 +28,14 @@ import Observation
     /// ⌘⇧[ or ⌘⇧] over the picture, captured or not, with the window's number: kept from the
     /// remote, its repeats and key-up too.
     @ObservationIgnored var onTabChord: (TabChord, Int?) -> Void = { _, _ in }
-    /// The Mac pointer over the uncovered picture, in remote coordinates (`VideoNSView`): an
-    /// activation's first choice, set by the window's video view.
-    @ObservationIgnored var macPointer: () -> (x: Double, y: Double)? = { nil }
-    /// Where an activation puts the remote pointer, given `macPointer`'s answer: the session's
+    /// The window's video view: the Mac pointer over its uncovered picture is an activation's
+    /// first choice, and its frame tells the picture from the chrome for ⌘ chords.
+    @ObservationIgnored weak var videoView: VideoNSView?
+    /// Integrated or Capture: applied on change, and to each session attached.
+    var mode: CaptureMode = .integrated {
+        didSet { if mode != oldValue { apply(.mode(mode)) } }
+    }
+    /// Where an activation puts the remote pointer, given the Mac pointer's place: the session's
     /// (`attach`), nil without a stream, and then nothing is sent.
     @ObservationIgnored private var target: ((x: Double, y: Double)?) -> (x: Double, y: Double)? = { _ in nil
     }
@@ -50,9 +56,11 @@ import Observation
         send: @escaping (InputMessage) -> Void
     ) {
         detach()
-        controller = InputController(keymap: "")
+        controller = InputController(mode: mode, keymap: "")
         (self.target, self.send) = (target, send)
         keymapChanged()
+        // The menu first: capture never rises under an open menu.
+        apply(.menuOpen(MenuTracker.shared.isOpen))
         apply(.appActive(NSApplication.shared.isActive))
         apply(.windowKey(window?.isKeyWindow ?? false))
         apply(.picture(picture))
@@ -103,20 +111,24 @@ import Observation
         handle(result)
     }
 
-    /// Capture turning on is an activation: its nudge goes before anything else.
+    /// An activation's nudge goes before anything else.
     private func handle(_ result: InputResult) {
         let captured = controller?.isCaptured ?? false
-        if captured, !isCaptured { activate() }
+        if result.activates { activate() }
         for message in result.messages { send?(message) }
         if result.showHint { flashHint() }
         if captured != isCaptured { isCaptured = captured }
+        let releasable = controller?.isReleasable ?? false
+        if releasable != isReleasable { isReleasable = releasable }
         // The hint says how to release input: gone once it is released.
         if !captured { hideHint() }
     }
 
     /// Two motions onto the activation target, so the host's focus follows to this screen.
     private func activate() {
-        guard let target = target(macPointer()), let result = controller?.activate(at: target) else { return }
+        guard let target = target(videoView?.macPointerOverPicture()),
+            let result = controller?.activate(at: target)
+        else { return }
         for message in result.messages { send?(message) }
     }
 
@@ -157,9 +169,16 @@ import Observation
         case .swallowed: return nil
         case .passed: break
         }
-        guard let result = controller?.key(key) else { return event }
+        guard let result = controller?.key(key, overChrome: { overChrome(event) }) else { return event }
         handle(result)
         return result.consumed ? nil : event
+    }
+
+    /// Whether `event` happened over the window's chrome (Integrated's ⌘ chords are the Mac's
+    /// there); without a video view in the window, over the picture.
+    private func overChrome(_ event: NSEvent) -> Bool {
+        guard let window, let videoView, videoView.window === window else { return false }
+        return ChromeProbe.place(of: event, keyWindow: window, videoView: videoView) == .chrome
     }
 
     private func flashHint() {

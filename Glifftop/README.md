@@ -209,8 +209,12 @@ AppKit adapters for what SwiftUI can't do:
   changes, swallows the window's key events while captured (a local monitor, only while there
   is a picture), takes the pointer events `VideoNSView` hands it (`onPointer`), sends what it
   says through `Session.send`, and shows the Shift+Esc hint for 3 s (its app, workspace and window
-  observers in `CaptureController+Observers.swift`). Capture turning on (the
-  window or tab coming to the front, the first picture, recapture) is an activation, as are a
+  observers in `CaptureController+Observers.swift`). It holds the mode (Integrated or
+  Capture), applied on change and to each session attached; any menu of the app open
+  (`MenuTracker`) holds capture off, and Input ▸ Release Input stays enabled through it. In Integrated, a key with ⌘ over the chrome
+  (`ChromeProbe`) is the Mac's. Capture turning on (the
+  window or tab coming to the front, the first picture, recapture) is an activation, but a menu
+  closing is one only if capture would have risen while it was open. So are a
   wake, an unlock and a user switch back while captured: before anything else, two motions
   onto `SessionModel.activationTarget` (`VideoNSView`'s Mac pointer over the uncovered picture, else the
   session's `RemotePointerSlot`, else the centre: `FocusTarget`), so the host's focus follows
@@ -218,6 +222,14 @@ AppKit adapters for what SwiftUI can't do:
   its window and whether the session's own picture shows (not a reconnect's last one); `InputSource` reads the selected layout (HIToolbox's
   TIS) as the keymap text and whether the keyboard is ISO; `MacKeyEvent+NSEvent` and
   `PointerEvent+NSEvent` turn an `NSEvent` into values.
+- `ChromeProbe`: where a key event happened, for Integrated's ⌘ chords. It reads the event's
+  location (`ScreenCoordinates` flips Quartz's global coordinates into AppKit's), the window
+  under it, the video view's frame on screen and the menu bar's strip, and lets GliffInput's
+  `PointerPlace.classify` decide: the chrome is the session window's title bar, toolbar, tab
+  bar and status bar, its popovers (child windows), and the menu bar;
+- `MenuTracker`: whether any of the app's menus is open (the menu bar's, a toolbar
+  pull-down's, a context menu's), counting `NSMenu`'s tracking begins against its ends once
+  for the app, with a debug log line of the count;
 - the pointer: `VideoNSView` takes the mouse buttons, drags and scrolling over the picture,
   and motion from a tracking area while the window is key, only where this window is frontmost
   and its hit test finds the picture (not under an overlay or another window); a drag that
