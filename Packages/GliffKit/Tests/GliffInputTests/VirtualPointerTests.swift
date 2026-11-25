@@ -123,6 +123,23 @@ import Testing
         #expect(virtual.y == 100)
     }
 
+    /// A new output: the old one's echoes mean nothing there.
+    @Test func aNewSizeKeepsTheEchoes() {
+        var virtual = pointer()
+        _ = virtual.move(dx: 10, dy: 0, at: .zero)
+        _ = virtual.move(dx: 100, dy: 0, at: Self.ms(10))
+        virtual.resize(width: 1024, height: 768)
+        #expect(!report(&virtual, x: 110, y: 100, visible: true, at: Self.ms(20)))
+    }
+
+    /// Seeded with positions just sent (the entry's absolute motions): their echoes are no warps.
+    @Test func seededPositionsAreEchoes() {
+        var virtual = VirtualPointer(
+            x: 0, y: 300, width: 1280, height: 720, sent: [(0, 280), (0, 290)], at: .zero)
+        #expect(!report(&virtual, x: 0, y: 280, visible: true, at: Self.ms(30)))
+        #expect(virtual.y == 300)
+    }
+
     /// The same output in a new stream size: the place and the echoes scale with it.
     @Test func aRescaleKeepsThePlaceAndItsEchoes() {
         var virtual = pointer(x: 600, y: 300)
@@ -138,7 +155,8 @@ import Testing
     @Test func comingBackWhereItLeftIsNoWarp() {
         var virtual = pointer()
         _ = report(&virtual, x: 500, y: 300, visible: false, at: .zero)
-        #expect(!report(&virtual, x: 500, y: 300, visible: true, at: .seconds(2)))
+        // Within the tolerance: converted with a geometry that may have scaled since.
+        #expect(!report(&virtual, x: 500.4, y: 300, visible: true, at: .seconds(2)))
         #expect(virtual.visible)
         #expect(virtual.x == 100)
         // After that, a far position is a warp again.

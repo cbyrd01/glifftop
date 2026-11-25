@@ -57,6 +57,11 @@ public struct InputController: Sendable {
     var remoteAt: (x: Double, y: Double)?
     /// The confined pointer (`InputController+Confined`): nil unless confined.
     var virtual: VirtualPointer?
+    /// Capture mode's absolute motions sent lately (at most `recentLimit`), whose echoes a
+    /// confinement starting now may still see. A captured key (which may move the host's
+    /// pointer), the pointer leaving the picture and capture ending forget them.
+    var recentMotions: [(x: Double, y: Double)] = []
+    static let recentLimit = 64
     /// The picture the virtual pointer's coordinates belong to.
     var virtualGeometry: PictureGeometry?
     /// Where the virtual pointer was when confinement last ended, for the app to put the Mac
@@ -117,6 +122,7 @@ public struct InputController: Sendable {
             if case .press = action { return InputResult(messages: releaseStaleModifiers(event.flags)) }
         }
         remoteAt = nil
+        recentMotions = []
         // Each key that sends something first syncs the held modifiers from its flags (over the
         // chrome, only letting go of the stale ones); any other still lets go of the stale ones.
         func sync(except code: UInt32? = nil) -> [InputMessage] {
@@ -225,22 +231,25 @@ public struct InputController: Sendable {
     public mutating func activate(at target: (x: Double, y: Double)) -> InputResult {
         guard capture.isCaptured else { return InputResult() }
         let nudge = target.x < 1 ? target.x + 1 : target.x - 1
-        remoteAt = target
-        return InputResult(messages: [
-            .pointerMotion(x: nudge, y: target.y), .pointerMotion(x: target.x, y: target.y),
-        ])
+        remoteAt = nil
+        return InputResult(messages: move(nudge, target.y) + move(target.x, target.y))
     }
 
     /// A motion to (x, y), unless the remote pointer is there already.
     mutating func move(_ x: Double, _ y: Double) -> [InputMessage] {
         if let remoteAt, remoteAt == (x, y) { return [] }
         remoteAt = (x, y)
+        if virtual == nil, capture.mode == .confined {
+            recentMotions.append((x, y))
+            if recentMotions.count > Self.recentLimit { recentMotions.removeFirst() }
+        }
         return [.pointerMotion(x: x, y: y)]
     }
 
     public mutating func capture(_ event: CaptureEvent) -> InputResult {
         let change = capture.apply(event)
         if !capture.isConfined { unconfine() }
+        if event == .pointerOnPicture(false) { recentMotions = [] }
         var result = InputResult(showHint: change.showHint, activates: change.activates)
         // A recapturing click cut short (its up gone elsewhere, or never coming after sleep or
         // a lock) is forgotten.
@@ -250,6 +259,7 @@ public struct InputController: Sendable {
         if let held = recapturingButton { strayUp = held }
         recapturingButton = nil
         remoteAt = nil
+        recentMotions = []
         // A chord key's key-up may go to another window now.
         chordKeys = MacChordKeys()
         let stops = [Axis.vertical, .horizontal].filter(scrolling.contains).map {

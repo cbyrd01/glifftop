@@ -20,9 +20,17 @@ public struct VirtualPointer: Sendable {
     private var hiddenAt: (x: Double, y: Double)?
 
     /// At (x, y), on an output `width` × `height` logical (the stream's size over its scale).
-    public init(x: Double, y: Double, width: Double, height: Double) {
+    /// `sent`: positions sent just before (the absolute motions onto the picture), whose echoes
+    /// may still come, as if sent at `time`.
+    public init(
+        x: Double, y: Double, width: Double, height: Double, sent: [(x: Double, y: Double)] = [],
+        at time: Duration = .zero
+    ) {
         (self.width, self.height) = (width, height)
         (self.x, self.y) = (Self.clamp(x, width), Self.clamp(y, height))
+        history = sent.suffix(Self.historyLimit).map {
+            (Self.applied($0.x, extent: width), Self.applied($0.y, extent: height), time)
+        }
     }
 
     /// Where the host puts a motion to `value`: clamped to the output, then rounded to a pixel.
@@ -50,12 +58,12 @@ public struct VirtualPointer: Sendable {
             hiddenAt = (x, y)
             return false
         }
-        if let hidden = hiddenAt {
-            hiddenAt = nil
-            if hidden == (x, y) { return false }
-        }
         func near(_ sentX: Double, _ sentY: Double) -> Bool {
             abs(sentX - x) <= Self.echoTolerance && abs(sentY - y) <= Self.echoTolerance
+        }
+        if let hidden = hiddenAt {
+            hiddenAt = nil
+            if near(hidden.x, hidden.y) { return false }
         }
         let isEcho =
             near(Self.applied(self.x, extent: width), Self.applied(self.y, extent: height))
@@ -65,8 +73,9 @@ public struct VirtualPointer: Sendable {
         return true
     }
 
-    /// A new output size: the position clamped to it. `keepingPlace`, the same output in a new
-    /// size (a mirror fitted anew): the position and the sent ones scale with it first.
+    /// A new output size (a virtual screen resized: its coordinates hold): the position clamped
+    /// to it. `keepingPlace`, the same output in a new stream size (a mirror fitted anew): the
+    /// position and the sent ones scale with it first.
     public mutating func resize(width: Double, height: Double, keepingPlace: Bool = false) {
         if keepingPlace, self.width > 0, self.height > 0 {
             let (sx, sy) = (width / self.width, height / self.height)

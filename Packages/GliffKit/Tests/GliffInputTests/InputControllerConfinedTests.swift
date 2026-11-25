@@ -17,7 +17,7 @@ import Testing
         ] {
             _ = controller.capture(event)
         }
-        controller.confine(x: 100, y: 100, geometry: geometry)
+        controller.confine(x: 100, y: 100, geometry: geometry, at: .zero)
         return controller
     }
 
@@ -80,7 +80,7 @@ import Testing
         for event: CaptureEvent in [.windowKey(true), .appActive(true), .picture(true)] {
             _ = controller.capture(event)
         }
-        controller.confine(x: 100, y: 100, geometry: geometry)
+        controller.confine(x: 100, y: 100, geometry: geometry, at: .zero)
         #expect(controller.confinedPointer == nil)
     }
 
@@ -128,7 +128,7 @@ import Testing
         ] {
             _ = controller.capture(event)
         }
-        controller.confine(x: 600, y: 300, geometry: mirror)
+        controller.confine(x: 600, y: 300, geometry: mirror, at: .zero)
         var refit = mirror
         (refit.streamWidth, refit.streamHeight) = (640, 360)
         controller.resizeConfined(refit)
@@ -144,7 +144,7 @@ import Testing
         _ = controller.capture(.release)
         _ = controller.pointer(.button(number: 0, pressed: true, x: 5, y: 5, flags: 0))
         _ = controller.capture(.pointerOnPicture(true))
-        controller.confine(x: 5, y: 5, geometry: geometry)
+        controller.confine(x: 5, y: 5, geometry: geometry, at: .zero)
         let drag = controller.pointerMoved(dx: 10, dy: 0, at: .zero)
         #expect(drag.consumed)
         #expect(drag.messages.isEmpty)
@@ -156,7 +156,7 @@ import Testing
     @Test func confiningAgainKeepsThePointer() {
         var controller = confined()
         _ = controller.pointerMoved(dx: 10, dy: 0, at: .zero)
-        controller.confine(x: 100, y: 100, geometry: geometry)
+        controller.confine(x: 100, y: 100, geometry: geometry, at: .zero)
         #expect(controller.confinedPointer?.x == 110)
     }
 
@@ -172,7 +172,7 @@ import Testing
         ] {
             _ = fresh.capture(event)
         }
-        fresh.confine(x: .nan, y: 100, geometry: geometry)
+        fresh.confine(x: .nan, y: 100, geometry: geometry, at: .zero)
         #expect(fresh.confinedPointer == nil)
     }
 
@@ -186,8 +186,70 @@ import Testing
         #expect(controller.unconfinedAt?.y == 100)
         _ = controller.capture(.windowKey(true))
         _ = controller.capture(.pointerOnPicture(true))
-        controller.confine(x: 1, y: 1, geometry: geometry)
+        controller.confine(x: 1, y: 1, geometry: geometry, at: .zero)
         #expect(controller.unconfinedAt == nil)
+    }
+
+    /// The motions sent as the pointer came onto the picture echo after confinement starts:
+    /// they're no warps.
+    @Test func theEntrysOwnMotionsAreEchoes() {
+        var controller = InputController(mode: .confined, keymap: "k1")
+        for event: CaptureEvent in [.windowKey(true), .appActive(true), .picture(true)] {
+            _ = controller.capture(event)
+        }
+        _ = controller.pointer(.moved(x: 0, y: 280))
+        _ = controller.pointer(.moved(x: 0, y: 290))
+        _ = controller.capture(.pointerOnPicture(true))
+        controller.confine(x: 0, y: 300, geometry: geometry, at: .seconds(5))
+        let late = Duration.seconds(5) + .milliseconds(30)
+        #expect(!host(&controller, bufferX: 0, bufferY: 280, visible: true, geometry: geometry, at: late))
+        #expect(!host(&controller, bufferX: 0, bufferY: 290, visible: true, geometry: geometry, at: late))
+        #expect(controller.confinedPointer?.y == 300)
+    }
+
+    /// The activation's nudge echoes too.
+    @Test func theNudgeIsAnEcho() {
+        var controller = InputController(mode: .confined, keymap: "k1")
+        for event: CaptureEvent in [.windowKey(true), .appActive(true), .picture(true)] {
+            _ = controller.capture(event)
+        }
+        _ = controller.activate(at: (x: 640, y: 360))
+        _ = controller.capture(.pointerOnPicture(true))
+        controller.confine(x: 0, y: 300, geometry: geometry, at: .zero)
+        #expect(!host(&controller, bufferX: 639, bufferY: 360, visible: true, geometry: geometry, at: .zero))
+        #expect(controller.confinedPointer?.x == 0)
+    }
+
+    /// A captured key may move the host's pointer: the motions before it are no echoes then.
+    @Test func aKeyForgetsTheMotionsBefore() {
+        var controller = InputController(mode: .confined, keymap: "k1")
+        for event: CaptureEvent in [.windowKey(true), .appActive(true), .picture(true)] {
+            _ = controller.capture(event)
+        }
+        _ = controller.activate(at: (x: 640, y: 360))
+        _ = controller.key(down(0x00))
+        _ = controller.capture(.pointerOnPicture(true))
+        controller.confine(x: 0, y: 300, geometry: geometry, at: .zero)
+        #expect(host(&controller, bufferX: 639, bufferY: 360, visible: true, geometry: geometry, at: .zero))
+    }
+
+    /// Leaving the picture forgets them too.
+    @Test func leavingThePictureForgetsTheMotions() {
+        var controller = InputController(mode: .confined, keymap: "k1")
+        for event: CaptureEvent in [.windowKey(true), .appActive(true), .picture(true)] {
+            _ = controller.capture(event)
+        }
+        _ = controller.activate(at: (x: 640, y: 360))
+        _ = controller.capture(.pointerOnPicture(false))
+        #expect(controller.recentMotions.isEmpty)
+    }
+
+    /// Integrated never confines: it keeps no motions.
+    @Test func integratedKeepsNoMotions() {
+        var controller = capturedController()
+        _ = controller.pointer(.moved(x: 5, y: 5))
+        _ = controller.activate(at: (x: 640, y: 360))
+        #expect(controller.recentMotions.isEmpty)
     }
 
     /// The host shows its pointer or not, as its CursorPos says.

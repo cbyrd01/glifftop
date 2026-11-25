@@ -2,13 +2,17 @@
 /// deltas move a `VirtualPointer` on the host, which follows the host's own warps; clicks and
 /// scrolls land where it is. It ends when confinement does.
 extension InputController {
-    /// Starts the virtual pointer at (x, y) logical, where the Mac pointer entered. Only while
-    /// confined, and only once: an entry reported again keeps it where it is.
-    public mutating func confine(x: Double, y: Double, geometry: PictureGeometry) {
+    /// Starts the virtual pointer at (x, y) logical, where the Mac pointer entered, at `time`
+    /// (the clock `pointerMoved` and `hostPointer` use). The absolute motions sent just before
+    /// count as its own, so their late echoes are no warps. Only while confined, and only once:
+    /// an entry reported again keeps it where it is.
+    public mutating func confine(x: Double, y: Double, geometry: PictureGeometry, at time: Duration) {
         guard isConfined, virtual == nil, x.isFinite, y.isFinite, let size = geometry.logicalSize else {
             return
         }
-        virtual = VirtualPointer(x: x, y: y, width: size.width, height: size.height)
+        virtual = VirtualPointer(
+            x: x, y: y, width: size.width, height: size.height, sent: recentMotions, at: time)
+        recentMotions = []
         virtualGeometry = geometry
         unconfinedAt = nil
     }

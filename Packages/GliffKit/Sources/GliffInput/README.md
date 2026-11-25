@@ -72,8 +72,10 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   the host's reports, of which one within 1.5 on both axes of a position sent in the last
   second (at most 1024 kept, a 1 kHz mouse's second, each as the host rounds it) or of the
   current one is an echo, any other a warp it adopts. A hidden report only hides it, and the
-  first shown one at the place it hid is no warp (upstream's Enter re-sends it). A new size
-  clamps it; the same output fitted into a new stream size scales it and its echoes first.
+  first shown one at the place it hid is no warp (upstream's Enter re-sends it). It starts
+  with the absolute motions sent just before (the entry's, the activation's nudge) as its own.
+  A new size clamps it (a virtual screen resized keeps its coordinates); the same output
+  fitted into a new stream size scales it and them.
 - **`XKBLayout`, `XKBKeymap`:** an xkeyboard-config layout and variant, and the include-only
   keymap text a Keymap carries (`pc+<symbols>+inet(evdev)`, with `numpad(mac)` types so the
   keypad types digits with no NumLock), compiled by the server. The app sends Hello with no
@@ -92,6 +94,11 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   press. `TabChordKeys` follows them as they come: the chord's own repeats and key-up are
   swallowed with it; a bracket pressed before ⌘⇧ passes, its release too; a new press of the
   chord's key (its key-up went to the window the chord moved to) passes, its release too.
+- **`QuitHold`:** the ⌘Q guard's timing, from values and with no clock: a first press shows the
+  message, ⌘ and the key held 1 s (confirmed by the keys' real state at the tick) quits,
+  letting go early leaves the message 1.5 s (late, after the second, quits), a fresh press
+  while it shows quits, repeats change nothing. `nextDeadline` says when the caller's timer
+  is due.
 - **`PointerButtons`:** `NSEvent.buttonNumber` 0–7 to evdev `BTN_LEFT`, `BTN_RIGHT`,
   `BTN_MIDDLE`, then `BTN_SIDE` (back) on to `BTN_TASK`; other buttons send nothing.
 - **`ScrollEvent`, `ScrollPhase`, `ScrollTranslator`:** Mac scrolling to Gliff's axes
