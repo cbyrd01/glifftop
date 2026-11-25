@@ -46,6 +46,8 @@ public struct HostClipboardLedger: Sendable {
 
     private var members: [UUID: Member] = [:]
     private var holders: [String: Holder] = [:]
+    /// The holders `detaching` cleared, until their sessions end or stay.
+    private var detached: [String: Holder] = [:]
     private var lastEmpty: [String: Duration] = [:]
     private var registered = 0
 
@@ -130,15 +132,21 @@ public struct HostClipboardLedger: Sendable {
         var handovers: [Handover] = []
         for (host, holder) in holders where sessions.contains(holder.session) {
             holders[host] = nil
+            detached[host] = holder
             handovers += handover(host, from: holder, macCount: macCount)
         }
         return handovers
     }
 
     /// Sessions told they were ending that didn't (a tab of a closed group that stayed open):
-    /// they withdraw and take a handover again.
+    /// they withdraw and take a handover again, and a holder no one took over from holds the
+    /// host's copy still.
     public mutating func stayed(_ sessions: Set<UUID>) {
         for session in sessions { members[session]?.detaching = false }
+        for (host, holder) in detached where sessions.contains(holder.session) {
+            detached[host] = nil
+            if holders[host] == nil { holders[host] = holder }
+        }
     }
 
     /// The holder of `host`'s clipboard is gone: its copy to the host's other sessions with
@@ -153,6 +161,7 @@ public struct HostClipboardLedger: Sendable {
 
     public mutating func closed(_ session: UUID) {
         guard let member = members.removeValue(forKey: session) else { return }
+        if detached[member.host]?.session == session { detached[member.host] = nil }
         release(session, member.host)
     }
 

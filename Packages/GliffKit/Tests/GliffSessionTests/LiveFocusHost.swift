@@ -164,10 +164,14 @@
 
         /// The host's pointer on `monitor`, logical.
         static func cursor(on monitor: Monitor) throws -> (x: Double, y: Double) {
+            let position = try cursor()
+            return (position.x - monitor.x, position.y - monitor.y)
+        }
+
+        /// The host's pointer in the layout, logical.
+        static func cursor() throws -> (x: Double, y: Double) {
             let position = try #require(try json("cursorpos") as? [String: Any])
-            let x = try #require(position["x"] as? Double)
-            let y = try #require(position["y"] as? Double)
-            return (x - monitor.x, y - monitor.y)
+            return (try #require(position["x"] as? Double), try #require(position["y"] as? Double))
         }
     }
 #endif

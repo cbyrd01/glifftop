@@ -118,7 +118,9 @@ final class TabbingView: NSView {
         let rekey = {
             // Only from a window the command made key: not after the person moved on.
             let key = NSApp.keyWindow
-            guard key == nil || key === window || key === source else { return }
+            guard key == nil || key === window || key === source || key?.sheetParent === source else {
+                return
+            }
             if ownWindow { window.order(.below, relativeTo: source.windowNumber) }
             source.tabGroup?.selectedWindow = source
             source.makeKeyAndOrderFront(nil)

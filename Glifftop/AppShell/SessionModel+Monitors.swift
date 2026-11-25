@@ -18,20 +18,22 @@ private let logger = Logger(subsystem: "me.cbyrd.Glifftop", category: "monitors"
 extension SessionModel {
     /// Whether Show as Tabs or Show as Windows can run: the window streams over a live link,
     /// with a destination, nothing listing, and the app not quitting.
-    var canShowAllMonitors: Bool {
-        phase == .streaming && !isInterrupted && !isReconnecting && destination != nil
-            && !screenList.isListing && !quitting
+    var canShowAllMonitors: Bool { streamsOverLiveLink && destination != nil && !screenList.isListing }
+
+    /// The window streams over a live link, and the app isn't quitting.
+    private var streamsOverLiveLink: Bool {
+        phase == .streaming && !isInterrupted && !isReconnecting && !quitting
     }
 
     /// Lists the host's monitors afresh (View ▸ Screen's list too), then opens each one no
     /// window shows, by name, with this window's options; an ended window of one starts again in
     /// place. `open` opens a window for a request. The answer is dropped if the window no
-    /// longer streams that destination by then.
+    /// longer streams that destination over a live link by then.
     func showAllMonitors(asTabs: Bool, open: @escaping (TabRequest) -> Void) {
         guard canShowAllMonitors, let destination else { return }
         screenList.list(host: destination.value) { [weak self] answer in
             guard let self else { return }
-            guard phase == .streaming, self.destination == destination else { return }
+            guard streamsOverLiveLink, self.destination == destination else { return }
             switch answer {
             case .cancelled: break
             case .failed(let reason):
@@ -70,11 +72,11 @@ extension SessionModel {
                 ? [:] : placeInHostOrder(openings, listed: screens, on: destination, source: source)
             var opened = 0
             for opening in openings {
+                let start = WindowStart(host: host, options: opening.options, source: source)
                 if opening.inPlace, let ended = OpenSessions.shared.ended(opening.name, on: destination) {
-                    ended.start(destination, screen: .named(opening.name))
+                    ended.connect(start)
                     continue
                 }
-                let start = WindowStart(host: host, options: opening.options, source: source)
                 open(
                     TabRequest(
                         tabOf: asTabs ? source : nil, alone: !asTabs, host: host, start: start,

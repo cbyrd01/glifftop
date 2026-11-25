@@ -1,5 +1,6 @@
 #if os(macOS)
     import Foundation
+    import GliffClipboard
     import GliffInput
     import GliffSession
     import GliffTransport
@@ -7,12 +8,15 @@
     import Synchronization
     import Testing
 
-    /// One headless session over the shared connections, with the app's own input rules
-    /// (`InputController`) in front of it, as one window's capture.
+    /// One headless session over the shared connections (a virtual screen unless `screen`
+    /// names another), with the app's own input rules (`InputController`) in front of it, as one
+    /// window's capture. It keeps the stream, each second's frame rate and how it ended.
     final class LiveFocusScreen: Sendable {
         let session: Session
         let pointer: RemotePointerSlot
         private let info = Mutex<StreamInfo?>(nil)
+        private let rates = Mutex<[Double]>([])
+        private let ended = Mutex<SessionEnd?>(nil)
         private let input: Mutex<InputController>
         /// The host's reports as the app's capture reads them.
         private let follower: Mutex<HostPointerFollower>
@@ -23,26 +27,33 @@
         private let start = ContinuousClock.now
 
         init(
-            connections: HostConnections, target: SSHTarget, mode: CaptureMode = .integrated,
-            barrier: InputBarrier? = nil
+            connections: HostConnections, target: SSHTarget, screen: ScreenChoice = .virtual,
+            maxSize: (width: Int, height: Int) = (1280, 720), clipboard: ClipboardSetup? = nil,
+            mode: CaptureMode = .integrated, barrier: InputBarrier? = nil
         ) {
             input = Mutex(InputController(mode: mode, keymap: ""))
             let pointer = RemotePointerSlot()
             self.pointer = pointer
             follower = Mutex(HostPointerFollower(pointer))
-            let command = SSHCommand(target: target, serverArguments: ScreenChoice.virtual.serverArguments)
+            let command = SSHCommand(target: target, serverArguments: screen.serverArguments)
             session = Session(
                 transport: ChannelTransport(
                     connections: connections, target: target, command: command.remoteCommand),
                 configuration: SessionConfiguration(
-                    maxWidth: 1280, maxHeight: 720, keymap: XKBKeymap.text(for: XKBLayout(layout: "us"))),
-                decoder: NullFrameDecoder(), pointer: pointer, barrier: barrier)
+                    maxWidth: UInt32(maxSize.width), maxHeight: UInt32(maxSize.height),
+                    keymap: XKBKeymap.text(for: XKBLayout(layout: "us"))),
+                decoder: NullFrameDecoder(), pointer: pointer, clipboard: clipboard, barrier: barrier)
             let session = session
             runner.withLock {
                 $0 = Task { [self] in
                     async let run: Void = session.run()
                     for await status in session.status {
-                        if case .streaming(let streaming) = status { self.info.withLock { $0 = streaming } }
+                        switch status {
+                        case .streaming(let streaming): self.info.withLock { $0 = streaming }
+                        case .stats(let stats): self.rates.withLock { $0.append(stats.framesPerSecond) }
+                        case .ended(let end): self.ended.withLock { $0 = end }
+                        default: break
+                        }
                     }
                     await run
                 }
@@ -51,13 +62,29 @@
 
         private var now: Duration { ContinuousClock.now - start }
 
-        /// The stream, once streaming; throws after 60 s without.
+        /// The stream, once streaming; throws after 60 s without, or once the session ended.
         func streaming() async throws -> StreamInfo {
             for _ in 0..<600 {
                 if let streaming = info.withLock({ $0 }) { return streaming }
+                try #require(end == nil, "the session ended before streaming")
                 try await Task.sleep(for: .milliseconds(100))
             }
             throw CancellationError()
+        }
+
+        /// Each second's frame rate so far.
+        var framesPerSecond: [Double] { rates.withLock { $0 } }
+
+        /// How the session ended; nil while it runs.
+        var end: SessionEnd? { ended.withLock { $0 } }
+
+        /// How the session ends by itself, waited for up to 30 s; nil if it runs on.
+        func ending() async throws -> SessionEnd? {
+            for _ in 0..<300 {
+                if let end { return end }
+                try await Task.sleep(for: .milliseconds(100))
+            }
+            return nil
         }
 
         var geometry: PictureGeometry? { info.withLock { $0 }?.pointerGeometry }

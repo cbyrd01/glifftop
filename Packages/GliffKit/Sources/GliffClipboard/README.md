@@ -68,4 +68,5 @@ file request refused; GliffProtocol still reads and writes both.
     turning sharing off, hand the held copy, while the Mac clipboard is still it, to the
     host's other sessions in turn until one offers, the last in front first (those never in
     front after, the later registered first); a detaching session sends nothing until it
-    `stayed` (a tab that didn't close), and nothing is handed over while the app quits.
+    `stayed` (a tab that didn't close, which holds the copy again when no one took it over),
+    and nothing is handed over while the app quits.

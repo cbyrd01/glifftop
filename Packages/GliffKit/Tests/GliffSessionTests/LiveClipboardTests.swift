@@ -76,7 +76,7 @@
             var pastedBytes: Int { pasted.map { $0.utf8.count } ?? -1 }
         }
 
-        private static func marker() -> String {
+        static func marker() -> String {
             "glifftop-live-" + String(format: "%08x", UInt32.random(in: .min ... .max))
         }
 
@@ -93,10 +93,11 @@
             let deadline = ContinuousClock.now + .seconds(isPassword ? 5 : 15)
             repeat {
                 try await Task.sleep(for: .seconds(1))
-                probe.hits = try await Remote.count(live.target, Remote.historyFiles(marker))
+                probe.hits = try await LiveRemote.count(live.target, LiveRemote.historyFiles(marker))
             } while probe.hits < 1 && ContinuousClock.now < deadline
-            probe.types = try await Remote.count(live.target, Remote.env + "timeout 10 wl-paste --list-types")
-            let paste = try await Remote.run(live.target, Remote.paste)
+            probe.types = try await LiveRemote.count(
+                live.target, LiveRemote.env + "timeout 10 wl-paste --list-types")
+            let paste = try await LiveRemote.run(live.target, LiveRemote.paste)
             probe.pasted = paste.status == 0 ? paste.output : nil
             probe.matched = probe.pasted == marker
             return probe
@@ -160,7 +161,7 @@
     }
 
     /// Read-only commands on the host, over their own ssh, each with a time limit there.
-    private enum Remote {
+    enum LiveRemote {
         /// The host's Wayland session, found without changing anything.
         static let env =
             "export XDG_RUNTIME_DIR=/run/user/$(id -u); "

@@ -80,7 +80,7 @@ let package = Package(
             name: "GliffSessionTests",
             dependencies: [
                 "GliffSession", "GliffProtocol", "GliffTransport", "GliffVideo", "GliffInput",
-                "GliffClipboard", "GliffTestSupport",
+                "GliffClipboard", "GliffMachines", "GliffTestSupport",
             ],
             swiftSettings: strictSettings),
         .target(
