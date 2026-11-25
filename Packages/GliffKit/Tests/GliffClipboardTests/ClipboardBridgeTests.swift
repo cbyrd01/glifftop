@@ -275,6 +275,7 @@ import Testing
 
     @Test func cancelStopsAReadStillBeingPrepared() async throws {
         let source = FakeLocalSource(bytes: [1], stalls: true)
+        defer { source.stall?.release() }
         let (bridge, wire) = recordedBridge(source)
         await bridge.offer(textOffer())
         let serial = try #require(wire.lastOfferSerial)

@@ -41,7 +41,8 @@ let package = Package(
             name: "glifftop-askpass-swiftpm", dependencies: ["GliffAskpass"], exclude: ["README.md"],
             swiftSettings: strictSettings),
         .testTarget(
-            name: "GliffAskpassTests", dependencies: ["GliffAskpass"], swiftSettings: strictSettings),
+            name: "GliffAskpassTests", dependencies: ["GliffAskpass", "GliffTestSupport"],
+            swiftSettings: strictSettings),
         .target(
             name: "GliffTransport", dependencies: ["GliffProtocol", "GliffAskpass"], exclude: ["README.md"],
             swiftSettings: strictSettings),

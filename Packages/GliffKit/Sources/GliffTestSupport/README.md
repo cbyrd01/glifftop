@@ -5,5 +5,8 @@ part of the `GliffKit` product.
 
 - `ManualClock`: a `Clock` that moves only when a test advances it, so a test's timing never
   depends on how busy the machine is.
+- `onThread`: runs blocking work (a socket's `accept` or `read`) on a thread of its own, never
+  on the cooperative pool, where blocked calls can take every thread and hang the test run.
 
-It imports only the standard library and `Synchronization`, and never a GliffKit module.
+It imports only the standard library, Foundation and `Synchronization`, and never a GliffKit
+module.

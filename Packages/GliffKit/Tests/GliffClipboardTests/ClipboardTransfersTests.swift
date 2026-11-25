@@ -138,7 +138,7 @@ import Testing
             _ = await engine.receive(
                 .data(id: 1, offset: UInt64(n), dataLength: 1, done: n == 2), payload: [UInt8(n)])
         }
-        while sink.stall.callCount == 0 { try? await Task.sleep(for: .milliseconds(10)) }
+        for _ in 0..<200 where sink.stall.callCount == 0 { try? await Task.sleep(for: .milliseconds(10)) }
         fetch.cancel()
         sink.stall.release()
         await #expect(throws: TransferError.cancelled) { try await fetch.value }
@@ -164,7 +164,7 @@ import Testing
         let fetch = Task { try await engine.fetch(text, serial: 1, into: sink, cap: nil, progress: nil) }
         await wire.wait { !$0.messages.isEmpty }
         _ = await engine.receive(.data(id: 1, offset: 0, dataLength: 1, done: false), payload: [1])
-        while sink.stall.callCount == 0 { try? await Task.sleep(for: .milliseconds(10)) }
+        for _ in 0..<200 where sink.stall.callCount == 0 { try? await Task.sleep(for: .milliseconds(10)) }
         fetch.cancel()
         await #expect(throws: TransferError.cancelled) { try await fetch.value }
         #expect(wire.contains(.abort(id: 1)))

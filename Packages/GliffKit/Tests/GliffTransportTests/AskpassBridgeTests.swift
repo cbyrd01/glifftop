@@ -1,6 +1,7 @@
 #if os(macOS)
     import Foundation
     import GliffAskpass
+    import GliffTestSupport
     import Synchronization
     import Testing
 
@@ -63,21 +64,19 @@
             ]
             if notice { environment["SSH_ASKPASS_PROMPT"] = "none" }
             let (record, variables) = (record, environment)
-            return await withCheckedContinuation { result in
-                Thread.detachNewThread {
-                    var pipe: [Int32] = [0, 0]
-                    _ = Darwin.pipe(&pipe)
-                    let status = AskpassHelper.run(
-                        arguments: ["glifftop-askpass", prompt], environment: variables, output: pipe[1],
-                        endSSH: { record.add("ssh ended") })
-                    record.add("helper")
-                    close(pipe[1])
-                    var bytes: [UInt8] = []
-                    var byte: UInt8 = 0
-                    while read(pipe[0], &byte, 1) == 1 { bytes.append(byte) }
-                    close(pipe[0])
-                    result.resume(returning: (status, String(decoding: bytes, as: UTF8.self)))
-                }
+            return await onThread {
+                var pipe: [Int32] = [0, 0]
+                _ = Darwin.pipe(&pipe)
+                let status = AskpassHelper.run(
+                    arguments: ["glifftop-askpass", prompt], environment: variables, output: pipe[1],
+                    endSSH: { record.add("ssh ended") })
+                record.add("helper")
+                close(pipe[1])
+                var bytes: [UInt8] = []
+                var byte: UInt8 = 0
+                while read(pipe[0], &byte, 1) == 1 { bytes.append(byte) }
+                close(pipe[0])
+                return (status, String(decoding: bytes, as: UTF8.self))
             }
         }
 
@@ -93,15 +92,13 @@
             var timeout = timeval(tv_sec: Int(limit.components.seconds), tv_usec: 300_000)
             setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
             let refusal = (try? AskpassReply.header(.refuse, length: 0)) ?? []
-            return await withCheckedContinuation { result in
-                Thread.detachNewThread {
-                    var bytes: [UInt8] = []
-                    var byte: UInt8 = 0
-                    while true {
-                        let got = read(socket, &byte, 1)
-                        guard got == 1 else { return result.resume(returning: got == 0 && bytes == refusal) }
-                        bytes.append(byte)
-                    }
+            return await onThread {
+                var bytes: [UInt8] = []
+                var byte: UInt8 = 0
+                while true {
+                    let got = read(socket, &byte, 1)
+                    guard got == 1 else { return got == 0 && bytes == refusal }
+                    bytes.append(byte)
                 }
             }
         }

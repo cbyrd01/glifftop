@@ -1,5 +1,6 @@
 import Foundation
 import GliffAskpass
+import GliffTestSupport
 import Synchronization
 import Testing
 
@@ -21,25 +22,26 @@ struct AskpassHelperTests {
         environment.merge(extra) { $1 }
         let output = Pipe()
         let writer = output.fileHandleForWriting.fileDescriptor
-        let served = Task.detached { () -> T? in
+        // Before `served` starts: a throw after would wait on its `accept` with the listener open.
+        if closedOutput { try output.fileHandleForReading.close() }
+        async let served = onThread { () -> T? in
             guard let client = listener.accept() else { return nil }
             defer { Darwin.close(client) }
             return serve(client)
         }
-        if closedOutput { try output.fileHandleForReading.close() }
         let start = ContinuousClock.now
         let ended = Mutex(false)
-        let status = await Task.detached { [environment] in
+        let status = await onThread { [environment] in
             AskpassHelper.run(
                 arguments: ["glifftop-askpass", prompt], environment: environment, output: writer,
                 endSSH: { ended.withLock { $0 = true } })
-        }.value
+        }
         let took = ContinuousClock.now - start
         // A helper that never connected leaves `accept` waiting: stop listening.
         listener.close()
         try output.fileHandleForWriting.close()
         let bytes = closedOutput ? [] : [UInt8](output.fileHandleForReading.readDataToEndOfFile())
-        return (status, bytes, await served.value, took, ended.withLock { $0 })
+        return (status, bytes, await served, took, ended.withLock { $0 })
     }
 
     /// Runs the helper against `path`, where nothing answers: its status, and whether it ended
