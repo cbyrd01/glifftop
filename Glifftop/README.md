@@ -108,8 +108,8 @@ session's `ProtocolObserver`: types and sizes only, never a body), Record 5 Seco
 and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes).
 
 - **Owns:** `MachineStore` (the saved machines in `UserDefaults`, key `machines`, as
-  GliffMachines' JSON); `SessionModel` (one window's session, its machine (the destination's
-  when it starts; recorded, with the window's options and the date, when it first streams, so
+  GliffMachines' JSON); `SessionModel` (one window's session, made and given the window's
+  input in `SessionModel+Start.swift`, and its machine (the destination's when it starts; recorded, with the window's options and the date, when it first streams, so
   a host that never streams isn't saved; View-menu changes of screen, text size, resolution
   and Scale to Fit kept on it, `SessionModel+Machines.swift`), folded into a `SessionSnapshot`; the
   session's `PictureSlot` and the app's one `PictureRenderer`, the picture not shown while the
@@ -174,7 +174,7 @@ AppKit adapters for what SwiftUI can't do:
   is visible; wrapped for SwiftUI by `VideoView`. Once the window has been fitted for the
   session it reports its drawable size and backing scale (`onTarget`) on every change, from
   the display link and as a live resize ends, never from the machines window. Its cursor handling is in
-  `VideoNSView+Cursor.swift`;
+  `VideoNSView+Cursor.swift`, and where points fall on the picture in `VideoNSView+Mapping.swift`;
 - `WakeObserver`: the Mac waking (`NSWorkspace.didWakeNotification`) and whether the network
   path is usable (`NWPathMonitor`), for the session's probe and its reconnect;
 - `FullScreenTracker`: the window's full-screen state for `RootView`, which keeps its content
@@ -208,7 +208,8 @@ AppKit adapters for what SwiftUI can't do:
   feeds GliffInput's `InputController` the window, app, picture, link, sleep and lock
   changes, swallows the window's key events while captured (a local monitor, only while there
   is a picture), takes the pointer events `VideoNSView` hands it (`onPointer`), sends what it
-  says through `Session.send`, and shows the Shift+Esc hint for 3 s. Capture turning on (the
+  says through `Session.send`, and shows the Shift+Esc hint for 3 s (its app, workspace and window
+  observers in `CaptureController+Observers.swift`). Capture turning on (the
   window or tab coming to the front, the first picture, recapture) is an activation, as are a
   wake, an unlock and a user switch back while captured: before anything else, two motions
   onto `SessionModel.activationTarget` (`VideoNSView`'s Mac pointer over the uncovered picture, else the

@@ -13,13 +13,13 @@ import Observation
 
     @ObservationIgnored private var controller: InputController?
     @ObservationIgnored private var send: ((InputMessage) -> Void)?
-    @ObservationIgnored private weak var window: NSWindow?
+    @ObservationIgnored private(set) weak var window: NSWindow?
     @ObservationIgnored private var picture = false
     @ObservationIgnored private var interrupted = false
     @ObservationIgnored private var monitor: Any?
-    @ObservationIgnored private var windowObservers: [any NSObjectProtocol] = []
+    @ObservationIgnored var windowObservers: [any NSObjectProtocol] = []
     /// App, workspace and distributed observers, each with its centre: for the controller's life.
-    @ObservationIgnored private var observers: [(NotificationCenter, any NSObjectProtocol)] = []
+    @ObservationIgnored var observers: [(NotificationCenter, any NSObjectProtocol)] = []
     @ObservationIgnored private var hintTimer: Task<Void, Never>?
     /// One for every window: the chord's repeats and key-up reach the window it moved to.
     @ObservationIgnored private static var chordKeys = TabChordKeys()
@@ -34,26 +34,7 @@ import Observation
     @ObservationIgnored private var target: ((x: Double, y: Double)?) -> (x: Double, y: Double)? = { _ in nil
     }
 
-    init() {
-        let app = NotificationCenter.default
-        observe(app, NSApplication.didBecomeActiveNotification) { $0.apply(.appActive(true)) }
-        observe(app, NSApplication.didResignActiveNotification) { $0.apply(.appActive(false)) }
-        let workspace = NSWorkspace.shared.notificationCenter
-        for name in [
-            NSWorkspace.willSleepNotification, NSWorkspace.screensDidSleepNotification,
-            NSWorkspace.sessionDidResignActiveNotification,
-        ] {
-            observe(workspace, name) { $0.apply(.away) }
-        }
-        // Back from sleep, a lock or another user: the host's focus again, if still captured.
-        for name in [NSWorkspace.screensDidWakeNotification, NSWorkspace.sessionDidBecomeActiveNotification] {
-            observe(workspace, name) { $0.reactivate() }
-        }
-        let distributed = DistributedNotificationCenter.default()
-        observe(distributed, Notification.Name("com.apple.screenIsLocked")) { $0.apply(.away) }
-        observe(distributed, Notification.Name("com.apple.screenIsUnlocked")) { $0.reactivate() }
-        observe(distributed, InputSource.changed) { $0.keymapChanged() }
-    }
+    init() { observeApp() }
 
     isolated deinit {
         for (center, observer) in observers { center.removeObserver(observer) }
@@ -117,7 +98,7 @@ import Observation
     /// Input ▸ Release Input.
     func release() { apply(.release) }
 
-    private func apply(_ event: CaptureEvent) {
+    func apply(_ event: CaptureEvent) {
         guard let result = controller?.capture(event) else { return }
         handle(result)
     }
@@ -139,11 +120,11 @@ import Observation
         for message in result.messages { send?(message) }
     }
 
-    private func reactivate() {
+    func reactivate() {
         if isCaptured { activate() }
     }
 
-    private func keymapChanged() {
+    func keymapChanged() {
         // Optional chaining skips reading the layout when there is no session.
         guard let message = controller?.keymap(InputSource.currentKeymap()) else { return }
         send?(message)
@@ -194,32 +175,5 @@ import Observation
     private func hideHint() {
         hintTimer?.cancel()
         if showsHint { showsHint = false }
-    }
-
-    private func observeWindow() {
-        windowObservers.forEach(NotificationCenter.default.removeObserver)
-        windowObservers = []
-        guard let window else { return }
-        for (name, key) in [
-            (NSWindow.didBecomeKeyNotification, true), (NSWindow.didResignKeyNotification, false),
-        ] {
-            windowObservers.append(
-                NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) {
-                    [weak self] _ in
-                    MainActor.assumeIsolated { self?.apply(.windowKey(key)) }
-                })
-        }
-    }
-
-    private func observe(
-        _ center: NotificationCenter, _ name: Notification.Name,
-        _ action: @escaping @MainActor (CaptureController) -> Void
-    ) {
-        let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated {
-                if let self { action(self) }
-            }
-        }
-        observers.append((center, observer))
     }
 }
