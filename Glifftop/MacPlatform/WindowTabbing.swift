@@ -15,7 +15,7 @@ import os
 /// with none in front, stays where macOS put it.
 ///
 /// A window opened `quietFor` another (Show All Monitors) leaves that one key: as a tab, it
-/// joins unselected; alone, it opens behind it, `placement`'s cascade steps from it.
+/// joins unselected; alone, it opens behind it, at `placement` (`WindowPlace`).
 struct WindowTabbing: NSViewRepresentable {
     static let identifier = "session"
 
@@ -44,9 +44,12 @@ struct WindowTabbing: NSViewRepresentable {
     }
 }
 
-/// Where a window of its own opens (Show as Windows): `step` cascade steps from the source
-/// window's top-left (from its display's visible frame's in full screen).
+/// Where a window of its own opens (Show All Monitors): `step` cascade steps from the top-left
+/// of `display`'s visible frame (an `NSScreenNumber`) when placed in the host's order
+/// (`WindowPlacement`), else from the source window's top-left (its display's visible frame's
+/// in full screen).
 struct WindowPlace: Codable, Hashable {
+    var display: UInt32?
     var step: Int
 }
 
@@ -122,20 +125,23 @@ final class TabbingView: NSView {
         }
         rekey()
         Task {
-            if ownWindow, let placement { Self.cascade(window, from: source, steps: placement.step + 1) }
+            if ownWindow, let placement { Self.put(window, at: placement, from: source) }
             rekey()
         }
     }
 
-    /// Puts `window`'s top-left `steps` cascade steps from the source's top-left, or from its
-    /// display's visible frame's in full screen.
-    private static func cascade(_ window: NSWindow, from source: NSWindow, steps: Int) {
+    /// Puts `window` at its place: on its display (gone: where macOS put it), or `step` + 1
+    /// cascade steps from the source's top-left, or from its display's visible frame's in full
+    /// screen.
+    private static func put(_ window: NSWindow, at place: WindowPlace, from source: NSWindow) {
+        if let display = place.display {
+            WindowPlacement.place(window, display: display, step: place.step)
+            return
+        }
         let frame =
             source.styleMask.contains(.fullScreen)
             ? source.screen?.visibleFrame ?? source.frame : source.frame
-        // Each call puts the window at the point and returns the next step's.
-        var point = NSPoint(x: frame.minX, y: frame.maxY)
-        for _ in 0...steps { point = window.cascadeTopLeft(from: point) }
+        WindowPlacement.cascade(window, from: NSPoint(x: frame.minX, y: frame.maxY), steps: place.step + 1)
     }
 
     /// Joins the requested group, or the front session window's, returning the group's frame
