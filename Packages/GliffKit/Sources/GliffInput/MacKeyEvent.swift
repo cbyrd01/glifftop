@@ -13,6 +13,9 @@ public struct MacKeyEvent: Sendable, Equatable {
     /// `NSEvent.modifierFlags.rawValue`, device-dependent bits included (`MacModifierFlags`).
     public var flags: UInt
 
+    /// `flags` as `MacModifierFlags`.
+    public var modifiers: MacModifierFlags { MacModifierFlags(rawValue: flags) }
+
     public init(keyCode: UInt16, kind: Kind, flags: UInt) {
         self.keyCode = keyCode
         self.kind = kind

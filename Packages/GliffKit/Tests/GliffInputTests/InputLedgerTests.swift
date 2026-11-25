@@ -43,6 +43,17 @@ import Testing
         #expect(again.isEmpty)
     }
 
+    /// A ⌘ chord going to the Mac lets go of the keys only: a drag's button stays down.
+    @Test func releaseAllKeysKeepsButtons() {
+        var ledger = InputLedger()
+        _ = ledger.press(button: 0x110)
+        _ = ledger.press(key: 125)
+        _ = ledger.press(key: 30)
+        #expect(ledger.releaseAllKeys() == [.key(code: 30, pressed: false), .key(code: 125, pressed: false)])
+        #expect(ledger.heldKeys.isEmpty)
+        #expect(ledger.heldButtons == [0x110])
+    }
+
     @Test func aReleasedKeyCanBePressedAgain() {
         var ledger = InputLedger()
         _ = ledger.press(key: 30)

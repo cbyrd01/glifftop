@@ -1,7 +1,8 @@
 /// How a captured window treats the pointer and ⌘ chords ("Integrated" and "Capture"). Both
 /// capture keys and the pointer on the same conditions.
 public enum CaptureMode: Sendable, Equatable, CaseIterable {
-    /// The pointer moves freely.
+    /// The pointer moves freely; over the chrome, ⌘ chords are the Mac's
+    /// (`InputController.key(_:overChrome:)`).
     case integrated
     /// The pointer stays in the picture once it enters it, until capture ends or a suspension.
     case confined
@@ -120,8 +121,9 @@ public struct InputCapture: Sendable {
             }
         case .away: pointerOnPicture = false
         case .menuOpen(let open):
+            // A new menu session, not a submenu's report within one.
+            if open, !menuOpen { roseUnderMenu = false }
             menuOpen = open
-            if open { roseUnderMenu = false }
         case .pointerOnPicture(let on): pointerOnPicture = on
         case .mode(let new):
             if new != mode { pointerOnPicture = false }

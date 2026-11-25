@@ -31,14 +31,15 @@ import Testing
         #expect(!controller.isCaptured)
     }
 
-    @Test func keyUpWithoutPressIsDropped() {
+    /// Its press went to the Mac, so its release goes there too, and nothing to the host.
+    @Test func keyUpWithoutPressPasses() {
         var controller = InputController(keymap: "k1")
         #expect(!controller.key(flags(0x37, [.command, .leftCommand])).consumed)
         for event: CaptureEvent in [.windowKey(true), .appActive(true), .picture(true)] {
             _ = controller.capture(event)
         }
         let result = controller.key(flags(0x37))
-        #expect(result.consumed)
+        #expect(!result.consumed)
         #expect(result.messages.isEmpty)
     }
 

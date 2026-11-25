@@ -3,7 +3,9 @@ import GliffProtocol
 /// What the app does with an input event, from `InputController`.
 public struct InputResult: Sendable, Equatable {
     /// Swallow the event: it was for the remote (every key and pointer event while captured,
-    /// ⌘ chords included, so none reaches the Mac's menus), or it took input back.
+    /// ⌘ chords included), or it took input back. Captured keys that pass to the Mac: in
+    /// Integrated, a ⌘ key-down or a modifier press with ⌘ held over the chrome, a chord key's
+    /// repeats while ⌘ is held and its key-up; and a key-up whose press the remote never had.
     public var consumed: Bool
     /// To send, in order.
     public var messages: [InputMessage]
@@ -34,12 +36,16 @@ public struct InputResult: Sendable, Equatable {
 /// Each captured click, scroll and key that sends something first syncs the held modifiers
 /// from its flags (`syncModifiers`), so a modifier pressed where its press went to the Mac
 /// (⌘Tab back with ⌘ held) joins it, and one whose release went missing is let go.
+/// In Integrated, a ⌘ chord with the pointer over Glifftop's chrome is the Mac's
+/// (`key(_:overChrome:)`).
 public struct InputController: Sendable {
     private var capture: InputCapture
     var ledger = InputLedger()
     private var lastKeymap: String
     /// After Shift+Esc, Esc stays away from the Mac (its repeats, its key-up) until it's up.
     private var swallowingEsc = false
+    /// ⌘ chord keys whose key-down went to the Mac over the chrome.
+    private var chordKeys = MacChordKeys()
     /// The button whose click took input back: until its up, nothing from the pointer is sent.
     private var recapturingButton: Int?
     /// A recapturing click that capture ended before its up: its up still stays from the Mac.
@@ -63,7 +69,18 @@ public struct InputController: Sendable {
     public var mode: CaptureMode { capture.mode }
     public var isConfined: Bool { capture.isConfined }
 
+    /// A key event, with the pointer on the picture.
     public mutating func key(_ event: MacKeyEvent) -> InputResult {
+        key(event, overChrome: { false })
+    }
+
+    /// A key event. In Integrated, an event with ⌘ in its flags that would reach the host (a
+    /// fresh key-down, a modifier's press, a held key's release, a Caps Lock toggle) asks
+    /// `overChrome` (at most once) whether the pointer is over Glifftop's chrome. There, a
+    /// key-down goes to the Mac after the host lets go of every key it holds, and its repeats
+    /// and key-up follow it; a modifier's press goes to the Mac; a release or toggle goes to the
+    /// host without pressing Super, whose press went to the Mac.
+    public mutating func key(_ event: MacKeyEvent, overChrome: () -> Bool) -> InputResult {
         if swallowingEsc, event.keyCode == MacKeyTranslator.escape {
             // Only its repeats keep it going: its key-up ends it, and so does a fresh press (a
             // new Esc; the key-up of the one that released may have gone elsewhere).
@@ -71,22 +88,49 @@ public struct InputController: Sendable {
             if event.kind != .down(isRepeat: false) { return InputResult(consumed: true) }
         }
         guard capture.isCaptured else { return InputResult() }
+        if chordKeys.take(event) {
+            // With ⌘ let go, its repeats are no shortcut: kept from the Mac, which would beep. Its
+            // flags still let go of the stale modifiers.
+            let plainRepeat =
+                event.kind == .down(isRepeat: true)
+                && !event.modifiers.contains(.command)
+            return InputResult(consumed: plainRepeat, messages: releaseStaleModifiers(event.flags))
+        }
+        let action = MacKeyTranslator.action(for: event)
+        let commandOverChrome = asksWhere(event, action) && overChrome()
+        if commandOverChrome {
+            if event.kind == .down(isRepeat: false) {
+                chordKeys.hold(event.keyCode)
+                let releases = ledger.releaseAllKeys()
+                // A release can trigger a binding that moves the pointer.
+                if !releases.isEmpty { remoteAt = nil }
+                return InputResult(messages: releases)
+            }
+            // A modifier's press sends nothing of its own, but lets go of the stale ones.
+            if case .press = action { return InputResult(messages: releaseStaleModifiers(event.flags)) }
+        }
         remoteAt = nil
-        // Each key that sends something first syncs the held modifiers from its flags; any
-        // other still lets go of the stale ones.
+        // Each key that sends something first syncs the held modifiers from its flags (over the
+        // chrome, only letting go of the stale ones); any other still lets go of the stale ones.
+        func sync(except code: UInt32? = nil) -> [InputMessage] {
+            commandOverChrome
+                ? releaseStaleModifiers(event.flags, except: code) : syncModifiers(event.flags, except: code)
+        }
         let messages: [InputMessage]
-        switch MacKeyTranslator.action(for: event) {
-        case .press(let code): messages = syncModifiers(event.flags, except: code) + ledger.press(key: code)
+        switch action {
+        case .press(let code): messages = sync(except: code) + ledger.press(key: code)
         case .release(let code):
+            // A key-up the host doesn't hold goes to the Mac: its press went there (over the
+            // chrome, before capture), or the host already let go of it. A release never
+            // triggers a Mac shortcut.
             guard let release = ledger.release(key: code) else {
-                return InputResult(consumed: true, messages: releaseStaleModifiers(event.flags, except: code))
+                return InputResult(messages: releaseStaleModifiers(event.flags, except: code))
             }
             // `except` keeps a modifier's own release from counting as stale; the sync is sent
             // before the release.
-            messages = syncModifiers(event.flags, except: code) + [release]
+            messages = sync(except: code) + [release]
         case .toggle(let code):
-            let sync = syncModifiers(event.flags)
-            messages = sync + [.key(code: code, pressed: true), .key(code: code, pressed: false)]
+            messages = sync() + [.key(code: code, pressed: true), .key(code: code, pressed: false)]
         case .releaseKeyboard:
             swallowingEsc = true
             return InputResult(consumed: true, messages: capture(.release).messages)
@@ -95,6 +139,20 @@ public struct InputController: Sendable {
         case .ignore: messages = releaseStaleModifiers(event.flags)
         }
         return InputResult(consumed: true, messages: messages)
+    }
+
+    /// Integrated's question, for an event with ⌘ in its flags that would reach the host: a
+    /// fresh key-down, a modifier's press, a held key's release, a Caps Lock toggle.
+    private func asksWhere(_ event: MacKeyEvent, _ action: KeyAction) -> Bool {
+        guard capture.mode == .integrated, event.modifiers.contains(.command) else {
+            return false
+        }
+        if event.kind == .down(isRepeat: false) { return true }
+        switch action {
+        case .press, .toggle: return true
+        case .release(let code): return ledger.heldKeys.contains(code)
+        case .releaseKeyboard, .ignore: return false
+        }
     }
 
     /// The `Keymap` to send for new keymap text, or nil when it's empty or unchanged.
@@ -181,6 +239,8 @@ public struct InputController: Sendable {
         if let held = recapturingButton { strayUp = held }
         recapturingButton = nil
         remoteAt = nil
+        // A chord key's key-up may go to another window now.
+        chordKeys = MacChordKeys()
         let stops = [Axis.vertical, .horizontal].filter(scrolling.contains).map {
             InputMessage.pointerAxis(axis: $0, value: 0, discrete: nil, stop: true)
         }

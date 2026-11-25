@@ -61,6 +61,15 @@ import Testing
         #expect(capture.apply(.menuOpen(false)).activates)
     }
 
+    /// A submenu reports its opening again: the menu session goes on, and so does what rose
+    /// under it.
+    @Test func aSecondOpenKeepsTheRiseUnderTheMenu() {
+        var capture = InputCapture()
+        apply(
+            &capture, [.appActive(true), .picture(true), .menuOpen(true), .windowKey(true), .menuOpen(true)])
+        #expect(capture.apply(.menuOpen(false)).activates)
+    }
+
     @Test func aModeChangeKeepsCaptureAndDoesNotActivate() {
         var capture = InputCapture()
         apply(&capture, allHold)

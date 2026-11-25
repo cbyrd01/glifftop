@@ -208,6 +208,18 @@ import Testing
         #expect(controller.pointer(button(0, true)).messages == [.pointerMotion(x: 0, y: 0), left])
     }
 
+    /// A ⌘ chord over the chrome lets go of the held keys, which can move it too.
+    @Test func afterAChromeChordLetsGoAPressMovesThePointerFirst() {
+        var controller = captured()
+        _ = controller.key(MacKeyEvent(keyCode: 0x7C, kind: .down(isRepeat: false), flags: 0))
+        _ = controller.pointer(button(0, true))
+        _ = controller.pointer(button(0, false))
+        let chord = MacKeyEvent(
+            keyCode: 0x11, kind: .down(isRepeat: false), flags: MacModifierFlags.command.rawValue)
+        #expect(controller.key(chord, overChrome: { true }).messages == [.key(code: 106, pressed: false)])
+        #expect(controller.pointer(button(0, true)).messages == [.pointerMotion(x: 0, y: 0), left])
+    }
+
     /// Motion may have been dropped while the link was going (the session's gate): once
     /// capture returns, the next press moves the pointer first.
     @Test func afterCaptureReturnsAPressMovesThePointerFirst() {

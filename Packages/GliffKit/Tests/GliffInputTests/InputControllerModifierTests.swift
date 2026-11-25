@@ -85,13 +85,14 @@ import Testing
     }
 
     /// Every captured key lets go of a modifier whose release went missing, even one that sends
-    /// nothing itself: a repeat, Fn, a key with no evdev code, or the release of a key it lacks.
+    /// nothing itself: a repeat, Fn, a key with no evdev code, or the release of a key it lacks
+    /// (which goes on to the Mac, where its press went).
     @Test(arguments: [down(0x00, isRepeat: true), flags(0x3F), down(0x3F), up(0x00)])
     func aKeyThatSendsNothingStillLetsGoOfAStaleModifier(_ event: MacKeyEvent) {
         var controller = captured()
         _ = controller.key(flags(0x37, Self.command))
         let result = controller.key(event)
-        #expect(result.consumed)
+        #expect(result.consumed == (event.kind != .up))
         #expect(result.messages == [key(125, false)])
     }
 

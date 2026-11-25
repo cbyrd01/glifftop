@@ -15,7 +15,7 @@ public enum KeyAction: Sendable, Equatable {
 
 public enum MacKeyTranslator {
     public static func action(for event: MacKeyEvent) -> KeyAction {
-        let flags = MacModifierFlags(rawValue: event.flags)
+        let flags = event.modifiers
         // Only Caps Lock and the modifiers in `modifiers` are sent from flagsChanged: Fn and the
         // Globe key are not, and aren't unknown keys either.
         if event.kind == .flagsChanged, event.keyCode != capsLock, modifiers[event.keyCode] == nil {

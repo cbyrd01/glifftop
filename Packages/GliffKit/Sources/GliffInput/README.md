@@ -13,7 +13,7 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
 - **`InputLedger`:** the keys and pointer buttons the remote holds. A release goes out only for
   what is held; a fresh press of something held releases it first (its release was missed);
   `releaseAll()` lets go of everything (buttons, then keys, each last pressed first) and runs
-  on every way input can leave.
+  on every way input can leave; `releaseAllKeys()` lets go of the keys alone.
 - **`MacKeyEvent`, `MacModifierFlags`, `MacKeyTranslator`:** a Mac key event as values, and
   what it means (`KeyAction`): press, release, a Caps Lock toggle, Shift+Esc (release the
   keyboard; Esc is never sent), or nothing (repeats, Fn, unknown keys). A modifier's state
@@ -31,6 +31,10 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   the menu (a mode change never moves capture), and `showHint` on the first capture or switch
   to it while captured (Integrated) or the first confinement (Capture) of each picture and
   after each release.
+- **`PointerPlace`:** where a ⌘ event happened for Integrated's routing (`classify`): the
+  picture (its video view, or a drag from it), the chrome (the rest of the key session
+  window, a window attached to it, or the menu bar's strip elsewhere), or outside. The app's
+  probe gathers its `Facts`.
 - **`PointerEvent`:** a pointer event over the picture, with its position in remote
   coordinates: motion, a button by `NSEvent.buttonNumber`, a scroll; a button or scroll carries
   its modifier flags.
@@ -38,7 +42,14 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   pointer pass through untouched, except a click on the picture when only Shift+Esc holds
   capture off: it takes input back, and nothing from the pointer is sent until its button is
   up (forgotten if capture ends, or on sleep or a lock); captured, every key and pointer event
-  is swallowed (⌘ chords included) and translated, keys and buttons through the ledger. Presses
+  is swallowed (⌘ chords included) and translated, keys and buttons through the ledger, except
+  a key-up the remote never had pressed, which goes on to the Mac. In Integrated, an event
+  with ⌘ in its flags that would reach the remote (a fresh key-down, a modifier's press, a
+  held key's release, a Caps Lock toggle) asks the app (`key(_:overChrome:)`, at most once)
+  whether the pointer is over Glifftop's chrome. There a key-down goes to the Mac after the
+  remote lets go of every key it holds (`releaseAllKeys()`), its repeats and key-up after it
+  (`MacChordKeys`; a repeat with ⌘ let go goes nowhere); a modifier's press goes to the Mac;
+  a release or toggle goes to the remote without pressing Super. Capture asks nothing. Presses
   and scrolls carry their position: one away from where the remote pointer was left moves it
   there first (always after a captured key or the end of capture, which may have moved it),
   and the recapturing click's up moves it to where it was let go. Capture ending mid-scroll
