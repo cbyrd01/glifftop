@@ -23,8 +23,10 @@ extension SessionModel {
 
     /// Starts a session with `target` (as typed) and `options`; its machine is added when it
     /// first streams. Throws, with the reason to show, when the target isn't a valid ssh
-    /// destination.
-    func connect(to target: String, options: MachineOptions) throws(SSHTargetError) {
+    /// destination. `screenIsOwn` says whether the machine never keeps the session's screen;
+    /// by default, when the host is open in another tab or window (`TabPlanning`).
+    func connect(to target: String, options: MachineOptions, screenIsOwn: Bool? = nil) throws(SSHTargetError)
+    {
         let destination = try SSHTarget(target)
         guard !quitting else { return }
         UserDefaults.standard.set(destination.value, forKey: Self.lastHostKey)
@@ -32,7 +34,7 @@ extension SessionModel {
         cancelReconnect()
         // The old session lets go of the clipboard before the new options' sharing applies.
         clipboard.detach()
-        screenIsOwn = isOpenElsewhere(destination.value)
+        self.screenIsOwn = screenIsOwn ?? isOpenElsewhere(destination.value)
         apply(options)
         // A choice made in the form, not the machine's own, is the session's to keep.
         clipboardUnsaved =

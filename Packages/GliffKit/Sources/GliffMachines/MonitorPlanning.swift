@@ -1,14 +1,18 @@
 public import GliffTransport
 
 /// The monitors other windows show for one destination: by live sessions (a named mirror's
-/// name, a Focused Monitor mirror's output once the server names it), and by ended windows of
-/// a named monitor, which start again in place rather than in a new window.
+/// name, a Focused Monitor mirror's output once the server names it, the focused monitor while
+/// it doesn't yet), and by ended windows of a named monitor, which start again in place rather
+/// than in a new window.
 public struct ShownMonitors: Equatable, Sendable {
     public var live: Set<String>
     public var ended: Set<String>
+    /// A live Focused Monitor mirror's output is still unnamed: it shows the listed focused
+    /// monitor.
+    public var unnamedFocused: Bool
 
-    public init(live: Set<String> = [], ended: Set<String> = []) {
-        (self.live, self.ended) = (live, ended)
+    public init(live: Set<String> = [], ended: Set<String> = [], unnamedFocused: Bool = false) {
+        (self.live, self.ended, self.unnamedFocused) = (live, ended, unnamedFocused)
     }
 }
 
@@ -52,7 +56,9 @@ public enum MonitorPlanning {
         -> MonitorPlan
     {
         guard !listed.isEmpty else { return .empty }
-        let unshown = hostOrder(listed).filter { !shown.live.contains($0.name) }.prefix(maxOpenings)
+        var live = shown.live
+        if shown.unnamedFocused, let focused = listed.first(where: \.isFocused) { live.insert(focused.name) }
+        let unshown = hostOrder(listed).filter { !live.contains($0.name) }.prefix(maxOpenings)
         let openings = unshown.map { screen in
             var options = source
             options.screen = .named(screen.name)

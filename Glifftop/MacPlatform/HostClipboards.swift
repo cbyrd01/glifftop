@@ -73,7 +73,8 @@ final class HostClipboards {
     /// offer was still waiting, never sent.
     func withdrew(_ id: UUID, empty: Bool) -> Bool {
         let wasWaiting = cancelWaiting(id)
-        return ledger.withdrew(id, empty: empty, at: now) && !wasWaiting
+        // An offer never sent: no empty offer goes, so no fence starts.
+        return ledger.withdrew(id, empty: empty && !wasWaiting, at: now) && !wasWaiting
     }
 
     /// The session's host reported a copy; false for a stale empty one the session ignores.

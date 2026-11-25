@@ -62,7 +62,17 @@ extension SessionModel {
     var canDisconnect: Bool { isActive && (phase != .ended || isReconnecting) }
 
     /// Whether the window shows one of the model's own sheets or alerts: the machine sheet, a
-    /// sign-in question or the clipboard's. New Tab waits for it; any other sheet in the group
-    /// (another tab's, a view's own alert) leaves the new window on its own (`WindowTabbing`).
-    var showsSheet: Bool { machineEdit != nil || signIn.current != nil || askingClipboard != nil }
+    /// sign-in question, the clipboard's or Show All Monitors'. New Tab waits for it; any other
+    /// sheet in the group (another tab's, a view's own alert) leaves the new window on its own
+    /// (`WindowTabbing`).
+    var showsSheet: Bool { showsQuestion || monitorsAlert != nil }
+
+    /// Show All Monitors' alert, once no other sheet of the model's shows (a listing's answer
+    /// may come while one does). Dismissing it clears it.
+    var showsMonitorsAlert: Bool {
+        get { monitorsAlert != nil && !showsQuestion }
+        set { if !newValue { monitorsAlert = nil } }
+    }
+
+    private var showsQuestion: Bool { machineEdit != nil || signIn.current != nil || askingClipboard != nil }
 }
