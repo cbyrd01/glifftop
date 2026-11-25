@@ -20,6 +20,11 @@ public struct SSHResolvedConfig: Equatable, Sendable {
     public var hostName: String?
     public var hostKeyAlias: String?
     public var port = 22
+    /// The config's `LocalForward` lines that Glifftop adds to its master, in order.
+    public var localForwards: [SSHLocalForward] = []
+    /// How many of the config's forwards don't apply to Glifftop's connection: each
+    /// `RemoteForward`, `DynamicForward` and unix-socket `LocalForward`.
+    public var forwardsNotApplied = 0
 
     public init(resolved text: String) {
         for line in text.split(whereSeparator: \.isNewline) {
@@ -37,6 +42,13 @@ public struct SSHResolvedConfig: Equatable, Sendable {
             case "hostname": hostName = value
             case "hostkeyalias": hostKeyAlias = value == "none" ? nil : value
             case "port": port = Int(value) ?? port
+            case "localforward":
+                if let forward = SSHLocalForward(resolved: value) {
+                    localForwards.append(forward)
+                } else {
+                    forwardsNotApplied += 1
+                }
+            case "remoteforward", "dynamicforward": forwardsNotApplied += 1
             default: continue
             }
         }

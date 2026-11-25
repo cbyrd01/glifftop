@@ -19,6 +19,9 @@
     ///   nil only after `close()`. A master that ends itself, even cleanly, is a lost connection.
     /// - A sign-in still unfinished after its limits fails as `.signInTimedOut`, which is not retried:
     ///   a retry would only ask for the approval again.
+    /// - Once the master is ready, the config's `LocalForward`s are asked of it in a task of
+    ///   their own, one `-O forward` at a time on 127.0.0.1, never delaying or failing the open.
+    ///   One refused (a busy port, one under 1024) is skipped. Only counts are logged.
     public final class SystemSSHConnection: HostConnection {
         private let command: SSHMasterCommand
         private let executable: URL
@@ -40,7 +43,8 @@
         }
 
         /// Opens a master for `target` on `socket`, read through one `ssh -G`: a connect timeout
-        /// where `SSHConnectTimeout` finds one wanted, and `questions` asked through `helper`.
+        /// where `SSHConnectTimeout` finds one wanted, `questions` asked through `helper`, and
+        /// the config's `LocalForward`s added once it is ready.
         public static func open(
             target: SSHTarget, socket: String, questions: (any SignInAsker)? = nil, helper: URL? = nil
         ) async throws(TransportError) -> SystemSSHConnection {
@@ -73,10 +77,12 @@
                 target: target, socket: socket,
                 connectTimeout: config.map(SSHConnectTimeout.isWanted) ?? false,
                 asking: signIn == nil ? nil : asking)
-            return try await open(
+            let connection = try await open(
                 command: command, executable: executable, signIn: signIn,
                 knownHostsName: config?.hasProxy == false ? config?.knownHostsName : nil,
                 limit: limit, ceiling: ceiling)
+            connection.addForwardsInBackground(of: config)
+            return connection
         }
 
         static func open(
@@ -210,6 +216,37 @@
         }
 
         private var hasEnded: Bool { state.withLock { $0.end != nil } }
+
+        /// Adds `config`'s local forwards in a task of their own.
+        private func addForwardsInBackground(of config: SSHResolvedConfig?) {
+            guard let config else {
+                Self.log.info("config forwards not read: no ssh -G")
+                return
+            }
+            guard !config.localForwards.isEmpty else {
+                if config.forwardsNotApplied > 0 {
+                    Self.log.info("config forwards: \(config.forwardsNotApplied) not applied")
+                }
+                return
+            }
+            Task { await addForwards(config.localForwards, notApplied: config.forwardsNotApplied) }
+        }
+
+        /// Asks the master for each of `forwards` until it ends; returns how many it added.
+        @discardableResult
+        func addForwards(_ forwards: [SSHLocalForward], notApplied: Int = 0) async -> Int {
+            var applied = 0
+            for forward in forwards where !hasEnded {
+                let reply = await ProcessOutput.read(
+                    executable: executable, arguments: command.forward(forward), maxBytes: 4096,
+                    timeout: .seconds(5), logsStderr: false)
+                if case .success = reply { applied += 1 }
+            }
+            Self.log.info(
+                "config forwards: \(applied) applied, \(forwards.count - applied) skipped, \(notApplied) not applied"
+            )
+            return applied
+        }
 
         /// Reaps the master and removes its socket, should it be left.
         private func finish() async {

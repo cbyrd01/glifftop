@@ -18,7 +18,9 @@ the latest commit on `main` is supported.
   `ask`, never `accept-new` or `no`, so a changed host key is always refused. The helper
   answers only ssh processes Glifftop started, over a socket only you can open, with a
   one-time token. Everything else runs with `BatchMode=yes`. It uses your ssh config, keys
-  and agent; it stores no credentials, and never logs or writes what you type.
+  and agent; it stores no credentials, and never logs or writes what you type. Of your
+  config's port forwards, only `LocalForward` lines apply, each listening on 127.0.0.1 alone;
+  `RemoteForward` and `DynamicForward` lines don't.
 - **The remote computer** is trusted with what you send it: your keystrokes while captured,
   and your clipboard while sharing is on. Everything it sends back (video, cursor images,
   clipboard data, the monitor list) is read as untrusted and checked for size and shape.

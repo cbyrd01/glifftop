@@ -8,13 +8,13 @@ import Testing
 
     /// ssh keeps an option's first value, so the master's own come before the extra arguments.
     @Test func theMasterKeepsItsOptionsBeforeTheExtraArguments() {
-        // `-T` and the four safety options.
-        let safety = Array(SSHCommand.options([]).prefix(9))
-        #expect(safety.last == "IPQoS=ef")
+        // `-T` and the five safety options.
+        let safety = Array(SSHCommand.options([]).prefix(11))
+        #expect(safety.last == "ClearAllForwardings=yes")
         let own = ["-o", "ControlMaster=yes", "-o", "ControlPersist=no", "-S", "/s/1-1", "-N"]
-        #expect(Array(command.master.prefix(9)) == safety)
-        #expect(Array(command.master.dropFirst(9).prefix(own.count)) == own)
-        #expect(Array(command.master.dropFirst(9 + own.count).prefix(2)) == ["-p", "2222"])
+        #expect(Array(command.master.prefix(11)) == safety)
+        #expect(Array(command.master.dropFirst(11).prefix(own.count)) == own)
+        #expect(Array(command.master.dropFirst(11 + own.count).prefix(2)) == ["-p", "2222"])
         #expect(Array(command.master.suffix(2)) == ["--", "omarchy"])
         #expect(!command.master.contains("-M"))
     }
@@ -53,7 +53,8 @@ import Testing
         #expect(
             plain.master == [
                 "-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "Compression=no",
-                "-o", "IPQoS=ef", "-o", "ControlMaster=yes", "-o", "ControlPersist=no", "-S", "/s/1-1", "-N",
+                "-o", "IPQoS=ef", "-o", "ClearAllForwardings=yes", "-o", "ControlMaster=yes", "-o",
+                "ControlPersist=no", "-S", "/s/1-1", "-N",
                 "-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=6", "--", "omarchy",
             ])
     }
@@ -81,13 +82,35 @@ import Testing
         #expect(
             command.channel("gliff-server --stdio")
                 == ["-T", "-S", "/s/1-1"] + Self.guards + [
-                    "-p", "2222", "--", "omarchy", "gliff-server --stdio",
+                    "-o", "ClearAllForwardings=yes", "-p", "2222", "--", "omarchy", "gliff-server --stdio",
                 ])
     }
 
+    /// A forward is asked of the master on 127.0.0.1 only, whatever bind address the config
+    /// gave, and without reading the config (`-F none`), whose own forwards ssh would send too.
+    @Test func aForwardOnlyEverAsksTheMasterOnLoopback() {
+        let forward = SSHLocalForward(port: 3000, host: "localhost", hostPort: 3000)
+        #expect(
+            command.forward(forward)
+                == ["-S", "/s/1-1", "-F", "none"] + Self.guards + [
+                    "-O", "forward", "-L", "127.0.0.1:3000:localhost:3000", "--", "omarchy",
+                ])
+    }
+
+    @Test(arguments: [
+        (SSHLocalForward(port: 8080, host: "::1", hostPort: 80), "127.0.0.1:8080:[::1]:80"),
+        (SSHLocalForward(port: 8081, host: "fe80::1%en0", hostPort: 80), "127.0.0.1:8081:[fe80::1%en0]:80"),
+        (SSHLocalForward(port: 5432, host: "db.example", hostPort: 5432), "127.0.0.1:5432:db.example:5432"),
+    ])
+    func anIPv6HostIsBracketed(_ forward: SSHLocalForward, argument: String) {
+        #expect(forward.argument == argument)
+    }
+
+    /// A control request reads no config (`-F none`): it needs only the socket.
     @Test func checkAndExitOnlyEverAskTheMaster() {
-        #expect(command.check == ["-S", "/s/1-1"] + Self.guards + ["-O", "check", "--", "omarchy"])
-        #expect(command.exit == ["-S", "/s/1-1"] + Self.guards + ["-O", "exit", "--", "omarchy"])
+        let ask = ["-S", "/s/1-1", "-F", "none"] + Self.guards
+        #expect(command.check == ask + ["-O", "check", "--", "omarchy"])
+        #expect(command.exit == ask + ["-O", "exit", "--", "omarchy"])
     }
 
     /// ssh expands `%` tokens in a control path.
