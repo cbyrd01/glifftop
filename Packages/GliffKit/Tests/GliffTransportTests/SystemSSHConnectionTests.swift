@@ -42,6 +42,12 @@
                 wait
                 exit 255
               fi
+              if [ -n "$STUB_LATE" ]; then
+                # Asks once the bridge is gone, as ssh may between two questions.
+                while [ -S "$GLIFFTOP_ASKPASS_SOCKET" ]; do sleep 0.02; done
+                "$SSH_ASKPASS" "$STUB_LATE" > /dev/null 2>&1; echo $? > "$dir/late"
+                exit 255
+              fi
               if [ -n "$STUB_ASK" ]; then
                 answer=$("$SSH_ASKPASS" "$STUB_ASK") || { echo "user@omarchy: Permission denied (publickey)." >&2; exit 255; }
                 printf '%s' "$answer" > "$dir/answer"
@@ -150,6 +156,24 @@
             #expect(failure == .signInCancelled)
             #expect(file("answer") == nil)
             #expect(kill(try masterPID(), 0) != 0)
+        }
+
+        /// An open cancelled with no question open (its last window gone) ends ssh before its
+        /// bridge goes: a question ssh started in between would find no bridge, and ssh would send
+        /// an empty answer.
+        @Test func aCancelledOpenEndsSSHBeforeTheBridgeGoes() async throws {
+            let (executable, socket) = (try stub("STUB_LATE=\"\(Self.password)\""), socket)
+            let opening = Task {
+                try await SystemSSHConnection.open(
+                    target: SSHTarget("omarchy"), socket: socket, config: SSHResolvedConfig(resolved: ""),
+                    questions: Asker { _ in .cancel }, helper: Self.helper, executable: executable,
+                    ssh: "/bin/bash")
+            }
+            try await Task.sleep(for: .milliseconds(300))
+            opening.cancel()
+            await #expect(throws: TransportError.cancelled) { try await opening.value }
+            try await Task.sleep(for: .milliseconds(300))
+            #expect(file("late") == nil)
         }
 
         @Test func denyFailsAsHostKeyDenied() async throws {

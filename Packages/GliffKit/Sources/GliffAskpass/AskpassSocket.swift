@@ -44,16 +44,22 @@ public enum AskpassSocket {
         return socket
     }
 
-    /// A socket connected to `path`, or nil.
+    /// A socket connected to `path`, or nil with `errno` saying why.
     public static func connect(to path: String) -> Int32? {
-        guard var address = address(path), let socket = make() else { return nil }
+        guard var address = address(path) else {
+            errno = ENAMETOOLONG
+            return nil
+        }
+        guard let socket = make() else { return nil }
         let connected = withUnsafePointer(to: &address) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                 Darwin.connect(socket, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
             }
         }
         guard connected == 0 else {
+            let error = errno
             close(socket)
+            errno = error
             return nil
         }
         return socket

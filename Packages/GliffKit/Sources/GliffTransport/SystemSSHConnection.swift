@@ -117,6 +117,9 @@
                     poll: poll, limit: limit, ceiling: ceiling, asking: bridge)
             } catch {
                 let outcome = bridge?.outcome
+                // ssh first: a question it started once the bridge was gone would fail, and ssh
+                // would send an empty answer.
+                if bridge != nil { master.terminate() }
                 bridge?.revoke()
                 await connection.close()
                 throw failure(error, outcome: outcome, knownHostsName: knownHostsName)

@@ -68,7 +68,8 @@
                     var pipe: [Int32] = [0, 0]
                     _ = Darwin.pipe(&pipe)
                     let status = AskpassHelper.run(
-                        arguments: ["glifftop-askpass", prompt], environment: variables, output: pipe[1])
+                        arguments: ["glifftop-askpass", prompt], environment: variables, output: pipe[1],
+                        endSSH: { record.add("ssh ended") })
                     record.add("helper")
                     close(pipe[1])
                     var bytes: [UInt8] = []
@@ -87,14 +88,20 @@
             return socket
         }
 
-        /// Whether the bridge closes `socket` (a read sees its end) within `limit`.
+        /// Whether the bridge refuses `socket` and closes it (a read sees its end) within `limit`.
         func closes(_ socket: Int32, within limit: Duration) async -> Bool {
             var timeout = timeval(tv_sec: Int(limit.components.seconds), tv_usec: 300_000)
             setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+            let refusal = (try? AskpassReply.header(.refuse, length: 0)) ?? []
             return await withCheckedContinuation { result in
                 Thread.detachNewThread {
+                    var bytes: [UInt8] = []
                     var byte: UInt8 = 0
-                    result.resume(returning: read(socket, &byte, 1) == 0)
+                    while true {
+                        let got = read(socket, &byte, 1)
+                        guard got == 1 else { return result.resume(returning: got == 0 && bytes == refusal) }
+                        bytes.append(byte)
+                    }
                 }
             }
         }
@@ -175,7 +182,21 @@
             bridge.serve()
             #expect(await answered.0 == 1 && record.asked == 0)
             try await Task.sleep(for: .milliseconds(300))
-            #expect(!record.events.withLock { $0.contains("end") })
+            #expect(record.events.withLock { $0 } == ["helper"])
+        }
+
+        /// A helper still in the listen queue at a ready revoke is refused, not cut off: it would
+        /// take a cut-off socket for the app gone, and end the master.
+        @Test func aHelperNotYetAcceptedAtAReadyRevokeIsRefused() async throws {
+            let bridge = try bridge { _ in .secret(SignInSecret(copying: "pw")) }
+            let release = DispatchSemaphore(value: 0)
+            bridge.queue.async { release.wait() }
+            async let answered = helper("person@omarchy's password: ")
+            try await Task.sleep(for: .milliseconds(200))
+            bridge.revoke(ready: true)
+            release.signal()
+            #expect(await answered.0 == 1 && record.asked == 0)
+            #expect(record.events.withLock { $0 } == ["helper"])
         }
 
         @Test func aReadyRevokeClosesAnOpenQuestionWithoutEndingTheMaster() async throws {
@@ -203,20 +224,22 @@
             }
         }
 
-        @Test func aWrongTokenIsClosedUnanswered() async throws {
+        @Test func aWrongTokenIsRefused() async throws {
             let bridge = try bridge { _ in .secret(SignInSecret(copying: "pw")) }
             let (status, output) = await helper(
                 "person@omarchy's password: ", token: AskpassBridge.newToken())
             #expect(status == 1 && output.isEmpty && record.asked == 0)
             #expect(bridge.outcome == .cancelled && record.events.withLock { $0.first } == "end")
+            #expect(!record.events.withLock { $0.contains("ssh ended") })
             bridge.revoke()
         }
 
-        @Test func aRefusedPeerIsClosedUnanswered() async throws {
+        @Test func aPeerFailingTheCheckIsRefused() async throws {
             let bridge = try bridge(accepting: false) { _ in .secret(SignInSecret(copying: "pw")) }
             let (status, output) = await helper("person@omarchy's password: ")
             #expect(status == 1 && output.isEmpty && record.asked == 0)
             #expect(bridge.outcome == .cancelled)
+            #expect(!record.events.withLock { $0.contains("ssh ended") })
             bridge.revoke()
         }
 
@@ -224,6 +247,7 @@
             let bridge = try bridge { _ in .secret(SignInSecret(copying: "pw")) }
             let (status, _) = await helper("Something else: ")
             #expect(status == 1 && record.asked == 0 && bridge.outcome == .unknownQuestion)
+            #expect(!record.events.withLock { $0.contains("ssh ended") })
             bridge.revoke()
         }
 
@@ -243,6 +267,7 @@
             }
             let (status, _) = await helper("person@omarchy's password: ")
             #expect(status == 1 && record.asked == 10 && bridge.outcome == .tooMany)
+            #expect(!record.events.withLock { $0.contains("ssh ended") })
             #expect(record.events.withLock { $0.contains("end") })
             bridge.revoke()
         }
@@ -250,8 +275,10 @@
         @Test func afterAnOutcomeEveryQuestionIsRefused() async throws {
             let bridge = try bridge { _ in .cancel }
             _ = await helper("person@omarchy's password: ")
+            record.events.withLock { $0 = [] }
             let (status, _) = await helper("person@omarchy's password: ")
             #expect(status == 1 && record.asked == 1)
+            #expect(record.events.withLock { $0 } == ["helper"])
             bridge.revoke()
         }
 
@@ -260,6 +287,7 @@
             bridge.revoke()
             let (status, _) = await helper("person@omarchy's password: ")
             #expect(status == 1 && record.asked == 0)
+            #expect(!record.events.withLock { $0.contains("ssh ended") })
             #expect(!FileManager.default.fileExists(atPath: path))
         }
 

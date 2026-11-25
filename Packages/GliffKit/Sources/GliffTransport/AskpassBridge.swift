@@ -14,8 +14,11 @@
     ///   answers "no". A secret is written straight from its own memory.
     /// - Cancel, an unknown question, a refused peer or token, a read error, one question too
     ///   many, or `revoke()`: `outcome` is set and `end` (which ends the master) is awaited before
-    ///   the helper's socket closes unanswered, so ssh never sends an empty answer. Once
-    ///   `outcome` is set, every connection is closed unanswered.
+    ///   the helper is refused, so ssh never sends an empty answer. Once `outcome` is set, every
+    ///   connection is refused.
+    /// - A connection it closes without an answer is refused (`AskpassReply.Status.refuse`)
+    ///   first: a helper whose socket closes with no reply takes the app for gone, and ends its
+    ///   ssh (`AskpassHelper`).
     /// - The helper's socket closing while its question is asked cancels that `ask`. For a
     ///   notice that is ssh ending it; for a question, it ends the master too.
     /// - It logs question kinds and counts, never their text or answers.
@@ -47,7 +50,7 @@
         /// How a question ended.
         private enum Step: Sendable {
             case answered, denied, gone, refused
-            /// Closed unanswered with nobody signing in any more: no outcome, the master left.
+            /// Refused with nobody signing in any more: no outcome, the master left.
             case closed
         }
 
@@ -63,7 +66,8 @@
         private let state = Mutex(State())
         private let accepted: AsyncStream<Int32>
         private let acceptor: AsyncStream<Int32>.Continuation
-        private let queue = DispatchQueue(label: "me.cbyrd.Glifftop.askpass")
+        /// Where connections are accepted (internal: a test holds it to keep one in the listen queue).
+        let queue = DispatchQueue(label: "me.cbyrd.Glifftop.askpass")
         private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "AskpassBridge")
 
         /// `names` are the destination's names in ssh's questions (`SSHResolvedConfig.names`).
@@ -128,7 +132,7 @@
             let accepted = accepted
             Task { [weak self] in
                 for await connection in accepted {
-                    if let self { await self.serve(connection) } else { close(connection) }
+                    if let self { await self.serve(connection) } else { Self.refuse(connection) }
                 }
             }
         }
@@ -145,8 +149,15 @@
             }
             question?.cancel()
             if let listener {
-                listener.cancel()
+                // Gone first, so a helper connecting now finds no socket rather than a refusing
+                // one (an app gone); then those not yet accepted are refused, not cut off.
                 unlink(path)
+                let socket = Int32(listener.handle)
+                while case let connection = accept(socket, nil, nil), connection >= 0 {
+                    configure(connection)
+                    Self.refuse(connection)
+                }
+                listener.cancel()
             }
             acceptor.finish()
         }
@@ -157,7 +168,7 @@
                 guard connection >= 0 else { return }
                 configure(connection)
                 guard case .enqueued = acceptor.yield(connection) else {
-                    close(connection)
+                    Self.refuse(connection)
                     continue
                 }
             }
@@ -177,10 +188,7 @@
 
         private func serve(_ socket: Int32) async {
             let (settled, revoked, ready) = state.withLock { ($0.outcome != nil, $0.revoked, $0.ready) }
-            guard !settled, !ready else {
-                close(socket)
-                return
-            }
+            guard !settled, !ready else { return Self.refuse(socket) }
             guard !revoked else { return await fail(.cancelled, socket, "revoked") }
             guard peer.accepts(socket) else { return await fail(.cancelled, socket, "peer refused") }
             guard let request = await blocking({ Self.readRequest(socket) }) else {
@@ -245,20 +253,31 @@
             watch.cancel()
             for await _ in watchEnded {}
             switch step {
-            case .answered, .denied, .closed: break
+            case .answered, .denied:
+                close(socket)
+                return
+            case .closed: break
             case .gone where isNotice: Self.log.info("sign-in notice ended by ssh")
             case .gone, .refused:
                 state.withLock { $0.outcome = $0.outcome ?? .cancelled }
                 Self.log.info("sign-in question cancelled")
                 await end()
             }
-            close(socket)
+            Self.refuse(socket)
         }
 
         private func fail(_ outcome: Outcome, _ socket: Int32, _ reason: StaticString) async {
             state.withLock { $0.outcome = $0.outcome ?? outcome }
             Self.log.error("askpass connection refused: \(reason, privacy: .public)")
             await end()
+            Self.refuse(socket)
+        }
+
+        /// Refuses the helper on `socket` and closes it.
+        private static func refuse(_ socket: Int32) {
+            if let header = try? AskpassReply.header(.refuse, length: 0) {
+                _ = header.withUnsafeBytes { AskpassSocket.write(socket, $0) }
+            }
             close(socket)
         }
 
