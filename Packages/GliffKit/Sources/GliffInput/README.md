@@ -19,11 +19,18 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   keyboard; Esc is never sent), or nothing (repeats, Fn, unknown keys). A modifier's state
   comes from its own device-dependent bit, so left and right stay apart; with only the shared
   bit (software-posted events), one side.
-- **`InputCapture`:** when keys and the pointer go to the remote (one capture for both). Mode
-  A (`windowInFront`): the window key, the app active, the picture showing and the link
-  live, unless Shift+Esc released it (until the picture is clicked; a new picture starts
-  captured). Says when to show the "Shift+Esc releases input" hint: first capture, and the
-  first after each release. The other capture modes join here later.
+- **`InputCapture`:** when keys and the pointer go to the remote (one capture for both), in
+  either `CaptureMode`: `.integrated` ("Integrated", the default) or `.confined` ("Capture").
+  Both capture while the window is key, the app active, the picture showing, the link live
+  and no menu open, unless Shift+Esc released it (until the picture is clicked; a new picture
+  starts captured). In `.confined`, the pointer is confined once it enters the picture
+  (`.pointerOnPicture(true)`, or the click that takes input back), until capture falls, a
+  suspension (`.pointerOnPicture(false)`), `.away`, a mode change or a new picture; the app
+  reports the pointer's place again after each. `apply` returns a `CaptureChange`:
+  `activates` on a rise of capture, except at a menu's close when nothing else changed under
+  the menu (a mode change never moves capture), and `showHint` on the first capture or switch
+  to it while captured (Integrated) or the first confinement (Capture) of each picture and
+  after each release.
 - **`PointerEvent`:** a pointer event over the picture, with its position in remote
   coordinates: motion, a button by `NSEvent.buttonNumber`, a scroll; a button or scroll carries
   its modifier flags.
@@ -42,7 +49,8 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   modifier's own event is left to itself. A repeat, Fn, an unknown key or an unheld release
   still lets go of the stale ones. On a click or scroll: the modifiers, the motion, then the
   button or scroll. Every way capture ends (and `.away`: sleep, lock) releases what the
-  remote holds. A keymap is sent only when its text changes.
+  remote holds, an open menu's included. A result's `activates` says the host's focus should
+  follow (`activate(at:)`). A keymap is sent only when its text changes.
 - **`XKBLayout`, `XKBKeymap`:** an xkeyboard-config layout and variant, and the include-only
   keymap text a Keymap carries (`pc+<symbols>+inet(evdev)`, with `numpad(mac)` types so the
   keypad types digits with no NumLock), compiled by the server. The app sends Hello with no

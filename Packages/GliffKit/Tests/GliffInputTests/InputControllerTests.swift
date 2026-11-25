@@ -183,4 +183,37 @@ import Testing
         let click = controller.pointer(.button(number: 0, pressed: true, x: 100, y: 50, flags: 0))
         #expect(click.messages == [.pointerButton(code: left, pressed: true)])
     }
+
+    @Test func anOpenMenuLetsGoOfEverything() {
+        var controller = captured()
+        _ = controller.key(down(0x00))
+        _ = controller.pointer(.button(number: 0, pressed: true, x: 1, y: 2, flags: 0))
+        let result = controller.capture(.menuOpen(true))
+        #expect(result.messages == [.pointerButton(code: 272, pressed: false), key(30, false)])
+        #expect(!controller.isCaptured)
+        #expect(controller.key(down(0x00)).consumed == false)
+    }
+
+    @Test func theResultSaysWhenToActivate() {
+        var controller = captured()
+        _ = controller.capture(.windowKey(false))
+        let result = controller.capture(.windowKey(true))
+        #expect(result.activates)
+        #expect(controller.capture(.menuOpen(true)).activates == false)
+        #expect(controller.capture(.menuOpen(false)).activates == false)
+    }
+
+    @Test func theModeAndConfinementShowThrough() {
+        var controller = InputController(mode: .confined, keymap: "k1")
+        for event: CaptureEvent in [.windowKey(true), .appActive(true), .picture(true)] {
+            _ = controller.capture(event)
+        }
+        #expect(controller.mode == .confined)
+        #expect(!controller.isConfined)
+        _ = controller.capture(.pointerOnPicture(true))
+        #expect(controller.isConfined)
+        _ = controller.capture(.mode(.integrated))
+        #expect(controller.mode == .integrated)
+        #expect(!controller.isConfined)
+    }
 }

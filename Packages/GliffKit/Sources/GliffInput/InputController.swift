@@ -7,13 +7,20 @@ public struct InputResult: Sendable, Equatable {
     public var consumed: Bool
     /// To send, in order.
     public var messages: [InputMessage]
-    /// Show the "Shift+Esc releases input" hint.
+    /// Show the mode's hint (how to release input).
     public var showHint: Bool
 
-    public init(consumed: Bool = false, messages: [InputMessage] = [], showHint: Bool = false) {
+    /// Capture rose because the window or app came to the front, or input came back: the host's
+    /// focus should follow (`activate(at:)`).
+    public var activates: Bool
+
+    public init(
+        consumed: Bool = false, messages: [InputMessage] = [], showHint: Bool = false, activates: Bool = false
+    ) {
         self.consumed = consumed
         self.messages = messages
         self.showHint = showHint
+        self.activates = activates
     }
 }
 
@@ -47,12 +54,14 @@ public struct InputController: Sendable {
     private var scrolling: Set<Axis> = []
 
     /// `keymap` is the one the server has already (the app's Hello carries none: "").
-    public init(mode: CaptureMode = .windowInFront, keymap: String) {
+    public init(mode: CaptureMode = .integrated, keymap: String) {
         capture = InputCapture(mode: mode)
         lastKeymap = keymap
     }
 
     public var isCaptured: Bool { capture.isCaptured }
+    public var mode: CaptureMode { capture.mode }
+    public var isConfined: Bool { capture.isConfined }
 
     public mutating func key(_ event: MacKeyEvent) -> InputResult {
         if swallowingEsc, event.keyCode == MacKeyTranslator.escape {
@@ -162,10 +171,13 @@ public struct InputController: Sendable {
     }
 
     public mutating func capture(_ event: CaptureEvent) -> InputResult {
-        let showHint = capture.apply(event)
+        let change = capture.apply(event)
+        var result = InputResult(showHint: change.showHint, activates: change.activates)
         // A recapturing click cut short (its up gone elsewhere, or never coming after sleep or
         // a lock) is forgotten.
-        guard !capture.isCaptured || event == .away else { return InputResult(showHint: showHint) }
+        guard !capture.isCaptured || event == .away else {
+            return result
+        }
         if let held = recapturingButton { strayUp = held }
         recapturingButton = nil
         remoteAt = nil
@@ -173,7 +185,7 @@ public struct InputController: Sendable {
             InputMessage.pointerAxis(axis: $0, value: 0, discrete: nil, stop: true)
         }
         scrolling = []
-        let releases = stops + ledger.releaseAll()
-        return InputResult(messages: releases, showHint: showHint)
+        result.messages = stops + ledger.releaseAll()
+        return result
     }
 }
