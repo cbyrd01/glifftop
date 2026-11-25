@@ -70,6 +70,13 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   refuses a channel takes no more, its lease moving to a further connection; a lost connection is
   forgotten at once, so the next lease opens anew; `closeAll()` ends them all and cancels anyone
   waiting.
+- **Port forwards on a connection:** `HostConnection.forward(_:on:)` listens on one of this
+  Mac's loopbacks (`Loopback`: 127.0.0.1 or ::1) and carries each connection to the host;
+  `cancel(_:on:)` ends it; `configuredForwards` are the person's ssh_config forwards. A
+  `PortForward` has a local port of 1024–65535, a remote port and a `ForwardDestination`
+  (`localhost`, a parsed `IPLiteral` without a zone, or a config's host name with no NUL,
+  whitespace, `/`, brackets, `:` or `%`; a config's IP literal is an `IPLiteral`), and no bind
+  address. Failures are `ForwardError`s, which name no ssh text.
 - **A session on a shared connection:** `ChannelTransport` leases a connection and runs the
   command as a channel, ending the lease when the stream ends. Bytes written before the first
   byte arrives are kept: a channel refused before then (`ConnectFailure.channelRefused`) moves

@@ -22,7 +22,7 @@ let package = Package(
             name: "GliffKit",
             targets: [
                 "GliffProtocol", "GliffTransport", "GliffVideo", "GliffInput", "GliffClipboard",
-                "GliffSession", "GliffMachines",
+                "GliffSession", "GliffMachines", "GliffPorts",
             ]),
         // The askpass helper's logic, for the app's helper tool, which links only this.
         .library(name: "GliffAskpass", targets: ["GliffAskpass"]),
@@ -90,6 +90,12 @@ let package = Package(
         .testTarget(
             name: "GliffMachinesTests",
             dependencies: ["GliffMachines", "GliffTransport", "GliffSession", "GliffClipboard"],
+            swiftSettings: strictSettings),
+        .target(
+            name: "GliffPorts", dependencies: ["GliffTransport"], exclude: ["README.md"],
+            swiftSettings: strictSettings),
+        .testTarget(
+            name: "GliffPortsTests", dependencies: ["GliffPorts", "GliffTransport", "GliffTestSupport"],
             swiftSettings: strictSettings),
         // Test doubles shared by the test targets (a clock tests move by hand); not in the product.
         .target(name: "GliffTestSupport", exclude: ["README.md"], swiftSettings: strictSettings),

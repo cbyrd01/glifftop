@@ -48,6 +48,8 @@ final class FakeHostConnection: HostConnection {
     }
 
     private let state = Mutex(State())
+    /// Forwards asked of it, and its scripted answers (`FakeHostConnection+Forwards`).
+    let forwarding = Mutex(FakeForwarding())
     private let writesFail: Bool
     /// Each close waits on this before it ends the connection (a slow `-O exit`).
     private let closeGate: CloseGate?

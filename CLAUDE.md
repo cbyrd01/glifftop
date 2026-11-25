@@ -256,6 +256,7 @@ Glifftop.app   Glifftop/: AppShell (SwiftUI windows, settings) + MacPlatform (Ap
 GliffKit       Packages/GliffKit/, platform-neutral, one target per module
   GliffMachines   saved machines and their options, as JSON for the app to store; a new tab's
                   options and the tabs' titles
+  GliffPorts      a host's port forwards and the ports it offers
   GliffSession    per-window actor: handshake, reader/writer tasks, acks, resize, input order
   GliffClipboard  offer/request/data/ack/abort state machine, sharing policy (no pasteboard)
   GliffVideo      H.264 → VideoToolbox (2 sessions) → Metal recombine → BGRA texture
