@@ -97,7 +97,7 @@ final class HostClipboards {
     /// ordinary session again.
     func closeGroup(_ windows: [NSWindow], close: (NSWindow) -> Void) {
         let closing = sessions(in: windows)
-        for id in closing { cancelWaiting(id) }
+        let unsent = Set(closing.filter { cancelWaiting($0) })
         handOver(ledger.detaching(Set(closing), macCount: macCount))
         // A background tab isn't visible either: the closed ones are those that said so.
         var closed: Set<ObjectIdentifier> = []
@@ -109,7 +109,10 @@ final class HostClipboards {
         }
         for window in windows { close(window) }
         NotificationCenter.default.removeObserver(observer)
-        ledger.stayed(Set(sessions(in: windows.filter { !closed.contains(ObjectIdentifier($0)) })))
+        let stayed = Set(sessions(in: windows.filter { !closed.contains(ObjectIdentifier($0)) }))
+        ledger.stayed(stayed)
+        // A tab that stayed whose offer never left holds nothing: another window offers the copy.
+        for id in stayed.intersection(unsent) { _ = withdrew(id, empty: false) }
     }
 
     private func sessions(in windows: [NSWindow]) -> [UUID] {

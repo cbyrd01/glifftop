@@ -120,6 +120,25 @@ import Testing
         #expect(ledger.detaching([c], macCount: 7) == [.init(host: "omarchy", candidates: [b])])
     }
 
+    /// A holder whose close was refused, with no one taking its copy over, still holds it.
+    @Test func aHolderThatStaysStillHoldsTheCopy() {
+        var ledger = ledger()
+        _ = ledger.offered(a, changeCount: 5, at: ms(0))
+        _ = ledger.detaching([a], macCount: 5)
+        ledger.stayed([a])
+        #expect(ledger.heldElsewhere(b, changeCount: 5))
+    }
+
+    /// A holder that stays after another took its copy over holds it no more.
+    @Test func aHolderThatStaysAfterAHandoverDoesNotHoldIt() {
+        var ledger = ledger()
+        _ = ledger.offered(a, changeCount: 5, at: ms(0))
+        _ = ledger.detaching([a], macCount: 5)
+        _ = ledger.offered(b, changeCount: 5, at: ms(1))
+        ledger.stayed([a])
+        #expect(ledger.heldElsewhere(a, changeCount: 5))
+    }
+
     /// Only a detaching session sends nothing: an unknown one withdraws as it asks.
     @Test func anUnknownSessionWithdraws() {
         var ledger = ledger()

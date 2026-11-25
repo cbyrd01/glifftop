@@ -214,7 +214,7 @@ This file wins over any skill, including a skill's "supersedes prior training" c
     - Then it offers its own clipboard and waits for Bye.
 - **Live check** (needs a real host; a headless session): run
   `GLIFFTOP_LIVE_HOST=<ssh host> GLIFFTOP_LIVE_SECONDS=60 swift test --no-parallel --filter
-  'LiveSessionTests|LiveResolutionTests|LiveScreenListTests|LiveClipboardTests|LiveHostConnectionTests|LiveFocusTests'
+  'LiveSessionTests|LiveResolutionTests|LiveScreenListTests|LiveClipboardTests|LiveHostConnectionTests|LiveFocusTests|LiveMonitorsTests'
   --attachments-path DIR` in `Packages/GliffKit`.
   - It streams the screen, resizes a virtual screen (which the server removes at the end),
     asks for one at Standard (and at Automatic with `--video cpu`) and lists the monitors.
@@ -226,6 +226,10 @@ This file wins over any skill, including a skill's "supersedes prior training" c
   - It opens two virtual screens on one master, with a terminal on each (closed by address at
     the end): activation moves the host's focus to the screen in front, the host's pointer
     matches `hyprctl cursorpos`, and Super held on one screen types no digit on the other.
+  - Several monitors: the listed positions match `hyprctl`; every monitor mirrored at once,
+    each at its size, and two mirrors' activation nudges landing on their monitors (under a
+    minute, motion only, the pointer and focus put back); the clipboard handed over between
+    two virtual screens; and a mirror of a virtual screen's output ending with it.
   - It writes numbers-only `live-*.txt` files. It is off in the gate.
 - **Loopback sign-in check** (no host needed): `GLIFFTOP_LIVE_SSHD=1 swift test --no-parallel
   --filter 'LiveSignInTests|LiveForwardTests'` in `Packages/GliffKit`.
