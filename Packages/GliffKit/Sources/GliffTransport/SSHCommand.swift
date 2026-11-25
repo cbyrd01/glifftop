@@ -66,6 +66,15 @@ public struct SSHCommand: Equatable, Sendable {
     /// itself (`SystemSSHConnection`).
     static let noConfigForwards = ["-o", "ClearAllForwardings=yes"]
 
+    /// What every channel turns off, whatever the config says, as `sftp(1)` does: no agent or
+    /// X11 forwarding, no local or remote command, no terminal, no subsystem; and stdin kept, in
+    /// the foreground.
+    static let channelOptions = [
+        "-o", "ForwardAgent=no", "-o", "ForwardX11=no", "-o", "PermitLocalCommand=no", "-o",
+        "RemoteCommand=none", "-o", "RequestTTY=no", "-o", "SessionType=default", "-o", "StdinNull=no", "-o",
+        "ForkAfterAuthentication=no",
+    ]
+
     private static let shellSafe = Set(
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_@%+=:,./-")
 

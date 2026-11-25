@@ -21,11 +21,16 @@
     ///   a retry would only ask for the approval again.
     /// - Once the master is ready, the config's `LocalForward`s are asked of it in a task of
     ///   their own, one `-O forward` at a time on 127.0.0.1, never delaying or failing the open.
-    ///   One refused (a busy port, one under 1024) is skipped. Only counts are logged.
+    ///   One refused (a busy port) is skipped. Only counts are logged.
+    /// - Forwards and cancels (`SystemSSHConnection+Forwards`) go to the master one at a time.
     public final class SystemSSHConnection: HostConnection {
-        private let command: SSHMasterCommand
-        private let executable: URL
+        let command: SSHMasterCommand
+        let executable: URL
         private let master: ProcessConnection
+        /// The config's forwards, from the probe the open read.
+        let configured: ConfiguredForwards
+        /// Every `-O forward` and `-O cancel`, one at a time.
+        let requests = MasterRequests()
 
         private struct State {
             var end: ConnectFailure??
@@ -36,10 +41,15 @@
             var closing = false
         }
         private let state = Mutex(State())
-        private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "SystemSSHConnection")
+        static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "SystemSSHConnection")
 
-        private init(command: SSHMasterCommand, executable: URL, master: ProcessConnection) {
-            (self.command, self.executable, self.master) = (command, executable, master)
+        private init(
+            command: SSHMasterCommand, executable: URL, master: ProcessConnection,
+            configured: ConfiguredForwards
+        ) {
+            (self.command, self.executable, self.master, self.configured) = (
+                command, executable, master, configured
+            )
         }
 
         /// Opens a master for `target` on `socket`, read through one `ssh -G`: a connect timeout
@@ -80,14 +90,16 @@
             let connection = try await open(
                 command: command, executable: executable, signIn: signIn,
                 knownHostsName: config?.hasProxy == false ? config?.knownHostsName : nil,
-                limit: limit, ceiling: ceiling)
-            connection.addForwardsInBackground(of: config)
+                configured: config.map(ConfiguredForwards.init(config:)) ?? .none, limit: limit,
+                ceiling: ceiling)
+            connection.addForwardsInBackground(probed: config != nil)
             return connection
         }
 
         static func open(
             command: SSHMasterCommand, executable: URL, signIn: SignIn? = nil, knownHostsName: String? = nil,
-            poll: Duration = .milliseconds(100), limit: Duration = .seconds(60),
+            configured: ConfiguredForwards = .none, poll: Duration = .milliseconds(100),
+            limit: Duration = .seconds(60),
             ceiling: Duration = .seconds(300)
         ) async throws(TransportError) -> SystemSSHConnection {
             if Task.isCancelled { throw .cancelled }
@@ -116,7 +128,8 @@
             }
             handle.set(master)
             bridge?.serve()
-            let connection = SystemSSHConnection(command: command, executable: executable, master: master)
+            let connection = SystemSSHConnection(
+                command: command, executable: executable, master: master, configured: configured)
             Task { await connection.watch() }
             do throws(TransportError) {
                 try await connection.waitUntilReady(
@@ -217,35 +230,16 @@
 
         private var hasEnded: Bool { state.withLock { $0.end != nil } }
 
-        /// Adds `config`'s local forwards in a task of their own.
-        private func addForwardsInBackground(of config: SSHResolvedConfig?) {
-            guard let config else {
-                Self.log.info("config forwards not read: no ssh -G")
-                return
-            }
-            guard !config.localForwards.isEmpty else {
-                if config.forwardsNotApplied > 0 {
-                    Self.log.info("config forwards: \(config.forwardsNotApplied) not applied")
-                }
-                return
-            }
-            Task { await addForwards(config.localForwards, notApplied: config.forwardsNotApplied) }
-        }
+        /// Whether the connection ended or its master process exited, which can come up to a
+        /// second before `hasEnded`: a child of the master (a ProxyJump's ssh) may hold its pipes
+        /// open a while longer.
+        var masterGone: Bool { hasEnded || master.exitStatus != nil }
 
-        /// Asks the master for each of `forwards` until it ends; returns how many it added.
-        @discardableResult
-        func addForwards(_ forwards: [SSHLocalForward], notApplied: Int = 0) async -> Int {
-            var applied = 0
-            for forward in forwards where !hasEnded {
-                let reply = await ProcessOutput.read(
-                    executable: executable, arguments: command.forward(forward), maxBytes: 4096,
-                    timeout: .seconds(5), logsStderr: false)
-                if case .success = reply { applied += 1 }
-            }
-            Self.log.info(
-                "config forwards: \(applied) applied, \(forwards.count - applied) skipped, \(notApplied) not applied"
-            )
-            return applied
+        /// Whether the master is gone or exits within `limit`: ssh can answer a request the
+        /// master dropped while the master is still cleaning up.
+        func masterEnds(within limit: Duration) async -> Bool {
+            if hasEnded { return true }
+            return await master.waitForExit(within: limit)
         }
 
         /// Reaps the master and removes its socket, should it be left.

@@ -24,10 +24,15 @@ public enum ForwardDestination: Hashable, Sendable {
     /// Only from the ssh_config's `LocalForward` lines (`init?(configuredHost:)`).
     case configured(ConfiguredHost)
 
-    /// A config's host as `ssh -G` printed it, unbracketed: an IP literal is an `.address`;
-    /// otherwise a name, non-empty, with no NUL, whitespace, `/` (a unix socket), brackets, `:` or
-    /// `%`. It is only ever one argv element, never shell text.
+    /// A config's host as `ssh -G` printed it, unbracketed: "localhost", in any case, is
+    /// `.localhost`; an IP literal is an `.address`; otherwise a name, non-empty, with no NUL,
+    /// whitespace, `/` (a unix socket), brackets, `:` or `%`. It is only ever one argv element,
+    /// never shell text.
     public init?(configuredHost: String) {
+        if configuredHost.lowercased() == "localhost" {
+            self = .localhost
+            return
+        }
         if let literal = IPLiteral(configuredHost) {
             self = .address(literal)
             return
@@ -105,9 +110,13 @@ public enum Loopback: Sendable {
     case ipv4
     /// ::1.
     case ipv6
+
+    /// The address, numeric and unbracketed.
+    var address: String { self == .ipv4 ? "127.0.0.1" : "::1" }
 }
 
-/// What a forward holds: both loopbacks, or 127.0.0.1 alone (::1 unavailable or taken).
+/// What a forward holds: both loopbacks, or 127.0.0.1 alone (::1 unavailable, or taken
+/// between the check and the forward).
 public enum Loopbacks: Sendable {
     case both
     case ipv4Only

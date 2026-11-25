@@ -15,20 +15,9 @@ public protocol HostConnection: Sendable {
     /// Listens on this Mac's `loopback` at `forward.localPort` and carries each connection to
     /// `forward.destination` on the host, until cancelled or the connection ends.
     func forward(_ forward: PortForward, on loopback: Loopback) async throws(ForwardError)
-    /// Ends `forward` on `loopback`; one already gone, or gone with the connection, is fine.
+    /// Ends `forward` on `loopback`; one already gone is fine. `.connectionLost` means it went
+    /// with the connection.
     func cancel(_ forward: PortForward, on loopback: Loopback) async throws(ForwardError)
     /// The forwards the person's configuration for this host names, and the lines not applied.
     var configuredForwards: ConfiguredForwards { get async }
-}
-
-extension HostConnection {
-    public func forward(_ forward: PortForward, on loopback: Loopback) async throws(ForwardError) {
-        throw .failed
-    }
-
-    public func cancel(_ forward: PortForward, on loopback: Loopback) async throws(ForwardError) {
-        throw .failed
-    }
-
-    public var configuredForwards: ConfiguredForwards { get async { .none } }
 }

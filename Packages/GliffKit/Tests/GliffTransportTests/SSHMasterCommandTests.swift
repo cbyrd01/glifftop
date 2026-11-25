@@ -11,7 +11,10 @@ import Testing
         // `-T` and the five safety options.
         let safety = Array(SSHCommand.options([]).prefix(11))
         #expect(safety.last == "ClearAllForwardings=yes")
-        let own = ["-o", "ControlMaster=yes", "-o", "ControlPersist=no", "-S", "/s/1-1", "-N"]
+        let own = [
+            "-o", "ControlMaster=yes", "-o", "ControlPersist=no", "-o", "ForkAfterAuthentication=no", "-S",
+            "/s/1-1", "-N",
+        ]
         #expect(Array(command.master.prefix(11)) == safety)
         #expect(Array(command.master.dropFirst(11).prefix(own.count)) == own)
         #expect(Array(command.master.dropFirst(11 + own.count).prefix(2)) == ["-p", "2222"])
@@ -54,7 +57,7 @@ import Testing
             plain.master == [
                 "-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "Compression=no",
                 "-o", "IPQoS=ef", "-o", "ClearAllForwardings=yes", "-o", "ControlMaster=yes", "-o",
-                "ControlPersist=no", "-S", "/s/1-1", "-N",
+                "ControlPersist=no", "-o", "ForkAfterAuthentication=no", "-S", "/s/1-1", "-N",
                 "-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=6", "--", "omarchy",
             ])
     }
@@ -78,32 +81,69 @@ import Testing
         "-o", "ControlMaster=no", "-o", "ProxyCommand=/usr/bin/false", "-o", "BatchMode=yes",
     ]
 
+    static let channelOptions = [
+        "-o", "ForwardAgent=no", "-o", "ForwardX11=no", "-o", "PermitLocalCommand=no", "-o",
+        "RemoteCommand=none", "-o", "RequestTTY=no", "-o", "SessionType=default", "-o", "StdinNull=no", "-o",
+        "ForkAfterAuthentication=no",
+    ]
+
     @Test func aChannelCannotSignInOnItsOwn() {
         #expect(
             command.channel("gliff-server --stdio")
-                == ["-T", "-S", "/s/1-1"] + Self.guards + [
-                    "-o", "ClearAllForwardings=yes", "-p", "2222", "--", "omarchy", "gliff-server --stdio",
-                ])
+                == ["-T", "-S", "/s/1-1"] + Self.guards + ["-o", "ClearAllForwardings=yes"]
+                + Self.channelOptions
+                + ["-p", "2222", "--", "omarchy", "gliff-server --stdio"])
     }
 
-    /// A forward is asked of the master on 127.0.0.1 only, whatever bind address the config
-    /// gave, and without reading the config (`-F none`), whose own forwards ssh would send too.
-    @Test func aForwardOnlyEverAsksTheMasterOnLoopback() {
-        let forward = SSHLocalForward(port: 3000, host: "localhost", hostPort: 3000)
+    /// No agent, X11, local command, remote command or terminal on any channel, whatever the
+    /// config says; before the extra arguments, as ssh keeps the first value.
+    @Test func everyChannelCarriesTheChannelOptions() throws {
+        let channel = command.channel("x")
+        let clear = try #require(channel.firstIndex(of: "ClearAllForwardings=yes"))
+        #expect(Array(channel[(clear + 1)...].prefix(Self.channelOptions.count)) == Self.channelOptions)
+        #expect(SSHCommand.channelOptions == Self.channelOptions)
+    }
+
+    /// A forward is asked of the master without reading the config (`-F none`), whose own
+    /// forwards ssh would send too.
+    @Test func aForwardOnlyEverAsksTheMaster() {
         #expect(
-            command.forward(forward)
+            command.forward("127.0.0.1:3000:localhost:3000")
                 == ["-S", "/s/1-1", "-F", "none"] + Self.guards + [
                     "-O", "forward", "-L", "127.0.0.1:3000:localhost:3000", "--", "omarchy",
                 ])
     }
 
-    @Test(arguments: [
-        (SSHLocalForward(port: 8080, host: "::1", hostPort: 80), "127.0.0.1:8080:[::1]:80"),
-        (SSHLocalForward(port: 8081, host: "fe80::1%en0", hostPort: 80), "127.0.0.1:8081:[fe80::1%en0]:80"),
-        (SSHLocalForward(port: 5432, host: "db.example", hostPort: 5432), "127.0.0.1:5432:db.example:5432"),
-    ])
-    func anIPv6HostIsBracketed(_ forward: SSHLocalForward, argument: String) {
-        #expect(forward.argument == argument)
+    @Test func cancelAsksTheMasterWithNoConfig() {
+        #expect(
+            command.cancel("[::1]:3000:localhost:3000")
+                == ["-S", "/s/1-1", "-F", "none"] + Self.guards + [
+                    "-O", "cancel", "-L", "[::1]:3000:localhost:3000", "--", "omarchy",
+                ])
+    }
+
+    /// The spec binds 127.0.0.1 or [::1] only: `PortForward` has no bind field to ask for more.
+    @Test func specsBindOnlyLoopback() throws {
+        let forward = try #require(PortForward(localPort: 5173, destination: .localhost, remotePort: 5173))
+        #expect(SSHForwardSpec.make(forward, on: .ipv4) == "127.0.0.1:5173:localhost:5173")
+        #expect(SSHForwardSpec.make(forward, on: .ipv6) == "[::1]:5173:localhost:5173")
+    }
+
+    @Test func anIPv6DestinationIsBracketed() throws {
+        let v6 = try #require(IPLiteral("2001:db8::1"))
+        let v4 = try #require(IPLiteral("192.0.2.10"))
+        let db = try #require(ForwardDestination(configuredHost: "db.example"))
+        #expect(
+            SSHForwardSpec.make(
+                PortForward(localPort: 8080, destination: .address(v6), remotePort: 80)!, on: .ipv4)
+                == "127.0.0.1:8080:[2001:db8::1]:80")
+        #expect(
+            SSHForwardSpec.make(
+                PortForward(localPort: 8080, destination: .address(v4), remotePort: 80)!, on: .ipv6)
+                == "[::1]:8080:192.0.2.10:80")
+        #expect(
+            SSHForwardSpec.make(PortForward(localPort: 5432, destination: db, remotePort: 5432)!, on: .ipv4)
+                == "127.0.0.1:5432:db.example:5432")
     }
 
     /// A control request reads no config (`-F none`): it needs only the socket.

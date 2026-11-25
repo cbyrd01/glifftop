@@ -38,6 +38,12 @@ struct PortForwardTests {
         #expect(IPLiteral(text) == nil)
     }
 
+    /// A config's "localhost", in any case, is the same destination the person picks.
+    @Test(arguments: ["localhost", "LocalHost"])
+    func aConfiguredLocalhostIsLocalhost(_ host: String) {
+        #expect(ForwardDestination(configuredHost: host) == .localhost)
+    }
+
     @Test(arguments: ["db", "db_host", "db.internal"])
     func aConfiguredHostIsKept(_ host: String) throws {
         let destination = try #require(ForwardDestination(configuredHost: host))

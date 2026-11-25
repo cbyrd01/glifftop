@@ -237,6 +237,9 @@ This file wins over any skill, including a skill's "supersedes prior training" c
   - The config's forwards: a `LocalForward` on a port the test holds, under
     `ExitOnForwardFailure yes`, leaves the master up and a channel working; a free one is
     forwarded on 127.0.0.1 only and carries a TCP connection.
+  - A forward on each loopback carries a TCP connection on both, and cancelling frees the
+    port; a cancel once the master is gone is the connection lost; a config with
+    `ForwardAgent`, `RemoteCommand` and `RequestTTY` still gives a working channel.
   - It is off in the gate.
 - **Captures:** screenshots, screen recordings and `.gliffrec` stream recordings stay local in
   `.recordings/` (git-ignored).
