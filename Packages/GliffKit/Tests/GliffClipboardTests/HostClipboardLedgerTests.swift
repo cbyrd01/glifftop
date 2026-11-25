@@ -39,7 +39,27 @@ import Testing
     @Test func theHoldersOwnHostCopyClearsIt() {
         var ledger = ledger()
         _ = ledger.offered(a, changeCount: 5, at: ms(0))
-        ledger.hostCopy(a, isFirst: false, isEmpty: true)
+        let isTheHosts = ledger.hostCopy(a, isFirst: false, isEmpty: true, at: ms(2000))
+        #expect(isTheHosts)
+        #expect(!ledger.heldElsewhere(b, changeCount: 5))
+    }
+
+    /// An empty report soon after the holder's offer is the selection an earlier holder's
+    /// destroyed source left, sent before the host took the offer (a handover): stale.
+    @Test func theHoldersEarlyEmptyReportIsStale() {
+        var ledger = ledger()
+        _ = ledger.offered(a, changeCount: 5, at: ms(1000))
+        let isTheHosts = ledger.hostCopy(a, isFirst: false, isEmpty: true, at: ms(1500))
+        #expect(!isTheHosts)
+        #expect(ledger.heldElsewhere(b, changeCount: 5))
+    }
+
+    /// A real copy is never stale.
+    @Test func theHoldersEarlyRealCopyClearsIt() {
+        var ledger = ledger()
+        _ = ledger.offered(a, changeCount: 5, at: ms(1000))
+        let isTheHosts = ledger.hostCopy(a, isFirst: false, isEmpty: false, at: ms(1010))
+        #expect(isTheHosts)
         #expect(!ledger.heldElsewhere(b, changeCount: 5))
     }
 
@@ -47,8 +67,8 @@ import Testing
     @Test func anotherSessionsFirstReportKeepsTheHolder() {
         var ledger = ledger()
         _ = ledger.offered(a, changeCount: 5, at: ms(0))
-        ledger.hostCopy(b, isFirst: true, isEmpty: false)
-        ledger.hostCopy(a, isFirst: true, isEmpty: false)
+        _ = ledger.hostCopy(b, isFirst: true, isEmpty: false, at: ms(2000))
+        _ = ledger.hostCopy(a, isFirst: true, isEmpty: false, at: ms(2000))
         #expect(ledger.heldElsewhere(b, changeCount: 5))
     }
 
@@ -56,7 +76,7 @@ import Testing
     @Test func anotherSessionsEmptyReportKeepsTheHolder() {
         var ledger = ledger()
         _ = ledger.offered(a, changeCount: 5, at: ms(0))
-        ledger.hostCopy(b, isFirst: false, isEmpty: true)
+        _ = ledger.hostCopy(b, isFirst: false, isEmpty: true, at: ms(2000))
         #expect(ledger.heldElsewhere(c, changeCount: 5))
     }
 
@@ -65,7 +85,7 @@ import Testing
     @Test func anotherSessionsRealHostCopyClearsTheHolder() {
         var ledger = ledger()
         _ = ledger.offered(a, changeCount: 5, at: ms(0))
-        ledger.hostCopy(b, isFirst: false, isEmpty: false)
+        _ = ledger.hostCopy(b, isFirst: false, isEmpty: false, at: ms(2000))
         #expect(!ledger.heldElsewhere(c, changeCount: 5))
     }
 
@@ -76,6 +96,35 @@ import Testing
         let handovers = ledger.sharing(a, false, macCount: 5)
         #expect(handovers == [.init(host: "omarchy", candidates: [c, b])])
         #expect(!ledger.heldElsewhere(b, changeCount: 5))
+    }
+
+    /// The holder that turned sharing off is superseded by the copy's new holder, so its own
+    /// withdrawal sends no empty offer over it.
+    @Test func aHolderTurningSharingOffIsSupersededByTheNextOffer() {
+        var ledger = ledger()
+        _ = ledger.offered(a, changeCount: 5, at: ms(0))
+        ledger.sharing(a, false, macCount: 5)
+        let result = ledger.offered(c, changeCount: 5, at: ms(1))
+        #expect(result.superseded.contains(a))
+    }
+
+    /// A ⇧⌘W tab that didn't close (a sheet up) is an ordinary session again.
+    @Test func aSessionThatStaysIsNoLongerDetaching() {
+        var ledger = ledger()
+        _ = ledger.offered(a, changeCount: 5, at: ms(0))
+        _ = ledger.detaching([a, b], macCount: 6)
+        ledger.stayed([b])
+        let withdrew = ledger.withdrew(b, empty: true, at: ms(1))
+        #expect(withdrew)
+        _ = ledger.offered(c, changeCount: 7, at: ms(2))
+        #expect(ledger.detaching([c], macCount: 7) == [.init(host: "omarchy", candidates: [b])])
+    }
+
+    /// Only a detaching session sends nothing: an unknown one withdraws as it asks.
+    @Test func anUnknownSessionWithdraws() {
+        var ledger = ledger()
+        let withdrew = ledger.withdrew(UUID(), empty: true, at: ms(0))
+        #expect(withdrew)
     }
 
     @Test func aNonHolderTurningSharingOffHandsOverNothing() {

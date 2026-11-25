@@ -19,6 +19,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         // A paste on the Mac fetching from the remote ends first, without data.
         PasteProvider.cancelRunning()
+        // Every session ends: none takes the host's clipboard from another.
+        HostClipboards.shared.quitting = true
         guard let beforeQuit else { return .terminateNow }
         Task {
             await beforeQuit()
