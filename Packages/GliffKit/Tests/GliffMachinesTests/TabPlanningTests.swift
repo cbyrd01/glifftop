@@ -26,17 +26,60 @@ import Testing
     @Test func sameMachineTabsAreNumbered() {
         let (a, b) = (UUID(), UUID())
         let titles = TabPlanning.titles([
-            (machineID: a, name: "omarchy"), (machineID: b, name: "box"), (machineID: a, name: "omarchy"),
-            (machineID: a, name: "omarchy"),
+            TitledTab(machineID: a, name: "omarchy", screen: .virtual), TitledTab(machineID: b, name: "box"),
+            TitledTab(machineID: a, name: "omarchy", screen: .virtual),
+            TitledTab(machineID: a, name: "omarchy", screen: .virtual),
         ])
         #expect(titles == ["omarchy", "box", "omarchy 2", "omarchy 3"])
     }
 
     /// A tab still on the machine list has no machine: its name, never a number.
     @Test func noMachineIsNotNumbered() {
-        let titles = TabPlanning.titles([
-            (machineID: nil, name: "Glifftop"), (machineID: nil, name: "Glifftop"),
-        ])
+        let titles = TabPlanning.titles([TitledTab(name: "Glifftop"), TitledTab(name: "Glifftop")])
         #expect(titles == ["Glifftop", "Glifftop"])
+    }
+
+    /// A mirror is titled by its monitor: a named one from its start, a Focused Monitor one
+    /// once the server names its output.
+    @Test func aMonitorsTitleIsNeverNumbered() {
+        let a = UUID()
+        let titles = TabPlanning.titles([
+            TitledTab(machineID: a, name: "omarchy", screen: .named("DP-3")),
+            TitledTab(machineID: a, name: "omarchy", screen: .focused, output: "DP-2"),
+            TitledTab(machineID: a, name: "omarchy", screen: .focused),
+        ])
+        #expect(titles == ["omarchy · DP-3", "omarchy · DP-2", "omarchy"])
+    }
+
+    /// Only the tabs that aren't mirrors are counted, so a mirror's output being named never
+    /// renumbers another tab.
+    @Test func numberingCountsOnlyTabsWithoutAMonitor() {
+        let a = UUID()
+        let titles = TabPlanning.titles([
+            TitledTab(machineID: a, name: "omarchy", screen: .focused),
+            TitledTab(machineID: a, name: "omarchy", screen: .named("DP-3")),
+            TitledTab(machineID: a, name: "omarchy", screen: .virtual),
+            TitledTab(machineID: a, name: "omarchy", screen: .virtual),
+        ])
+        #expect(titles == ["omarchy", "omarchy · DP-3", "omarchy", "omarchy 2"])
+    }
+
+    /// Two mirrors of one monitor (chosen by hand): the second is numbered.
+    @Test func aRepeatedMonitorIsNumbered() {
+        let a = UUID()
+        let titles = TabPlanning.titles([
+            TitledTab(machineID: a, name: "omarchy", screen: .named("DP-3")),
+            TitledTab(machineID: a, name: "omarchy", screen: .focused, output: "DP-3"),
+            TitledTab(name: "box", screen: .named("DP-3")),
+        ])
+        #expect(titles == ["omarchy · DP-3", "omarchy · DP-3 2", "box · DP-3"])
+    }
+
+    @Test func aWindowsTitleNamesItsMonitor() {
+        #expect(TabPlanning.title(of: TitledTab(name: "omarchy", screen: .named("DP-3"))) == "omarchy · DP-3")
+        #expect(TabPlanning.title(of: TitledTab(name: "omarchy", screen: .virtual)) == "omarchy")
+        #expect(
+            TabPlanning.title(of: TitledTab(name: "omarchy", screen: .focused, output: "gliff-7"))
+                == "omarchy")
     }
 }

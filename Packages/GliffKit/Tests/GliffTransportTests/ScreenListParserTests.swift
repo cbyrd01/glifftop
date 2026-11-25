@@ -160,6 +160,31 @@ import Testing
         #expect(throws: ScreenListError.unreadable) { try parse(nested) }
     }
 
+    /// Each monitor's top-left in the host's layout, negative ones too.
+    @Test func positionsAreRead() throws {
+        let screens = try parse(
+            "[\(monitor("DP-3", extra: #", "x": 0, "y": 0"#)), \(monitor("DP-2", extra: #", "x": 2560, "y": 0"#)), "
+                + "\(monitor("HDMI-A-1", extra: #", "x": -1920, "y": -360"#))]")
+        #expect(screens.map(\.x) == [0, 2560, -1920])
+        #expect(screens.map(\.y) == [0, 0, -360])
+    }
+
+    /// A position missing, fractional, a string or out of range reads as none: the monitor is
+    /// still listed.
+    @Test(arguments: [#", "x": 1.5"#, #", "x": "0""#, #", "x": 2000000"#, #", "x": -1048577"#, ""])
+    func aBadPositionReadsAsNil(_ field: String) throws {
+        let screens = try parse("[\(monitor("DP-2", extra: field + #", "y": 0"#))]")
+        #expect(screens.map(\.name) == ["DP-2"])
+        #expect(screens.first?.x == nil)
+        #expect(screens.first?.y == 0)
+    }
+
+    @Test func theEdgesOfTheRangeAreKept() throws {
+        let screens = try parse("[\(monitor("DP-2", extra: #", "x": -1048576, "y": 1048576"#))]")
+        #expect(screens.first?.x == -1_048_576)
+        #expect(screens.first?.y == 1_048_576)
+    }
+
     @Test func moreThanAMebibyteIsTooLarge() {
         let bytes = [UInt8](repeating: UInt8(ascii: " "), count: ScreenListParser.maxBytes + 1)
         #expect(throws: ScreenListError.tooLarge) { try ScreenListParser.screens(from: bytes) }
