@@ -6,7 +6,7 @@ public import GliffTransport
 /// How a machine connects: the screen, and for a virtual screen its text size and resolution;
 /// Scale to Fit; whether a dropped link is tried again; and its clipboard sharing (nil: as
 /// Settings says).
-public struct MachineOptions: Codable, Equatable, Sendable {
+public struct MachineOptions: Codable, Hashable, Sendable {
     public var screen: ScreenChoice
     public var textSize: TextSize
     public var resolution: VirtualResolution

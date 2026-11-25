@@ -1,3 +1,4 @@
+import GliffMachines
 import GliffSession
 import GliffTransport
 import SwiftUI
@@ -93,8 +94,8 @@ struct ScreenMenu: View {
     /// "Focused Monitor (DP-2)" once a session on it names its output.
     private var focusedLabel: String {
         // A name as a monitor's must be: no empty or odd text in the menu.
-        guard model.screenChoice == .focused, let output = model.outputName,
-            ScreenListParser.isValidName(output)
+        guard model.screenChoice == .focused,
+            let output = MonitorPlanning.monitor(shownBy: .focused, output: model.outputName)
         else {
             return ScreenChoice.focused.label
         }

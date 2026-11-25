@@ -2,9 +2,10 @@ import Foundation
 import GliffProtocol
 
 /// Reads `hyprctl -j monitors` from the host, as untrusted input: a JSON array of
-/// monitors. A monitor whose name gliff-server couldn't take, with a field missing or of the
-/// wrong type, or with an impossible size is left out; anything that isn't such an array is
-/// unreadable. Hyprland's `description` and `serial` are never read: they carry the serial
+/// monitors. A monitor's position that isn't a whole number within ±1,048,576 reads as none,
+/// the monitor kept. A monitor whose name gliff-server couldn't take, with a field missing or
+/// of the wrong type, or with an impossible size is left out; anything that isn't such an
+/// array is unreadable. Hyprland's `description` and `serial` are never read: they carry the serial
 /// number.
 public enum ScreenListParser {
     /// Far more than any host's list; more is refused unread.
@@ -26,6 +27,7 @@ public enum ScreenListParser {
     private static let sides = 1...16384
 
     private static let scales = 0.25...10.0
+    private static let positions = -1_048_576...1_048_576
 
     /// gliff-server takes the name after `--output`: a leading dash would read as an option,
     /// and `auto` means the focused monitor. Also what a monitor name the server sends must be
@@ -34,6 +36,12 @@ public enum ScreenListParser {
         (1...64).contains(name.unicodeScalars.count)
             && name.unicodeScalars.allSatisfy(nameCharacters.contains) && !name.hasPrefix("-")
             && name != "auto"
+    }
+
+    /// A name a monitor of the host could have: one gliff-server takes, and no session's
+    /// virtual screen.
+    public static func isMonitorName(_ name: String) -> Bool {
+        isValidName(name) && !OutputName.isVirtualScreen(name)
     }
 
     /// One array element: a monitor, or nil when it isn't one that can be shown.
@@ -48,11 +56,12 @@ public enum ScreenListParser {
         let scale: Double
         let transform: Int?
         let focused, disabled: Bool?
+        let x, y: Position?
 
         /// A virtual screen, this session's or another's, isn't offered: it goes when its
         /// session ends.
         var screen: RemoteScreen? {
-            guard disabled != true, isValidName(name), !OutputName.isVirtualScreen(name),
+            guard disabled != true, isMonitorName(name),
                 sides.contains(width), sides.contains(height),
                 scales.contains(scale)
             else { return nil }
@@ -67,7 +76,17 @@ public enum ScreenListParser {
             return RemoteScreen(
                 name: name, description: text,
                 width: turned ? height : width, height: turned ? width : height, scale: scale,
-                isFocused: focused == true)
+                isFocused: focused == true, x: x?.value, y: y?.value)
+        }
+    }
+
+    /// A position, or none when it isn't a whole number in range: the monitor is still listed.
+    private struct Position: Decodable {
+        let value: Int?
+        init(from decoder: any Decoder) {
+            value = (try? decoder.singleValueContainer().decode(Int.self)).flatMap {
+                positions.contains($0) ? $0 : nil
+            }
         }
     }
 }

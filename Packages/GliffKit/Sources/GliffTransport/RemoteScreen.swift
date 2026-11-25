@@ -10,12 +10,16 @@ public struct RemoteScreen: Hashable, Sendable {
     public var height: Int
     public var scale: Double
     public var isFocused: Bool
+    /// The monitor's top-left in the host's layout, in pixels; nil when the host didn't say.
+    public var x: Int?
+    public var y: Int?
 
     public init(
-        name: String, description: String, width: Int, height: Int, scale: Double, isFocused: Bool
+        name: String, description: String, width: Int, height: Int, scale: Double, isFocused: Bool,
+        x: Int? = nil, y: Int? = nil
     ) {
         (self.name, self.description, self.width, self.height) = (name, description, width, height)
-        (self.scale, self.isFocused) = (scale, isFocused)
+        (self.scale, self.isFocused, self.x, self.y) = (scale, isFocused, x, y)
     }
 }
 

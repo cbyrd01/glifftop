@@ -13,7 +13,14 @@ name) and reads and writes them as JSON.
   and not a session's virtual screen (`ScreenChoice`'s decoding), as it becomes a server
   argument.
 - `TabPlanning`: a new tab to a machine open elsewhere starts as a virtual screen, and a
-  window's tabs are titled with their machine's name, numbered from its second tab.
+  window's tabs are titled with their machine's name, numbered among the machine's tabs that
+  aren't mirrors; a mirror's title names its monitor once known ("omarchy · DP-3"), numbered
+  only from a second mirror of that monitor.
+- Window plans for a machine's monitors (Show All Monitors). `MonitorPlanning`: the host's
+  monitors in host order (by position left to right, then top to bottom, then by name; those
+  without a position last, by name), and which to open: every listed monitor by name, those
+  live sessions show skipped, an ended window of one started again in place, each with the
+  source window's options and the screen its monitor.
 - It has no storage of its own: the app keeps the data (in `UserDefaults`).
 - Imports Foundation, GliffTransport, GliffSession and GliffClipboard only. Must not import AppKit, UIKit,
   SwiftUI, Observation or GliffVideo.
