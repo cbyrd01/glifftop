@@ -83,6 +83,13 @@ import Testing
         #expect(plan == .allShown)
     }
 
+    /// A host's list is untrusted: at most `maxOpenings` windows open, the first in host order.
+    @Test func openingsAreCapped() {
+        let listed = (0..<40).map { screen("DP-\($0)", x: $0 * 100, y: 0) }
+        let plan = MonitorPlanning.plan(listed: listed, shown: ShownMonitors(), source: source)
+        #expect(names(plan) == (0..<MonitorPlanning.maxOpenings).map { "DP-\($0)" })
+    }
+
     @Test func anEmptyListIsNotAllShown() {
         #expect(
             MonitorPlanning.plan(listed: [], shown: ShownMonitors(live: ["DP-3"]), source: source) == .empty)

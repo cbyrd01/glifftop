@@ -35,34 +35,29 @@ public enum TabPlanning {
     }
 
     /// Tab titles in one window, in tab order, as a tab shows its title alone. A mirror whose
-    /// monitor is known is titled by it, numbered only from a second mirror of that monitor
-    /// ("omarchy · DP-3 2"). Other tabs, a Focused Monitor mirror whose output isn't named yet
-    /// among them, are numbered among the machine's ("omarchy", "omarchy 2"), so no two tabs
-    /// read the same; a tab with no machine is unnumbered.
+    /// monitor is known is titled by it, numbered only from a second mirror that reads the
+    /// same ("omarchy · DP-3 2"). Other tabs, a Focused Monitor mirror whose output isn't named
+    /// yet among them, are numbered among the machine's ("omarchy", "omarchy 2"); a tab with no
+    /// machine is unnumbered.
     public static func titles(_ tabs: [TitledTab]) -> [String] {
         var seen: [Key: Int] = [:]
         return tabs.map { tab in
+            let title = title(of: tab)
             let key: Key
-            if let monitor = tab.monitor {
-                key = Key(owner: tab.machineID.map(Owner.saved) ?? .unsaved(tab.name), monitor: monitor)
+            if tab.monitor != nil {
+                key = .mirror(title)
             } else {
-                guard let id = tab.machineID else { return tab.name }
-                key = Key(owner: .saved(id), monitor: nil)
+                guard let id = tab.machineID else { return title }
+                key = .machine(id)
             }
             let count = (seen[key] ?? 0) + 1
             seen[key] = count
-            let title = title(of: tab)
             return count == 1 ? title : "\(title) \(count)"
         }
     }
 
-    private struct Key: Hashable {
-        let owner: Owner
-        let monitor: String?
-    }
-
-    private enum Owner: Hashable {
-        case saved(UUID)
-        case unsaved(String)
+    private enum Key: Hashable {
+        case mirror(String)
+        case machine(UUID)
     }
 }

@@ -63,6 +63,16 @@ import Testing
         #expect(titles == ["omarchy", "omarchy · DP-3", "omarchy 2", "omarchy 3"])
     }
 
+    /// A saved machine and an unsaved host of the same name, on one monitor: the second is
+    /// numbered, as the two would read the same.
+    @Test func mirrorsThatReadTheSameAreNumbered() {
+        let titles = TabPlanning.titles([
+            TitledTab(machineID: UUID(), name: "omarchy", screen: .named("DP-3")),
+            TitledTab(name: "omarchy", screen: .named("DP-3")),
+        ])
+        #expect(titles == ["omarchy · DP-3", "omarchy · DP-3 2"])
+    }
+
     /// An unsaved host is numbered apart from every saved machine, whatever it is called.
     @Test func anUnsavedHostIsNumberedApartFromMachines() {
         let a = UUID()
