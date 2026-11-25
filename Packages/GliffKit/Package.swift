@@ -22,7 +22,7 @@ let package = Package(
             name: "GliffKit",
             targets: [
                 "GliffProtocol", "GliffTransport", "GliffVideo", "GliffInput", "GliffClipboard",
-                "GliffSession", "GliffMachines",
+                "GliffSession", "GliffMachines", "GliffSFTP", "GliffFiles",
             ]),
         // The askpass helper's logic, for the app's helper tool, which links only this.
         .library(name: "GliffAskpass", targets: ["GliffAskpass"]),
@@ -90,6 +90,16 @@ let package = Package(
         .testTarget(
             name: "GliffMachinesTests",
             dependencies: ["GliffMachines", "GliffTransport", "GliffSession", "GliffClipboard"],
+            swiftSettings: strictSettings),
+        // SFTP v3 packets: pure, no imports, as GliffProtocol.
+        .target(name: "GliffSFTP", exclude: ["README.md"], swiftSettings: strictSettings),
+        .testTarget(name: "GliffSFTPTests", dependencies: ["GliffSFTP"], swiftSettings: strictSettings),
+        .target(
+            name: "GliffFiles", dependencies: ["GliffSFTP", "GliffTransport"], exclude: ["README.md"],
+            swiftSettings: strictSettings),
+        .testTarget(
+            name: "GliffFilesTests",
+            dependencies: ["GliffFiles", "GliffSFTP", "GliffTransport", "GliffTestSupport"],
             swiftSettings: strictSettings),
         // Test doubles shared by the test targets (a clock tests move by hand); not in the product.
         .target(name: "GliffTestSupport", exclude: ["README.md"], swiftSettings: strictSettings),

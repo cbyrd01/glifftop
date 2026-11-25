@@ -49,6 +49,7 @@
                 KbdInteractiveAuthentication no
                 PubkeyAuthentication yes
                 LogLevel VERBOSE
+                Subsystem sftp /usr/libexec/sftp-server
 
                 """
             if let banner {

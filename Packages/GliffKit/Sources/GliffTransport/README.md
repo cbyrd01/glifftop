@@ -54,9 +54,9 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   logs a question's number and kind only: never its text, an answer, a destination, a
   socket or a key path.
 - **Shared connections:** `HostConnection` is one signed-in connection to a host that runs
-  shell commands as channels (`ByteConnection`s); a system ssh ControlMaster or an embedded ssh
-  can each be one. `HostConnections` (an actor) keeps one per destination as typed, held by
-  `HostLease`s: everyone asking while one opens waits for that one sign-in; it closes 10 s after
+  shell commands, or a subsystem such as `sftp`, as channels (`ByteConnection`s); a system ssh
+  ControlMaster or an embedded ssh can each be one. `HostConnections` (an actor) keeps one per
+  destination as typed, held by `HostLease`s: everyone asking while one opens waits for that one sign-in; it closes 10 s after
   its last lease ends; a sign-in that asked and failed (the agent or the key refused, no
   approval in a minute, the person's Cancel, a denied key, too many questions) answers that
   destination for 10 s unless a connection there has room, and a `fresh` lease (an attempt the
@@ -70,8 +70,9 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   refuses a channel takes no more, its lease moving to a further connection; a lost connection is
   forgotten at once, so the next lease opens anew; `closeAll()` ends them all and cancels anyone
   waiting.
-- **A session on a shared connection:** `ChannelTransport` leases a connection and runs the
-  command as a channel, ending the lease when the stream ends. Bytes written before the first
+- **A session on a shared connection:** `ChannelTransport` leases a connection and opens its
+  `ChannelRequest` (a command, or a subsystem) as a channel, ending the lease when the stream
+  ends; a move opens the same request again. Bytes written before the first
   byte arrives are kept: a channel refused before then (`ConnectFailure.channelRefused`) moves
   the lease to a further connection once and is replayed there, unseen by the reader. A channel
   with no first byte in 15 s, while no other channel on the connection was heard from, means a
@@ -85,7 +86,7 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   connection: the master (`SSHCommand`'s options first, then `-o ControlMaster=yes -o
   ControlPersist=no -S socket -N`), `-O check` and `-O exit`, a channel
   through it (`ControlMaster=no`, and `ProxyCommand=/usr/bin/false` so a channel never signs in
-  on its own), and `-O forward`.
+  on its own), a subsystem channel with the same options and `-s`, and `-O forward`.
   `ControlSocketDirectory` (macOS) is where the sockets live: the caches directory's `ssh/`, else
   `/tmp/glifftop-<uid>` when that path is too long for a socket or is refused; each is created
   0700, and refused if it is a symbolic link, not a directory or another user's. Sockets are named

@@ -11,7 +11,8 @@
 ///   ssh's stdin `/dev/null` (`-n`), `StrictHostKeyChecking` from `MasterAsking` first, and
 ///   `UpdateHostKeys=no` when it says so.
 /// - `check`, `exit` and `forward` ask the master whether it is up, to end, and for one forward
-///   on 127.0.0.1; `channel` runs one command through it. Each has `ControlMaster=no` (a
+///   on 127.0.0.1; `channel` runs one command through it, and `subsystem` asks for one
+///   subsystem (`sftp`) with the same options. Each has `ControlMaster=no` (a
 ///   config's `ControlMaster yes` would make ssh ignore the socket and sign in),
 ///   `ProxyCommand=/usr/bin/false` (which wins over any proxy in the config) and
 ///   `BatchMode=yes`, so none of them ever signs in on its own.
@@ -51,9 +52,17 @@ public struct SSHMasterCommand: Equatable, Sendable {
 
     /// `command` is one line for the remote login shell, quoted by the caller.
     public func channel(_ command: String) -> [String] {
-        ["-T", "-S", socketArgument] + Self.guards + SSHCommand.noConfigForwards + sshArguments + [
-            "--", target.value, command,
-        ]
+        channelOptions + ["--", target.value, command]
+    }
+
+    /// Asks for the subsystem `name` (`sftp`), with the same options as `channel`.
+    public func subsystem(_ name: String) -> [String] {
+        channelOptions + ["-s", "--", target.value, name]
+    }
+
+    /// Every option a channel carries, whatever it asks for.
+    private var channelOptions: [String] {
+        ["-T", "-S", socketArgument] + Self.guards + SSHCommand.noConfigForwards + sshArguments
     }
 
     private static let guards = [

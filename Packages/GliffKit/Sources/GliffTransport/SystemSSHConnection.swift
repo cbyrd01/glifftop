@@ -178,10 +178,17 @@
         }
 
         public func channel(command line: String) async throws(TransportError) -> any ByteConnection {
+            try launchChannel(command.channel(line))
+        }
+
+        public func channel(subsystem name: String) async throws(TransportError) -> any ByteConnection {
+            try launchChannel(command.subsystem(name))
+        }
+
+        private func launchChannel(_ arguments: [String]) throws(TransportError) -> any ByteConnection {
             if hasEnded { throw .exited(status: 255, failure: .sharedConnectionLost) }
             return try ProcessConnection.launch(
-                executable: executable, arguments: command.channel(line),
-                classify: SSHErrorClassifier.classifyChannel)
+                executable: executable, arguments: arguments, classify: SSHErrorClassifier.classifyChannel)
         }
 
         public func ended() async -> ConnectFailure? {

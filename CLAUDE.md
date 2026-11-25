@@ -228,7 +228,7 @@ This file wins over any skill, including a skill's "supersedes prior training" c
     matches `hyprctl cursorpos`, and Super held on one screen types no digit on the other.
   - It writes numbers-only `live-*.txt` files. It is off in the gate.
 - **Loopback sign-in check** (no host needed): `GLIFFTOP_LIVE_SSHD=1 swift test --no-parallel
-  --filter 'LiveSignInTests|LiveForwardTests'` in `Packages/GliffKit`.
+  --filter 'LiveSignInTests|LiveForwardTests|LiveSFTPTests'` in `Packages/GliffKit`.
   - It runs the system's sshd as you on a free 127.0.0.1 port, in a temporary directory with
     its own host key, keys, `known_hosts` and `ssh_config`; your own ssh files are never read.
   - Through the askpass helper and the real peer check: an unknown key allowed (added by its
@@ -237,6 +237,7 @@ This file wins over any skill, including a skill's "supersedes prior training" c
   - The config's forwards: a `LocalForward` on a port the test holds, under
     `ExitOnForwardFailure yes`, leaves the master up and a channel working; a free one is
     forwarded on 127.0.0.1 only and carries a TCP connection.
+  - The sftp subsystem through a master: INIT is answered with VERSION 3.
   - It is off in the gate.
 - **Captures:** screenshots, screen recordings and `.gliffrec` stream recordings stay local in
   `.recordings/` (git-ignored).
@@ -261,9 +262,12 @@ GliffKit       Packages/GliffKit/, platform-neutral, one target per module
   GliffVideo      H.264 → VideoToolbox (2 sessions) → Metal recombine → BGRA texture
   GliffInput      macOS keycode → evdev, key ledger, XKB keymap text, pointer mapping, cursor,
                   focus target, the tab chord
+  GliffFiles      the sftp client: a session over any byte stream, a host's transfer queue on
+                  one sftp channel, the Mac's files, quarantine
   GliffTransport  `Transport` protocol; HostConnections: one ssh ControlMaster per host, each
                   session a channel on it (ChannelTransport) running gliff-server --stdio
   GliffProtocol   frame header, minimal CBOR, ClientMessage/ServerMessage; pure, no I/O
+  GliffSFTP       SFTP v3 packets; pure, no imports
   GliffAskpass    the askpass helper's logic and its wire to the app; the app's helper tool
                   links only this
   GliffTestSupport  test doubles shared by the test targets (ManualClock); never in the product

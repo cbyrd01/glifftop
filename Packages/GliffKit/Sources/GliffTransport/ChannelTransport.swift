@@ -1,6 +1,7 @@
 import Synchronization
 
-/// A session's byte stream as one channel on the host's shared connection.
+/// A byte stream as one channel on the host's shared connection: a command (a session's
+/// `gliff-server --stdio`) or a subsystem (`sftp`), as `request` says.
 ///
 /// - `connect()` takes a lease; the stream ends it when closed or finished.
 /// - Bytes written before the first byte arrives are kept. A channel that ends before then,
@@ -11,6 +12,9 @@ import Synchronization
 ///   connection was heard from either, means the link is dead: the connection is invalidated,
 ///   which ends its channels, and this one ends as `sharedConnectionLost` (so is moved, if it
 ///   was the first channel to end).
+/// - So a server that waits for the client (sftp's waits for INIT) is written to at once, and
+///   only what may run twice is written before its first answer: the sftp client sends INIT
+///   alone and waits for VERSION.
 /// - `abandon()` (the session found the link dead) invalidates the connection too, unless
 ///   another channel on it was heard from after this one's last byte: then only its own server
 ///   is silent.
@@ -20,19 +24,30 @@ import Synchronization
 public struct ChannelTransport: Transport {
     private let connections: HostConnections
     private let target: SSHTarget
-    private let command: String
+    private let request: ChannelRequest
     private let silenceLimit: Duration
     private let fresh: Bool
     private let asker: (any SignInAsker)?
     private let clock: any Clock<Duration>
 
     public init(
+        connections: HostConnections, target: SSHTarget, request: ChannelRequest,
+        silenceLimit: Duration = .seconds(15), fresh: Bool = false, asker: (any SignInAsker)? = nil,
+        clock: any Clock<Duration> = ContinuousClock()
+    ) {
+        (self.connections, self.target, self.request) = (connections, target, request)
+        (self.silenceLimit, self.fresh, self.asker, self.clock) = (silenceLimit, fresh, asker, clock)
+    }
+
+    /// A channel that runs `command`, one line for the host's login shell.
+    public init(
         connections: HostConnections, target: SSHTarget, command: String,
         silenceLimit: Duration = .seconds(15), fresh: Bool = false, asker: (any SignInAsker)? = nil,
         clock: any Clock<Duration> = ContinuousClock()
     ) {
-        (self.connections, self.target, self.command) = (connections, target, command)
-        (self.silenceLimit, self.fresh, self.asker, self.clock) = (silenceLimit, fresh, asker, clock)
+        self.init(
+            connections: connections, target: target, request: .command(command), silenceLimit: silenceLimit,
+            fresh: fresh, asker: asker, clock: clock)
     }
 
     public func connect() async throws(TransportError) -> any ByteConnection {
@@ -40,27 +55,27 @@ public struct ChannelTransport: Transport {
         let lease = try await connections.lease(for: target, fresh: fresh, asker: asker)
         let channel: any ByteConnection
         do {
-            channel = try await Self.firstChannel(on: lease, command: command)
+            channel = try await Self.firstChannel(on: lease, request: request)
         } catch {
             await lease.end()
             throw error
         }
         let connection = LeasedChannel(
-            lease: lease, command: command, channel: channel, silenceLimit: silenceLimit, clock: clock)
+            lease: lease, request: request, channel: channel, silenceLimit: silenceLimit, clock: clock)
         connection.start()
         return connection
     }
 
-    /// The command's channel; on a connection found lost (its master died before anyone
+    /// The request's channel; on a connection found lost (its master died before anyone
     /// noticed), the lease moves once and opens it on the next.
-    private static func firstChannel(on lease: HostLease, command: String) async throws(TransportError)
-        -> any ByteConnection
-    {
+    private static func firstChannel(
+        on lease: HostLease, request: ChannelRequest
+    ) async throws(TransportError) -> any ByteConnection {
         do {
-            return try await lease.channel(command: command)
+            return try await lease.channel(request)
         } catch .exited(_, .sharedConnectionLost) {
             try await lease.channelRefused()
-            return try await lease.channel(command: command)
+            return try await lease.channel(request)
         }
     }
 }
@@ -70,7 +85,7 @@ final class LeasedChannel: ByteConnection {
     let incoming: AsyncThrowingStream<[UInt8], any Error>
     private let continuation: AsyncThrowingStream<[UInt8], any Error>.Continuation
     private let lease: HostLease
-    private let command: String
+    private let request: ChannelRequest
     private let silenceLimit: Duration
     private let clock: any Clock<Duration>
 
@@ -90,11 +105,11 @@ final class LeasedChannel: ByteConnection {
     private let state: Mutex<State>
 
     init(
-        lease: HostLease, command: String, channel: any ByteConnection, silenceLimit: Duration,
+        lease: HostLease, request: ChannelRequest, channel: any ByteConnection, silenceLimit: Duration,
         clock: any Clock<Duration>
     ) {
         (incoming, continuation) = AsyncThrowingStream.makeStream()
-        (self.lease, self.command, self.silenceLimit, self.clock) = (lease, command, silenceLimit, clock)
+        (self.lease, self.request, self.silenceLimit, self.clock) = (lease, request, silenceLimit, clock)
         state = Mutex(State(channel: channel, lastHeard: lease.activityMark))
     }
 
@@ -196,7 +211,8 @@ final class LeasedChannel: ByteConnection {
         }
     }
 
-    /// Moves the lease, opens the command again, and writes what was kept before anything new.
+    /// Moves the lease, opens the same request again, and writes what was kept before anything
+    /// new.
     private func replay() async throws(TransportError) -> any ByteConnection {
         try await lease.channelRefused()
         // A new connection: what the watchdog found was the old one's.
@@ -205,7 +221,7 @@ final class LeasedChannel: ByteConnection {
             return state.closed
         }
         if closed { throw .cancelled }
-        let channel = try await lease.channel(command: command)
+        let channel = try await lease.channel(request)
         var sent = 0
         while true {
             let (closed, pending) = state.withLock { state in

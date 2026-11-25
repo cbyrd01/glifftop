@@ -73,6 +73,17 @@ public final class HostLease: Sendable {
         try await current.connection.channel(command: command)
     }
 
+    public func channel(subsystem name: String) async throws(TransportError) -> any ByteConnection {
+        try await current.connection.channel(subsystem: name)
+    }
+
+    func channel(_ request: ChannelRequest) async throws(TransportError) -> any ByteConnection {
+        switch request {
+        case .command(let command): try await channel(command: command)
+        case .subsystem(let name): try await channel(subsystem: name)
+        }
+    }
+
     /// The host refused a channel on this connection (sshd's `MaxSessions`): no new lease goes
     /// to it, and this lease moves to a further connection, which may mean a sign-in.
     public func channelRefused() async throws(TransportError) {

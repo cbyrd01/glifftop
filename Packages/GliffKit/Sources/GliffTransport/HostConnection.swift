@@ -5,6 +5,8 @@ public protocol HostConnection: Sendable {
     /// Runs one shell command line on the host (the caller quotes it), as a byte stream: its
     /// stdin and stdout, ending with the command's exit.
     func channel(command: String) async throws(TransportError) -> any ByteConnection
+    /// Asks the host for the subsystem `name` (`sftp`), as a byte stream both ways.
+    func channel(subsystem name: String) async throws(TransportError) -> any ByteConnection
     /// Returns once the connection has ended: nil when it was closed, else why it was lost. A
     /// lost connection ends its channels too.
     func ended() async -> ConnectFailure?
