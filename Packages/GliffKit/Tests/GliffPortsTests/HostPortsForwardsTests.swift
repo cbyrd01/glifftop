@@ -92,6 +92,7 @@ import Testing
         let snapshot = try await #require(await registry.ports(for: omarchy())).snapshot
         let id = try #require(snapshot.forwarded.first?.id)
         #expect(snapshot.notices == [.moved(id: id, remote: 5173, from: 5173, to: 5174)])
+        #expect(snapshot.forwarded.first?.movedFrom == 5173)
         await hold.end()
     }
 

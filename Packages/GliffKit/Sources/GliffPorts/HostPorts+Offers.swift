@@ -24,7 +24,7 @@ extension HostPorts {
                 id: entry.id, kind: entry.kind, localPort: entry.local ?? entry.wanted,
                 remotePort: entry.remotePort, destination: entry.destination,
                 name: seen.lazy.compactMap(\.name).first, state: entry.state, listening: !seen.isEmpty,
-                bindNotLoopback: entry.bindNotLoopback)
+                bindNotLoopback: entry.bindNotLoopback, movedFrom: entry.movedFrom)
         }
         if let frame {
             (snapshot.available, snapshot.other) = PortFilter.split(frame, forwarded: forwardedPorts)
@@ -128,6 +128,9 @@ extension HostPorts {
         guard !Task.isCancelled else { return }
         // Its own timer: dropped, not cancelled.
         absent[id] = nil
-        await stop(id)
+        guard let port = entries.first(where: { $0.id == id })?.hostPort else { return }
+        await stop(id, asked: false)
+        // Saved meanwhile, it is the machine's: back as saved.
+        if isSaved(port) { await restoreSaved(port) }
     }
 }

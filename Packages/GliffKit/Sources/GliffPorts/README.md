@@ -18,8 +18,11 @@ The module for a host's port forwards and the ports it offers. It holds the modu
   cache port.
 - **A host's forwards** (`HostPorts`, `PortsRegistry`, `PortsHold`, `PortsSnapshot`): one actor
   per destination while a window holds it, on a passive lease it never opens; forwards wait
-  through a reconnect, move when their Mac port is taken, and are cancelled 10 s after the
-  last hold ends.
+  through a reconnect, move when their Mac port is taken (the row says which it asked for),
+  and are cancelled 10 s after the last hold ends. A port the config forwards is the config's,
+  but for one typed on a Mac port of its own; an automatic forward saved is the machine's; a
+  forward the person stops while a hold saves its port stays stopped until the next
+  attachment, or until no hold saves it.
 - **The watcher and offers** (`HostPorts+Watcher`, `HostPorts+Offers`, `PortNotice`): the
   watcher runs on a spare place that yields to a tab, restarts with a back-off and stops after
   five failures in a row; a port that appears after the first frame is offered with a notice,
@@ -30,7 +33,7 @@ The module for a host's port forwards and the ports it offers. It holds the modu
   not attached, and stopped only once the watcher gave up.
 - **The popover's text** (`PortsText`): a forward's Mac address (`localhost:P` on both
   loopbacks, `127.0.0.1:P` on IPv4 alone), the page it opens, a destination (the port alone on
-  the host itself), the Mac port a moved forward had, and a forward's row by its id.
+  the host itself), and a forward's row by its id.
 - **The notice a window shows** (`ShownNotice`): the last new one (an offer naming a port no
   earlier offer named, or a forward's notice not there before), else the one shown while it
   lasts, else the last; nothing is new in a window's first snapshot.

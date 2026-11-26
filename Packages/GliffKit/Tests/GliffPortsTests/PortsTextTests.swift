@@ -14,7 +14,7 @@ import Testing
         ForwardRow(
             id: ForwardID(value: 1), kind: .manual, localPort: local, remotePort: 5173,
             destination: destination,
-            name: nil, state: state, listening: true, bindNotLoopback: false)
+            name: nil, state: state, listening: true, bindNotLoopback: false, movedFrom: nil)
     }
 
     @Test func anAddressFollowsItsLoopbacks() {
@@ -36,16 +36,6 @@ import Testing
         let configured = try #require(ForwardDestination(configuredHost: "db"))
         #expect(RemotePort(port: 5432, destination: configured, name: nil).shownDestination == "db:5432")
         #expect(RemotePort(port: 4000, destination: .localhost, name: "ruby").shownDestination == "4000")
-    }
-
-    @Test func aMovedForwardSaysWhereItWas() {
-        var snapshot = PortsSnapshot()
-        snapshot.notices = [
-            .listening(port: 3000, name: nil),
-            .moved(id: ForwardID(value: 1), remote: 5173, from: 5173, to: 5174),
-        ]
-        #expect(snapshot.movedFrom(ForwardID(value: 1)) == 5173)
-        #expect(snapshot.movedFrom(ForwardID(value: 2)) == nil)
     }
 
     @Test func aForwardIsFoundByItsID() {

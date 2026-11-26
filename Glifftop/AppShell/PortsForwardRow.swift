@@ -10,7 +10,6 @@ struct PortsForwardRow: View {
     let row: ForwardRow
     /// The host's ports are being followed: a forward not seen listening is said so.
     let detecting: Bool
-    let movedFrom: Int?
     let ports: PortsModel
     let session: SessionModel
     @Environment(\.openURL) private var openURL
@@ -59,7 +58,7 @@ struct PortsForwardRow: View {
         case .failed(.failed): notes.append("ssh didn't add the forward")
         case .stopping: notes.append("Stopping…")
         }
-        if let movedFrom { notes.append("\(movedFrom) was in use on this Mac") }
+        if let movedFrom = row.movedFrom { notes.append("\(movedFrom) was in use on this Mac") }
         if row.bindNotLoopback { notes.append("Bound on this Mac's loopback only") }
         return notes
     }

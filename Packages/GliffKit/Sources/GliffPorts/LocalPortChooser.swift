@@ -37,9 +37,14 @@ public struct LocalPortChooser: Sendable {
         PortForward.localPorts.contains(remote) ? remote : lowStart
     }
 
+    /// The Mac port `choose` tries first: the remembered one when in range, else `start(for:)`.
+    public static func firstTry(remote: Int, remembered: Int?) -> Int {
+        remembered.flatMap { PortForward.localPorts.contains($0) ? $0 : nil } ?? start(for: remote)
+    }
+
     public func choose(remote: Int, remembered: Int? = nil, skipping: Set<Int> = []) -> Choice? {
         let ports = PortForward.localPorts
-        let start = remembered.flatMap { ports.contains($0) ? $0 : nil } ?? Self.start(for: remote)
+        let start = Self.firstTry(remote: remote, remembered: remembered)
         for port in start..<min(start + Self.tries, ports.upperBound + 1) where !skipping.contains(port) {
             if let choice = exactly(port) { return choice }
         }

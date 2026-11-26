@@ -34,14 +34,6 @@ extension RemotePort {
 }
 
 extension PortsSnapshot {
-    /// The Mac port forward `id` had before it came back on another.
-    public func movedFrom(_ id: ForwardID) -> Int? {
-        notices.lazy.compactMap { notice -> Int? in
-            guard case .moved(id, _, let from, _) = notice else { return nil }
-            return from
-        }.first
-    }
-
     /// Forward `id`'s row, if it is still forwarded.
     public func forward(_ id: ForwardID) -> ForwardRow? { forwarded.first { $0.id == id } }
 }

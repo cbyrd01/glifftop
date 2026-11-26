@@ -92,7 +92,7 @@ struct PortsPopover: View {
 
     private func row(_ row: ForwardRow) -> some View {
         PortsForwardRow(
-            row: row, detecting: snapshot.detection == .running, movedFrom: snapshot.movedFrom(row.id),
+            row: row, detecting: snapshot.detection == .running,
             ports: ports, session: session)
     }
 

@@ -19,7 +19,8 @@ public actor HostPorts {
     /// One forward, as kept.
     struct Entry {
         let id: ForwardID
-        let kind: ForwardKind
+        /// An automatic forward saved becomes the machine's.
+        var kind: ForwardKind
         let destination: ForwardDestination
         let remotePort: Int
         /// The Mac port it asks for first: remembered (saved), typed or configured.
@@ -32,7 +33,16 @@ public actor HostPorts {
         var notice: PortNotice?
         /// The Mac port it has, or last had.
         var local: Int?
+        /// The Mac port it asked for, when it got another.
+        var movedFrom: Int?
         var state: ForwardState = .waiting
+    }
+
+    /// A port on the host, as a forward reaches it.
+    struct HostPort: Hashable {
+        let destination: ForwardDestination
+        let port: Int
+
     }
 
     public nonisolated let target: SSHTarget
@@ -50,6 +60,9 @@ public actor HostPorts {
     /// The grace has run out: the pass under way is the last.
     var expiring = false
     private var holds: [Int: [PortForward]] = [:]
+    /// Saved forwards the person stopped: not added again until the next attachment, or until
+    /// no hold saves them (`pruneStopped`).
+    var stoppedSaved: Set<HostPort> = []
     /// A window holds these ports.
     var isHeld: Bool { !holds.isEmpty }
     private var settling = false
@@ -151,12 +164,15 @@ public actor HostPorts {
     func updateHold(_ id: Int, saved: [PortForward]) async {
         guard holds[id] != nil else { return }
         holds[id] = saved
+        pruneStopped()
         addSaved(saved)
         await settle()
     }
 
     func removeHold(_ id: Int) {
-        guard holds.removeValue(forKey: id) != nil, !isHeld, !isFinished else { return }
+        guard holds.removeValue(forKey: id) != nil else { return }
+        pruneStopped()
+        guard !isHeld, !isFinished else { return }
         grace += 1
         graceTask = Task { [clock, grace] in
             guard (try? await clock.sleep(for: Self.grace)) != nil else { return }
@@ -170,6 +186,20 @@ public actor HostPorts {
         await settle()
     }
 
+    /// Whether a hold saves `port`.
+    func isSaved(_ port: HostPort) -> Bool { holds.values.joined().contains { $0.hostPort == port } }
+
+    /// A stopped port no hold saves is forgotten: saved again, it is forwarded.
+    private func pruneStopped() {
+        stoppedSaved.formIntersection(holds.values.joined().map(\.hostPort))
+    }
+
+    /// The holds' forwards of `port` come back, as after a stop the person didn't ask for.
+    func restoreSaved(_ port: HostPort) async {
+        addSaved(holds.sorted { $0.key < $1.key }.flatMap(\.value).filter { $0.hostPort == port })
+        await settle()
+    }
+
     /// Saved forwards are kept until the last hold ends: a port already forwarded isn't added
     /// again.
     private func addSaved(_ saved: [PortForward]) {
@@ -178,17 +208,25 @@ public actor HostPorts {
         publish()
     }
 
-    /// `addSaved` but for the snapshot, which the caller publishes; whether any was added.
+    /// `addSaved` but for the snapshot, which the caller publishes; whether any changed. An
+    /// automatic forward saved is the machine's, never stopped for absence.
     private func appendSaved(_ saved: [PortForward]) -> Bool {
-        let count = entries.count
-        for forward in saved
-        where !entries.contains(where: { $0.forwards(forward.destination, forward.remotePort) }) {
-            entries.append(
-                Entry(
-                    id: newID(), kind: .saved, destination: forward.destination,
-                    remotePort: forward.remotePort, wanted: forward.localPort, exact: false))
+        var changed = false
+        for forward in saved where !stoppedSaved.contains(forward.hostPort) {
+            if let index = entries.firstIndex(where: { $0.forwards(forward.destination, forward.remotePort) })
+            {
+                guard entries[index].kind == .automatic else { continue }
+                entries[index].kind = .saved
+                absent.removeValue(forKey: entries[index].id)?.cancel()
+            } else {
+                entries.append(
+                    Entry(
+                        id: newID(), kind: .saved, destination: forward.destination,
+                        remotePort: forward.remotePort, wanted: forward.localPort, exact: false))
+            }
+            changed = true
         }
-        return entries.count != count
+        return changed
     }
 
     private func expire() async {
@@ -267,16 +305,19 @@ public actor HostPorts {
             entry.bindNotLoopback = !Self.isLoopbackBind(line.bind)
             return entry
         }
-        // A saved port the config forwards is kept once, as the config's.
+        // A port the config forwards is kept once, as the config's.
         entries =
             config
             + entries.filter { entry in
                 entry.kind != .config
-                    && !(entry.kind == .saved
-                        && config.contains { $0.forwards(entry.destination, entry.remotePort) })
+                    && !config.contains {
+                        $0.forwards(entry.destination, entry.remotePort, localPort: entry.typed)
+                    }
             }
         notApplied = configured.notApplied
-        // The holds' saved ports the config no longer forwards are theirs again.
+        // The holds' saved ports the config no longer forwards are theirs again, a stopped one
+        // included.
+        stoppedSaved = []
         _ = appendSaved(holds.sorted { $0.key < $1.key }.flatMap(\.value))
         dropTakenOffers()
         publish()

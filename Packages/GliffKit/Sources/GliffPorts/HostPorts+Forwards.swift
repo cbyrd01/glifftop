@@ -11,8 +11,7 @@ extension HostPorts {
     public func forward(remote: Int, destination: ForwardDestination, localPort: Int?) async -> ForwardID? {
         guard !isFinished else { return nil }
         if let kept = entries.first(where: { entry in
-            entry.forwards(destination, remote) && entry.state != .stopping
-                && (localPort == nil || localPort == entry.local || localPort == entry.wanted)
+            entry.forwards(destination, remote, localPort: localPort) && entry.state != .stopping
         }) {
             if case .failed = kept.state { await retry(kept.id) }
             return kept.id
@@ -31,7 +30,11 @@ extension HostPorts {
     /// Cancels a forward on its loopbacks and removes it. A config or saved forward comes back
     /// on the next attachment. One already stopping is left to finish; one whose cancel the
     /// master refuses stays active, as it may still listen.
-    public func stop(_ id: ForwardID) async {
+    public func stop(_ id: ForwardID) async { await stop(id, asked: true) }
+
+    /// `stop`, `asked` by the person or not (a port gone): only the person's leaves a saved
+    /// port stopped.
+    func stop(_ id: ForwardID, asked: Bool) async {
         // Once the grace has ended, the end cancels every forward itself.
         guard !isFinished, let index = entries.firstIndex(where: { $0.id == id }),
             entries[index].state != .stopping
@@ -41,7 +44,7 @@ extension HostPorts {
         guard case .active(let local, let loopbacks) = entry.state, let lease,
             let forward = entry.forward(local: local)
         else {
-            entries.remove(at: index)
+            forget(entry, asked: asked)
             publish()
             return
         }
@@ -56,9 +59,16 @@ extension HostPorts {
             HostPortsLog.refused(cancels: 1)
             entries[index].state = entry.state
         } else {
-            entries.removeAll { $0.id == id }
+            forget(entry, asked: asked)
         }
         publish()
+    }
+
+    /// Drops a stopped forward; one a hold saves stays stopped while this attachment lasts,
+    /// if the person `asked`.
+    private func forget(_ entry: Entry, asked: Bool) {
+        entries.removeAll { $0.id == entry.id }
+        if asked, isSaved(entry.hostPort) { stoppedSaved.insert(entry.hostPort) }
     }
 
     /// Applies a failed forward again.
@@ -118,24 +128,32 @@ extension HostPorts {
         switch made {
         case .success(let choice):
             let old = entries[index].local
+            let remembered = old ?? entry.wanted
+            let asked = LocalPortChooser.firstTry(remote: entry.remotePort, remembered: remembered)
+            // The chooser's own start under 1024 is no port anyone asked for.
+            let moved = choice.port != asked && (remembered != nil || asked == entry.remotePort)
+            // A forward that had a Mac port, or a saved one, may be in a bookmark: it says so.
             let notice: PortNotice? =
                 if entry.kind == .automatic, old == nil {
                     .forwarded(id: entry.id, remote: entry.remotePort, local: choice.port)
-                } else if let old, old != choice.port {
-                    .moved(id: entry.id, remote: entry.remotePort, from: old, to: choice.port)
+                } else if moved, old != nil || entry.kind == .saved {
+                    .moved(id: entry.id, remote: entry.remotePort, from: asked, to: choice.port)
                 } else {
                     nil
                 }
             // The latest replaces the forward's earlier one.
             if let notice { entries[index].notice = notice }
+            if moved { entries[index].movedFrom = asked }
             entries[index].local = choice.port
             entries[index].state = .active(local: choice.port, loopbacks: choice.loopbacks)
         case .failure(.connectionLost):
             entries[index].state = .waiting
         case .failure(.localPortInUse):
             (entries[index].state, entries[index].notice) = (.failed(.localPortInUse), nil)
+            entries[index].movedFrom = nil
         case .failure:
             (entries[index].state, entries[index].notice) = (.failed(.failed), nil)
+            entries[index].movedFrom = nil
         }
         publish()
         if case .failure(.connectionLost) = made { return nil }
@@ -220,11 +238,22 @@ extension HostPorts {
     }
 }
 
+extension PortForward {
+    var hostPort: HostPorts.HostPort { HostPorts.HostPort(destination: destination, port: remotePort) }
+}
+
 extension HostPorts.Entry {
-    /// Whether it forwards `remotePort` at `destination`.
-    func forwards(_ destination: ForwardDestination, _ remotePort: Int) -> Bool {
-        self.destination == destination && self.remotePort == remotePort
+    var hostPort: HostPorts.HostPort { HostPorts.HostPort(destination: destination, port: remotePort) }
+
+    /// Whether it is the forward of `remotePort` at `destination`, on Mac port `localPort` when
+    /// one is typed: one port forwarded twice is the same forward, but on a Mac port of its own.
+    func forwards(_ destination: ForwardDestination, _ remotePort: Int, localPort: Int? = nil) -> Bool {
+        hostPort == HostPorts.HostPort(destination: destination, port: remotePort)
+            && (localPort == nil || localPort == local || localPort == wanted)
     }
+
+    /// The Mac port the person typed, if any.
+    var typed: Int? { kind == .config || !exact ? nil : wanted }
 
     /// The forward at Mac port `local`.
     func forward(local: Int) -> PortForward? {

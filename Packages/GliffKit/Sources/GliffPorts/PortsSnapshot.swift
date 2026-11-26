@@ -62,6 +62,8 @@ public struct ForwardRow: Equatable, Sendable, Identifiable {
     public let listening: Bool
     /// A config forward whose bind address isn't loopback: it is bound on loopback only.
     public let bindNotLoopback: Bool
+    /// The Mac port it asked for, when it got another: taken on this Mac.
+    public let movedFrom: Int?
 }
 
 /// What a host's ports look like now, for the toolbar item and the popover.
