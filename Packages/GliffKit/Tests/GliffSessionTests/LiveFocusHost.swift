@@ -131,16 +131,16 @@
             #expect(left.isEmpty, "\(left.count) windows the test opened are still open")
         }
 
-        /// A terminal opened on `workspace`, leaving the focus where it is, that counts the
-        /// keys typed into it in its title: "keys" and the count, from 0. The script goes as
+        /// A terminal opened on `workspace`, leaving the focus where it is, that shows the keys
+        /// typed into it in its title: "keys", their count from 0, and the keys. The script goes as
         /// base64, so no quoting reaches the host's shells. It runs in Ghostty, which the host
         /// must have.
         static func openCounter(on workspace: Int) throws {
             try #require(
                 !(try run("command -v ghostty")).isEmpty, "the key counter needs ghostty on the host")
             let script =
-                #"n=0; printf '\033]2;keys %d\007' $n; "#
-                + #"while IFS= read -rsn1 c; do n=$((n+1)); printf '\033]2;keys %d\007' $n; done"#
+                #"n=0; t=; printf '\033]2;keys %d\007' $n; "#
+                + #"while IFS= read -rsn1 c; do n=$((n+1)); t="$t$c"; printf '\033]2;keys %d %s\007' $n "$t"; done"#
             let encoded = Data(script.utf8).base64EncodedString()
             let command = #"ghostty -e bash -c "$(echo "# + encoded + #" | base64 -d)""#
             let lua =
@@ -151,10 +151,22 @@
         /// The keys a counter terminal (`openCounter`) at `address` has counted; nil unless its
         /// title is a counter's.
         static func counted(at address: String) throws -> Int? {
+            try counter(at: address)?.count
+        }
+
+        /// The keys a counter terminal at `address` got, in order; nil unless its title is a
+        /// counter's.
+        static func typed(at address: String) throws -> String? {
+            try counter(at: address)?.keys
+        }
+
+        private static func counter(at address: String) throws -> (count: Int, keys: String)? {
             let clients = try #require(try json("clients") as? [[String: Any]])
             let title = clients.first { $0["address"] as? String == address }?["title"] as? String
-            guard let title, let match = title.wholeMatch(of: /keys (\d+)/) else { return nil }
-            return Int(match.1)
+            guard let title, let match = title.wholeMatch(of: /keys (\d+)(?: (.*))?/),
+                let count = Int(match.1)
+            else { return nil }
+            return (count, String(match.2 ?? ""))
         }
 
         /// The active workspace of `monitor`, if it is still there.

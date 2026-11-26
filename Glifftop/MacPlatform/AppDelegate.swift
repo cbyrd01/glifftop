@@ -5,8 +5,10 @@ import GliffTransport
 /// process ends. Closing the last window quits, so this covers both. While a session is live,
 /// ⌘Q pressed must be held (`QuitGuard`).
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    /// Run when the app is asked to quit; quitting waits for it to return.
-    /// A second quit while one is waiting runs it again, which must be harmless.
+    /// Run when the app is asked to quit; quitting waits for it to return. AppKit asks once:
+    /// while it waits, ⌘Q and Quit reach neither this delegate nor `QuitGuard`, a
+    /// `terminate(_:)` called directly ends the app at once, without waiting, and one performed
+    /// after a delay (`QuitGuard`'s) runs only once the wait is over, when the app has gone.
     var beforeQuit: (() async -> Void)?
     /// Whether ⌘Q is guarded now: a session is live in some window (connecting, streaming,
     /// interrupted or reconnecting).

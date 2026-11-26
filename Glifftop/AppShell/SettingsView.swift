@@ -28,6 +28,8 @@ enum AppSettings {
     static let showsStatusBarKey = "showsStatusBar"
     /// The input mode a new window starts in (`CaptureMode.stored`); Integrated by default.
     static let inputModeKey = "inputMode"
+    /// "Forward new ports automatically" (`AppPorts.automatic`), app-wide; off by default.
+    static let forwardNewPortsKey = "forwardNewPortsAutomatically"
     /// Show All Monitors ▸ Show as Windows puts the windows on the Mac's displays in the host's
     /// order (`MonitorPlacement`); off by default. An app setting: it depends on this Mac's
     /// displays.
@@ -59,7 +61,7 @@ enum AppSettings {
 }
 
 /// Settings ▸ General: the options each new host or machine starts from, the clipboard, and
-/// the input mode, and where Show as Windows puts its windows.
+/// the input mode, forwarding new ports, and where Show as Windows puts its windows.
 struct SettingsView: View {
     @AppStorage(AppSettings.connectScreenKey) private var connectScreen = "focused"
     @AppStorage(AppSettings.virtualTextSizeKey) private var virtualTextSize = TextSize.mac.factor
@@ -102,6 +104,7 @@ struct SettingsView: View {
             )
             .font(.callout)
             .foregroundStyle(.secondary)
+            PortsSettingsSection()
             Toggle("Place monitor windows in the host's order", isOn: $placeMonitorWindows)
             Text(
                 "Show All Monitors ▸ Show as Windows puts the host's leftmost monitor on the Mac's leftmost display, and so on. Extra windows go on the last display."

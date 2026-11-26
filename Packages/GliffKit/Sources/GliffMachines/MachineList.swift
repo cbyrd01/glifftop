@@ -9,8 +9,10 @@ public struct MachineList: Equatable, Sendable {
 
     /// The list stored as `data`; none if nil or unreadable.
     public init(data: Data?) {
-        guard let data, let entries = try? JSONDecoder().decode([Lossy].self, from: data) else { return }
-        for case let machine? in entries.map(\.machine) where self.machine(for: machine.destination) == nil {
+        guard let data, let entries = try? JSONDecoder().decode([Lossy<Machine>].self, from: data) else {
+            return
+        }
+        for case let machine? in entries.map(\.value) where self.machine(for: machine.destination) == nil {
             machines.append(Self.trimming(machine))
         }
         sort()
@@ -90,12 +92,11 @@ public struct MachineList: Equatable, Sendable {
         destination.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// An entry that decodes to nil rather than failing the whole list.
-    private struct Lossy: Decodable {
-        let machine: Machine?
+}
 
-        init(from decoder: any Decoder) throws {
-            machine = try? Machine(from: decoder)
-        }
-    }
+/// A stored list's entry that decodes to nil rather than failing the whole list.
+struct Lossy<Value: Decodable>: Decodable {
+    let value: Value?
+
+    init(from decoder: any Decoder) throws { value = try? Value(from: decoder) }
 }

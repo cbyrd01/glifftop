@@ -12,7 +12,7 @@ struct ShowAllMonitorsMenu: View {
     var body: some View {
         Menu("Show All Monitors") {
             Button("Show as Tabs") { model?.showAllMonitors(asTabs: true, open: open) }
-                .disabled(model?.canShowAllMonitors != true || model?.showsSheet == true)
+                .disabled(model?.canShowAllMonitors != true || model?.showsAnySheet == true)
             Button("Show as Windows") { model?.showAllMonitors(asTabs: false, open: open) }
                 .disabled(model?.canShowAllMonitors != true)
             Divider()

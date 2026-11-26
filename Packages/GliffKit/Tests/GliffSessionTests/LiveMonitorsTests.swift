@@ -207,7 +207,7 @@
         private func mirror(of screen: RemoteScreen) -> LiveFocusScreen {
             LiveFocusScreen(
                 connections: connections, target: target, screen: .named(screen.name),
-                maxSize: (screen.width, screen.height))
+                largest: (UInt32(screen.width), UInt32(screen.height)))
         }
 
         private func nap(_ seconds: Double) async throws { try await Task.sleep(for: .seconds(seconds)) }

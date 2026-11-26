@@ -16,6 +16,8 @@ struct VideoState {
     /// A keyframe was requested and none has decoded since.
     var awaitingKeyframe = false
     var lastPing: UInt64?
+    /// The `t` of the last Ping sent; unlike `lastPing`, never cleared.
+    var lastPingT: UInt64?
     /// The client's own Pings not yet answered, oldest first (at most `maxOutstandingPings`).
     var outstandingPings: [UInt64] = []
     var roundTrip: Double?
@@ -138,8 +140,8 @@ extension SessionCore {
         return [ping(now: now), stats(now: now), shows].compactMap { $0 } + resizeDue(now: now)
     }
 
-    /// A Ping now, whenever the last went (the wake probe), its `t` being `now`; nil unless
-    /// streaming.
+    /// A Ping now, whenever the last went (the wake probe, a release's fence), its `t` `now`
+    /// or just after the last Ping's; nil unless streaming.
     mutating func pingNow(now: UInt64) -> SessionAction? {
         guard state == .streaming else { return nil }
         video.lastPing = nil
@@ -190,9 +192,15 @@ extension SessionCore {
         // A clock step backwards (now < lastPing) pings again rather than waiting it out.
         guard video.lastPing.map({ now < $0 || now - $0 >= Self.pingInterval }) ?? true else { return nil }
         video.lastPing = now
-        video.outstandingPings.append(now)
+        // Each `t` its own, so its Pong names it alone (`FenceLedger`): one in the same
+        // millisecond as the last, or just after a small step back, counts on from it.
+        let t =
+            video.lastPingT.map { last in last < now || last - now >= Self.pingInterval ? now : last + 1 }
+            ?? now
+        video.lastPingT = t
+        video.outstandingPings.append(t)
         if video.outstandingPings.count > Self.maxOutstandingPings { video.outstandingPings.removeFirst() }
-        return .send(.ping(t: now))
+        return .send(.ping(t: t))
     }
 
     private mutating func stats(now: UInt64) -> SessionAction? {

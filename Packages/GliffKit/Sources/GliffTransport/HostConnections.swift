@@ -9,13 +9,16 @@ import os
 ///   lease that starts it has an asker.
 /// - A sign-in that asked and failed (the agent refused, the key was refused, no approval in
 ///   time, the person cancelled or denied the key) answers that destination's leases for
-///   `failureMemory`, so several tabs retrying never mean several approval prompts at once. A `fresh` lease, an attempt the person
-///   starts, asks again; a failure that asked nothing (an unreachable host) isn't remembered.
+///   `failureMemory`, so several tabs retrying never mean several approval prompts at once. A
+///   `fresh` lease, an attempt the person starts, asks again; a failure that asked nothing (an
+///   unreachable host) isn't remembered.
 /// - An open that nobody waits for any more is cancelled after `openGrace` (or at once by
 ///   `closeAll()`), so a sign-in prompt doesn't outlive its asker, yet a session that starts as
 ///   a listing stops shares the listing's sign-in.
 /// - A connection takes at most `leaseLimit` leases (sshd's `MaxSessions` is 10 by default);
-///   more open a further connection to the same host.
+///   a lease that finds it full takes a passive lease's spare place, after the spare yields,
+///   and otherwise opens a further connection to the same host.
+/// - Passive leases (`attach(to:)`) and their spares never open or keep a connection.
 /// - A lost connection is forgotten as soon as it ends; the next lease opens a new one. Its
 ///   users learn of the loss through their own channels, which end with it.
 public actor HostConnections {
@@ -34,8 +37,15 @@ public actor HostConnections {
         let id: Int
         let connection: any HostConnection
         let activity = ConnectionActivity()
+        /// Ordinary leases: only these keep the connection open.
         var leases = 0
         var limit: Int
+        /// A passive lease's place, which yields to a lease that finds the connection full.
+        var spare: Spare?
+        /// The places in use, the spare's among them.
+        var taken: Int { leases + (spare == nil ? 0 : 1) }
+        /// The host's sessions as far as is known: the leases, and a spare's channel.
+        var sessions: Int { leases + (spare?.hasChannel == true ? 1 : 0) }
         var grace: Task<Void, Never>?
         var watcher: Task<Void, Never>?
     }
@@ -75,17 +85,25 @@ public actor HostConnections {
         var forget: Task<Void, Never>?
     }
 
-    private let open: Open
+    let open: Open
     let clock: any Clock<Duration>
-    private let grace: Duration
-    private let failureMemory: Duration
-    private let leaseLimit: Int
+    let grace: Duration
+    let failureMemory: Duration
+    let leaseLimit: Int
     let openGrace = Duration.seconds(1)
     var hosts: [String: Host] = [:]
     var nextID = 0
     /// Moves on at `closeAll()`: an open that finishes after it is closed at once.
     var generation = 0
-    private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "HostConnections")
+    var nextPassive = 0
+    /// The streams `events(for:)` gave out, by destination.
+    var sinks: [String: [Int: AsyncStream<ConnectionEvent>.Continuation]] = [:]
+    var nextSink = 0
+    /// Connections closing, by destination: a newer one's `.opened` waits for their `.ended`.
+    var closing: [String: Int] = [:]
+    /// Connections opened while others closed, announced once those have ended.
+    var heldOpened: [String: [Int]] = [:]
+    static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "HostConnections")
 
     public init(
         open: @escaping Open, clock: any Clock<Duration> = ContinuousClock(), grace: Duration = .seconds(10),
@@ -110,9 +128,9 @@ public actor HostConnections {
     /// each has ended, so no sign-in outlives the app); a later lease opens anew.
     public func closeAll() async {
         generation += 1
-        var connections: [any HostConnection] = []
+        var ended: [(key: String, id: Int, connection: any HostConnection)] = []
         var opens: [Task<Void, Never>] = []
-        for host in hosts.values {
+        for (key, host) in hosts {
             host.forget?.cancel()
             host.openTask?.cancel()
             if let open = host.openTask { opens.append(open) }
@@ -122,15 +140,17 @@ public actor HostConnections {
             for live in host.live {
                 live.grace?.cancel()
                 live.watcher?.cancel()
-                connections.append(live.connection)
+                ended.append((key, live.id, live.connection))
+                beginClosing(key)
             }
             for waiter in host.waiters.values { waiter.continuation.resume(returning: nil) }
         }
         hosts = [:]
         await withTaskGroup { group in
-            for connection in connections { group.addTask { await connection.close() } }
+            for (_, _, connection) in ended { group.addTask { await connection.close() } }
             for open in opens { group.addTask { await open.value } }
         }
+        for (key, id, _) in ended { closed(id, key) }
     }
 
     /// How many connections to `target` are open: for tests.
@@ -148,7 +168,7 @@ public actor HostConnections {
         let key = target.value
         while true {
             if Task.isCancelled { throw .cancelled }
-            if let place = takePlace(key) { return place }
+            if let place = try await takePlace(key) { return place }
             if let failure = hosts[key]?.failure { throw failure }
             if hosts[key]?.opening != true { startOpen(target, asking: asker != nil) }
             let generation = self.generation
@@ -157,177 +177,38 @@ public actor HostConnections {
             // The open waited for failed: that is the answer, unless a place came free meanwhile.
             // One cancelled because nobody waited any more is not, for a lease that came after.
             if let failed, failed != .cancelled {
-                if let place = takePlace(key) { return place }
+                if let place = try await takePlace(key) { return place }
                 throw failed
             }
         }
     }
 
-    private func takePlace(_ key: String) -> Place? {
-        guard let index = hosts[key]?.live.firstIndex(where: { $0.leases < $0.limit }) else { return nil }
+    /// A place on a connection with room; else one a spare holds, once the spare has yielded.
+    /// The yield is awaited: nil when the connection ended meanwhile, `.cancelled` after a
+    /// `closeAll()`.
+    private func takePlace(_ key: String) async throws(TransportError) -> Place? {
+        guard let live = hosts[key]?.live else { return nil }
+        guard
+            let index = live.firstIndex(where: { $0.taken < $0.limit })
+                ?? live.firstIndex(where: { $0.spare != nil && $0.leases < $0.limit })
+        else { return nil }
+        let taken = live[index]
+        let yield = taken.taken < taken.limit ? nil : taken.spare?.yield
+        if yield != nil { hosts[key]?.live[index].spare = nil }
         hosts[key]?.live[index].leases += 1
         hosts[key]?.live[index].grace?.cancel()
         hosts[key]?.live[index].grace = nil
-        guard let live = hosts[key]?.live[index] else { return nil }
-        return Place(id: live.id, connection: live.connection, activity: live.activity)
-    }
-
-    private func startOpen(_ target: SSHTarget, asking: Bool) {
-        let key = target.value
-        hosts[key, default: Host()].opening = true
-        hosts[key]?.verdict = nil
-        let generation = self.generation
-        let router = asking ? SignInRouter(connections: self, key: key, generation: generation) : nil
-        hosts[key]?.openTask = Task { [open] in
-            let result: Result<any HostConnection, TransportError>
-            do throws(TransportError) {
-                result = .success(try await open(target, router))
-            } catch {
-                result = .failure(error)
-            }
-            await self.opened(key, result, generation: generation)
+        if let yield {
+            let generation = self.generation
+            await yield()
+            guard generation == self.generation else { throw .cancelled }
+            guard liveIndex(key, taken.id) != nil else { return nil }
         }
+        return Place(id: taken.id, connection: taken.connection, activity: taken.activity)
     }
 
-    private func opened(_ key: String, _ result: Result<any HostConnection, TransportError>, generation: Int)
-        async
-    {
-        guard generation == self.generation, hosts[key] != nil else {
-            if case .success(let connection) = result { await connection.close() }
-            return
-        }
-        var result = result
-        let verdict = hosts[key]?.verdict
-        if case .failure(.exited(let status, .hostKeyDenied)) = result, verdict == .deniedKey {
-            result = .failure(.exited(status: status, failure: .hostKeyUnchecked))
-        }
-        hosts[key]?.opening = false
-        hosts[key]?.openTask = nil
-        hosts[key]?.dropOpen?.cancel()
-        hosts[key]?.dropOpen = nil
-        switch result {
-        case .success(let connection): install(connection, key)
-        case .failure(let error): if verdict != .cancelled { remember(error, key) }
-        }
-        wakeAskerWaits(key)
-        let waiters = hosts[key].map { Array($0.waiters.values) } ?? []
-        hosts[key]?.waiters = [:]
-        let failure: TransportError? =
-            if case .failure(let error) = result { error } else { nil }
-        for waiter in waiters { waiter.continuation.resume(returning: failure) }
-        forgetIfIdle(key)
-    }
-
-    private func install(_ connection: any HostConnection, _ key: String) {
-        nextID += 1
-        let id = nextID
-        var live = Live(id: id, connection: connection, limit: leaseLimit)
-        live.watcher = Task {
-            let failure = await connection.ended()
-            self.lost(key, id, failure)
-        }
-        hosts[key]?.live.append(live)
-        // Waiters take their places at once; one that went away leaves it to close.
-        startGrace(key, id)
-        Self.log.info("connection opened (\(self.hosts[key]?.live.count ?? 0) to this host)")
-    }
-
-    private func remember(_ error: TransportError, _ key: String) {
-        guard case .exited(_, let failure) = error, Self.asked.contains(failure) else { return }
-        hosts[key]?.failure = error
-        hosts[key]?.forget?.cancel()
-        hosts[key]?.forget = Task { [clock, failureMemory] in
-            do { try await clock.sleep(for: failureMemory) } catch { return }
-            self.forgetFailure(key)
-        }
-    }
-
-    /// The failures of a sign-in that asked the person or their agent something.
-    private static let asked: [ConnectFailure] = [
-        .agentRefused, .permissionDenied, .signInTimedOut, .hostKeyDenied, .signInCancelled,
-        .tooManyQuestions, .unknownQuestion,
-    ]
-
-    private func forgetFailure(_ key: String) {
-        hosts[key]?.failure = nil
-        hosts[key]?.forget?.cancel()
-        hosts[key]?.forget = nil
-        forgetIfIdle(key)
-    }
-
-    /// Drops a destination's record once nothing about it is left to remember.
-    private func forgetIfIdle(_ key: String) {
-        guard let host = hosts[key], host.live.isEmpty, !host.opening, host.waiters.isEmpty,
-            host.askerWaits.isEmpty, host.failure == nil
-        else { return }
-        hosts[key] = nil
-    }
-
-    private func waitForOpen(_ key: String, fresh: Bool, asker: (any SignInAsker)?) async -> TransportError? {
-        nextID += 1
-        let id = nextID
-        let leaving = LeavingMark()
-        return await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                self.assumeIsolated { connections in
-                    connections.hosts[key]?.waiters[id] = Waiter(
-                        continuation: continuation, fresh: fresh, asker: asker, leaving: leaving)
-                    if asker != nil { connections.wakeAskerWaits(key) }
-                    connections.hosts[key]?.dropOpen?.cancel()
-                    connections.hosts[key]?.dropOpen = nil
-                }
-            }
-        } onCancel: {
-            // At once, so an answer its window gives as it closes isn't taken as its own.
-            leaving.set()
-            Task { await self.stopWaiting(key, id) }
-        }
-    }
-
-    private func stopWaiting(_ key: String, _ id: Int) {
-        // A waiter the open already answered left nothing behind.
-        guard let waiter = hosts[key]?.waiters.removeValue(forKey: id) else { return }
-        waiter.continuation.resume(returning: nil)
-        for asking in (hosts[key]?.asking ?? [:]).values where asking.waiter == id {
-            asking.task.cancel()
-        }
-        if hosts[key]?.waiters.isEmpty == true, hosts[key]?.opening == true {
-            hosts[key]?.dropOpen?.cancel()
-            hosts[key]?.dropOpen = Task { [clock, openGrace] in
-                do { try await clock.sleep(for: openGrace) } catch { return }
-                // Nobody's cancel: however the open fails, it isn't remembered.
-                self.hosts[key]?.verdict = .cancelled
-                self.hosts[key]?.openTask?.cancel()
-            }
-        }
-        forgetIfIdle(key)
-    }
-
-    private func lost(_ key: String, _ id: Int, _ failure: ConnectFailure?) {
-        guard let index = hosts[key]?.live.firstIndex(where: { $0.id == id }) else { return }
-        hosts[key]?.live[index].grace?.cancel()
-        hosts[key]?.live.remove(at: index)
-        forgetIfIdle(key)
-        if failure != nil { Self.log.info("connection lost") }
-    }
-
-    private func startGrace(_ key: String, _ id: Int) {
-        guard let index = hosts[key]?.live.firstIndex(where: { $0.id == id }) else { return }
-        hosts[key]?.live[index].grace?.cancel()
-        hosts[key]?.live[index].grace = Task { [clock, grace] in
-            do { try await clock.sleep(for: grace) } catch { return }
-            await self.expire(key, id)
-        }
-    }
-
-    private func expire(_ key: String, _ id: Int) async {
-        guard let index = hosts[key]?.live.firstIndex(where: { $0.id == id }),
-            let live = hosts[key]?.live[index], live.leases == 0
-        else { return }
-        live.watcher?.cancel()
-        hosts[key]?.live.remove(at: index)
-        forgetIfIdle(key)
-        await live.connection.close()
+    func liveIndex(_ key: String, _ id: Int) -> Int? {
+        hosts[key]?.live.firstIndex { $0.id == id }
     }
 
     func release(_ lease: HostLease) {
@@ -335,23 +216,26 @@ public actor HostConnections {
     }
 
     private func give(back id: Int, _ key: String) {
-        guard let index = hosts[key]?.live.firstIndex(where: { $0.id == id }) else { return }
+        guard let index = liveIndex(key, id) else { return }
         hosts[key]?.live[index].leases -= 1
         if hosts[key]?.live[index].leases == 0 { startGrace(key, id) }
+        emit(.placeFreed(id), key)
     }
 
-    /// `lease`'s connection refused a channel: it is full at the leases it has left, and the
-    /// lease moves to another. A lease that has ended, or was taken before a `closeAll()`,
-    /// moves nowhere.
+    /// `lease`'s connection refused a channel: it is full at the sessions it has left (a spare's
+    /// channel among them, which then yields its place), and the lease moves to a place with
+    /// room. A lease that has ended, or was taken before a `closeAll()`, moves nowhere.
     func move(_ lease: HostLease) async throws(TransportError) {
         guard lease.generation == generation else { throw .cancelled }
         let key = lease.key
         guard let (id, _) = lease.beginMove() else { return }
-        if let index = hosts[key]?.live.firstIndex(where: { $0.id == id }) {
-            hosts[key]?.live[index].leases -= 1
-            let left = hosts[key]?.live[index].leases ?? 0
-            hosts[key]?.live[index].limit = left
-            if left == 0 { startGrace(key, id) }
+        // No place comes free: the host's limit is its sessions, a spare's channel among them,
+        // so that spare yields to the moving lease.
+        if let index = liveIndex(key, id), var live = hosts[key]?.live[index] {
+            live.leases -= 1
+            live.limit = live.sessions
+            hosts[key]?.live[index] = live
+            if live.leases == 0 { startGrace(key, id) }
         }
         let place = try await acquire(lease.target, fresh: false, asker: lease.asker)
         if !lease.moved(to: place) { give(back: place.id, key) }

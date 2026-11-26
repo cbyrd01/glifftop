@@ -48,9 +48,13 @@ final class FakeHostConnection: HostConnection {
     }
 
     private let state = Mutex(State())
+    /// Forwards asked of it, and its scripted answers (`FakeHostConnection+Forwards`).
+    let forwarding = Mutex(FakeForwarding())
     private let writesFail: Bool
     /// Each close waits on this before it ends the connection (a slow `-O exit`).
     private let closeGate: CloseGate?
+    /// Each channel's open waits on this, when set.
+    private let channelGate = Mutex<CloseGate?>(nil)
 
     init(writesFail: Bool = false, closeGate: CloseGate? = nil) {
         (self.writesFail, self.closeGate) = (writesFail, closeGate)
@@ -61,10 +65,14 @@ final class FakeHostConnection: HostConnection {
     var closeCount: Int { state.withLock { $0.closed } }
     var invalidateCount: Int { state.withLock { $0.invalidated } }
 
+    /// Channels asked for from now on open only once `gate` opens.
+    func holdChannels(_ gate: CloseGate) { channelGate.withLock { $0 = gate } }
+
     /// The next channel asked for fails to open with `failure`.
     func failNextChannel(_ failure: TransportError) { state.withLock { $0.channelFailure = failure } }
 
     func channel(command: String) async throws(TransportError) -> any ByteConnection {
+        await channelGate.withLock { $0 }?.pass()
         let channel = FakeChannel(writesFail: writesFail)
         let failure = state.withLock { state -> TransportError? in
             defer { state.channelFailure = nil }
@@ -250,6 +258,9 @@ final class CloseGate: Sendable {
         }
     }
 
+    /// How many wait to pass.
+    var waitingCount: Int { state.withLock { $0.waiting.count } }
+
     func open() {
         let waiting = state.withLock { state in
             state.open = true
@@ -260,9 +271,10 @@ final class CloseGate: Sendable {
     }
 }
 
-/// Polls `condition` for up to 2 s of real time: for effects another task carries out.
-func eventually(_ condition: () async -> Bool) async -> Bool {
-    for _ in 0..<200 {
+/// Polls `condition` for up to `limit` of real time: for effects another task carries out.
+func eventually(within limit: Duration = .seconds(2), _ condition: () async -> Bool) async -> Bool {
+    let deadline = ContinuousClock.now + limit
+    while ContinuousClock.now < deadline {
         if await condition() { return true }
         try? await Task.sleep(for: .milliseconds(10))
     }

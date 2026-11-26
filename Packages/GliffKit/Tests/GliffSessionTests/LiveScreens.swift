@@ -16,9 +16,10 @@
         /// Left Shift, and the flags it holds.
         static let shiftKey: UInt16 = 56
         static let shiftHeld: MacModifierFlags = [.shift, .leftShift]
-        /// Mac key codes: U (no binding of the host's has it), Return, and the digits 1, 2
+        /// Mac key codes: U (no binding of the host's has it), E, Return, and the digits 1, 2
         /// and 3.
         static let uKey: UInt16 = 32
+        static let eKey: UInt16 = 14
         static let returnKey: UInt16 = 36
         static let one: UInt16 = 18
         static let two: UInt16 = 19
@@ -29,13 +30,32 @@
             let monitor: LiveHyprland.Monitor
         }
 
+        /// How long, in milliseconds, a burst of switches took to be written from `start`, and the
+        /// longest a switch waited: from one session's last write to the other's first.
+        static func switchHolds(
+            after start: ContinuousClock.Instant, _ a: RecordingObserver, _ b: RecordingObserver
+        ) -> (total: Int, longest: Int) {
+            func input(_ observer: RecordingObserver, _ screen: Int) -> [(ContinuousClock.Instant, Int)] {
+                observer.events.filter {
+                    $0.direction == .sent && ($0.type == "Key" || $0.type == "PointerMotion")
+                        && $0.time >= start
+                }.map { ($0.time, screen) }
+            }
+            let writes = (input(a, 0) + input(b, 1)).sorted { $0.0 < $1.0 }
+            let ms = { (d: Duration) in Int(d / .milliseconds(1)) }
+            let longest =
+                zip(writes, writes.dropFirst()).filter { $0.1 != $1.1 }.map { ms($1.0 - $0.0) }.max() ?? 0
+            return (writes.last.map { ms($0.0 - start) } ?? 0, longest)
+        }
+
         /// Starts `count` screens one after the other (the input rules in `mode`, sessions
         /// sharing `barrier`), finds each one's new monitor, opens a terminal on each with
         /// `terminals` (Super+Return, only with the host's focus on that screen), runs `body`,
         /// then closes what appeared on the screens, on every exit.
         static func with(
             _ count: Int, mode: CaptureMode = .integrated, barrier: InputBarrier? = nil,
-            terminals: Bool = true, _ body: ([Screen]) async throws -> Void
+            terminals: Bool = true, largest: (width: UInt32, height: UInt32) = (1280, 720),
+            _ body: ([Screen]) async throws -> Void
         ) async throws {
             let target = try SSHTarget(try #require(LiveHost.target))
             let connections = HostConnections(open: SystemSSH.opener())
@@ -47,7 +67,8 @@
                 let monitorsBefore = Set(try LiveHyprland.monitors().map(\.name))
                 for _ in 0..<count {
                     let screen = LiveFocusScreen(
-                        connections: connections, target: target, mode: mode, barrier: barrier)
+                        connections: connections, target: target, mode: mode, barrier: barrier,
+                        largest: largest)
                     started.append(screen)
                     _ = try await screen.streaming()
                     let taken = Set(screens.map(\.monitor.name))

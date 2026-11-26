@@ -158,6 +158,19 @@ import Testing
         #expect(capture.isConfined)
     }
 
+    /// A recapturing click beside the picture (the bars of a window wider than it) takes input
+    /// back, but is no entry: the app reports the pointer off the picture just before it.
+    @Test func aRecapturingClickBesideThePictureIsNoEntry() {
+        var capture = InputCapture(mode: .confined)
+        apply(
+            &capture,
+            allHold + [.pointerOnPicture(true), .release, .pointerOnPicture(false), .pictureClicked])
+        #expect(capture.isCaptured)
+        #expect(!capture.isConfined)
+        apply(&capture, [.pointerOnPicture(true)])
+        #expect(capture.isConfined)
+    }
+
     /// A click that can't recapture (a menu holds capture off) is no entry.
     @Test func aClickThatCantRecaptureIsNoEntry() {
         var capture = InputCapture(mode: .confined)

@@ -14,6 +14,8 @@
     final class LiveFocusScreen: Sendable {
         let session: Session
         let pointer: RemotePointerSlot
+        /// What this screen's session wrote and read, and when.
+        let written = RecordingObserver()
         private let info = Mutex<StreamInfo?>(nil)
         private let rates = Mutex<[Double]>([])
         private let ended = Mutex<SessionEnd?>(nil)
@@ -26,10 +28,11 @@
         /// The origin of the controller's times.
         private let start = ContinuousClock.now
 
+        /// `largest`: the largest screen the session declares, as the app's window would.
         init(
             connections: HostConnections, target: SSHTarget, screen: ScreenChoice = .virtual,
-            maxSize: (width: Int, height: Int) = (1280, 720), clipboard: ClipboardSetup? = nil,
-            mode: CaptureMode = .integrated, barrier: InputBarrier? = nil
+            clipboard: ClipboardSetup? = nil, mode: CaptureMode = .integrated,
+            barrier: InputBarrier? = nil, largest: (width: UInt32, height: UInt32) = (1280, 720)
         ) {
             input = Mutex(InputController(mode: mode, keymap: ""))
             let pointer = RemotePointerSlot()
@@ -40,9 +43,10 @@
                 transport: ChannelTransport(
                     connections: connections, target: target, command: command.remoteCommand),
                 configuration: SessionConfiguration(
-                    maxWidth: UInt32(maxSize.width), maxHeight: UInt32(maxSize.height),
+                    maxWidth: largest.width, maxHeight: largest.height,
                     keymap: XKBKeymap.text(for: XKBLayout(layout: "us"))),
-                decoder: NullFrameDecoder(), pointer: pointer, clipboard: clipboard, barrier: barrier)
+                decoder: NullFrameDecoder(), pointer: pointer, clipboard: clipboard, observer: written,
+                barrier: barrier)
             let session = session
             runner.withLock {
                 $0 = Task { [self] in

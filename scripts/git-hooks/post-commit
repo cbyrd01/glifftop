@@ -1,4 +1,4 @@
 #!/bin/sh
 # Reviews recorded by .claude/hooks/record-review.sh cover one commit only: clear them, so
 # they can't count again if HEAD later returns to the same commit (reset, checkout, rebase).
-rm -f "$(git rev-parse --git-common-dir)/claude-reviews"
+rm -f "$(git rev-parse --absolute-git-dir)/claude-reviews"

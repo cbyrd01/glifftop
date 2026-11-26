@@ -32,10 +32,8 @@ extension Session {
     }
 
     private func startProbe(order: UInt64) async {
-        let now = Self.now()
-        guard let ping = core.pingNow(now: now) else { return }
-        liveness.probe(ping: now, at: Self.uptime(), order: order)
-        await perform([ping])
+        guard let t = pingNow() else { return }
+        liveness.probe(ping: t, at: Self.uptime(), order: order)
     }
 
     /// Ends the session when a probe went unanswered (each tick).

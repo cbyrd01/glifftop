@@ -4,9 +4,10 @@ import GliffSession
 import Observation
 
 /// Input capture for one window's session, keys and pointer together: feeds `InputController`
-/// what capture depends on (the window key, the app active, the picture, the link, sleep and
-/// lock), takes the window's key events while there is a picture, takes the pointer events the
-/// video view hands it, and sends what it says through the session.
+/// what capture depends on (the window key, the app active, the picture, the link, a popover
+/// over the window, sleep and lock), takes the window's key events while there is a picture,
+/// takes the pointer events the video view hands it, and sends what it says through the
+/// session.
 @Observable final class CaptureController {
     private(set) var isCaptured = false
     /// Input ▸ Release Input has something to release (`InputController.isReleasable`).
@@ -47,6 +48,7 @@ import Observation
     @ObservationIgnored private(set) weak var window: NSWindow?
     @ObservationIgnored private(set) var picture = false
     @ObservationIgnored private(set) var interrupted = false
+    @ObservationIgnored private var popover = false
     /// The destination while the session is a live mirror of one of its monitors (the app sets
     /// it), nil otherwise: the pointer hands over between windows of one group
     /// (`CaptureController+Handover.swift`).
@@ -120,8 +122,9 @@ import Observation
         (self.target, self.send, activateSession) = (target, send, activate)
         hostPointer = HostPointerFollower(pointer)
         keymapChanged()
-        // The menu first: capture never rises under an open menu.
+        // The menu and the popover first: capture never rises under either.
         apply(.menuOpen(MenuTracker.shared.isOpen))
+        apply(.popover(popover))
         apply(.appActive(NSApplication.shared.isActive))
         apply(.windowKey(window?.isKeyWindow ?? false))
         apply(.picture(picture))
@@ -138,8 +141,14 @@ import Observation
         hideHint()
     }
 
-    /// The window and what the window shows, from `CaptureTracker`; acts on changes only.
-    func update(window: NSWindow?, picture: Bool, interrupted: Bool) {
+    /// The window, what the window shows and whether a popover is over it, from
+    /// `CaptureTracker`; acts on changes only.
+    func update(window: NSWindow?, picture: Bool, interrupted: Bool, popover: Bool) {
+        // The popover first: capture never rises under it for a moment.
+        if popover != self.popover {
+            self.popover = popover
+            apply(.popover(popover))
+        }
         if window !== self.window {
             self.window = window
             observeWindow()

@@ -3,8 +3,8 @@ import Testing
 @testable import GliffInput
 
 /// Input (keys and pointer) goes to the remote while the window is key, the app active, the
-/// picture showing and the link live, unless Shift+Esc released it (until the picture is
-/// clicked).
+/// picture showing, the link live and no popover over it, unless Shift+Esc released it (until
+/// the picture is clicked).
 @Suite struct InputCaptureTests {
     /// Applies `events` in order; the hint answers, in order.
     @discardableResult
@@ -16,7 +16,7 @@ import Testing
 
     @Test func capturedOnlyWhenAllHold() {
         let spoilers: [CaptureEvent] = [
-            .windowKey(false), .appActive(false), .picture(false), .interrupted(true),
+            .windowKey(false), .appActive(false), .picture(false), .interrupted(true), .popover(true),
         ]
         for spoiler in spoilers {
             var capture = InputCapture()
@@ -100,6 +100,15 @@ import Testing
         #expect(capture.isCaptured)
     }
 
+    /// A quiet rise under the Ports popover: its close is no activation either.
+    @Test func aQuietRiseUnderThePopoverStaysQuiet() {
+        var capture = InputCapture()
+        apply(&capture, allHold + [.windowKey(false), .popover(true)])
+        _ = capture.apply(.windowKey(true), quiet: true)
+        #expect(!capture.apply(.popover(false)).activates)
+        #expect(capture.isCaptured)
+    }
+
     @Test func awayKeepsCapture() {
         var capture = InputCapture()
         apply(&capture, allHold + [.away])
@@ -112,5 +121,54 @@ import Testing
         var capture = InputCapture()
         apply(&capture, allHold + [.release, .interrupted(true), .pictureClicked, .interrupted(false)])
         #expect(!capture.isCaptured)
+    }
+
+    /// A popover over the window takes the keys while it is open; capture comes back after,
+    /// without the hint.
+    @Test func aPopoverTakesTheKeys() {
+        var capture = InputCapture()
+        #expect(
+            apply(&capture, allHold + [.popover(true), .popover(false)]) == [
+                false, false, true, false, false,
+            ])
+        #expect(capture.isCaptured)
+    }
+
+    /// Like a menu's close: the window stayed key under the popover, and the host's focus with
+    /// it.
+    @Test func aPopoverClosingDoesNotActivate() {
+        var capture = InputCapture()
+        apply(&capture, allHold + [.popover(true)])
+        #expect(capture.apply(.popover(false)).activates == false)
+    }
+
+    /// The window came to the front again while the popover was open: the rise at its close is
+    /// that window's activation.
+    @Test(arguments: [
+        [CaptureEvent.windowKey(false), .windowKey(true)], [.appActive(false), .appActive(true)],
+    ])
+    func aRiseHeldOffByAPopoverStillActivates(_ during: [CaptureEvent]) {
+        var capture = InputCapture()
+        apply(&capture, allHold + [.popover(true)] + during)
+        #expect(capture.apply(.popover(false)).activates)
+    }
+
+    /// A menu opened and closed over the popover: capture stays off until the popover closes,
+    /// and that close is no activation.
+    @Test func aMenuOverThePopoverKeepsItsCloseQuiet() {
+        var capture = InputCapture()
+        apply(&capture, allHold + [.popover(true), .menuOpen(true)])
+        #expect(capture.apply(.menuOpen(false)) == CaptureChange())
+        #expect(!capture.isCaptured)
+        #expect(capture.apply(.popover(false)).activates == false)
+        #expect(capture.isCaptured)
+    }
+
+    /// Release Input still has something to release under the popover, as under a menu.
+    @Test func thePopoverLeavesInputReleasable() {
+        var capture = InputCapture()
+        apply(&capture, allHold + [.popover(true)])
+        #expect(!capture.isCaptured)
+        #expect(capture.isReleasable)
     }
 }

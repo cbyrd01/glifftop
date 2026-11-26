@@ -135,5 +135,18 @@
         private let kept = Mutex<[ProtocolEvent]>([])
         var events: [ProtocolEvent] { kept.withLock { $0 } }
         func observed(_ event: ProtocolEvent) { kept.withLock { $0.append(event) } }
+
+        /// How many `type` messages went `direction` so far.
+        func count(_ direction: ProtocolEvent.Direction, _ type: String) -> Int {
+            kept.withLock { $0.count { $0.direction == direction && $0.type == type } }
+        }
+    }
+
+    /// Polls `condition` every 10 ms until it holds; false if it doesn't `within` that long.
+    func eventually(within limit: Duration = .seconds(5), _ condition: () -> Bool) async -> Bool {
+        for _ in 0..<Int(limit / .milliseconds(10)) where !condition() {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return condition()
     }
 #endif

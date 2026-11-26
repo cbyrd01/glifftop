@@ -1,0 +1,4 @@
+LISTEN 0      511        127.0.0.1:5173      0.0.0.0:*    users:(("node",pid=4242,fd=21))
+LISTEN 0      4096               *:8080            *:*    users:(("python3",pid=4243,fd=3))
+LISTEN 0      4096           [::1]:631          [::]:*    users:(("cupsd",pid=4244,fd=7))
+LISTEN 0      128          0.0.0.0:22         0.0.0.0:*

@@ -67,9 +67,23 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   its question to the next; with none, it waits 1 s for one, then cancels it, a cancel not
   remembered; an open nobody has waited for
   in 1 s is cancelled (so a session that starts as a listing stops shares its sign-in); a connection takes at most 10 leases (sshd's `MaxSessions`), and one that
-  refuses a channel takes no more, its lease moving to a further connection; a lost connection is
+  refuses a channel takes no more than its sessions (a spare's channel among them, which yields), its lease moving on; a lost connection is
   forgotten at once, so the next lease opens anew; `closeAll()` ends them all and cancels anyone
   waiting.
+- **Following a host's connections:** `events(for:)` streams a host's `ConnectionEvent`s
+  (opened, ended with why once closed, a place freed). `attach(to:)` gives a `PassiveLease` on the busiest
+  live connection, nil when none: it never opens, moves or asks, and doesn't keep the
+  connection, whose grace starts when only passive leases remain. It forwards and cancels on
+  its connection, and holds no place but at most one spare (`takeSpare`), for a channel of its
+  own (`spareChannelEnded()` says when that channel is gone); a lease that finds the connection
+  full calls the spare's `yield` and takes that place without an open. A spare the host refuses lowers the connection's limit to the places in use.
+- **Port forwards on a connection:** `HostConnection.forward(_:on:)` listens on one of this
+  Mac's loopbacks (`Loopback`: 127.0.0.1 or ::1) and carries each connection to the host;
+  `cancel(_:on:)` ends it; `configuredForwards` are the person's ssh_config forwards. A
+  `PortForward` has a local port of 1024–65535, a remote port and a `ForwardDestination`
+  (`localhost`, a parsed `IPLiteral` without a zone, or a config's host name with no NUL,
+  whitespace, `/`, brackets, `:` or `%`; a config's IP literal is an `IPLiteral`), and no bind
+  address. Failures are `ForwardError`s, which name no ssh text.
 - **A session on a shared connection:** `ChannelTransport` leases a connection and runs the
   command as a channel, ending the lease when the stream ends. Bytes written before the first
   byte arrives are kept: a channel refused before then (`ConnectFailure.channelRefused`) moves
@@ -83,9 +97,11 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   both may reconnect.
 - **The ControlMaster:** `SSHMasterCommand` builds the system ssh's arguments for one shared
   connection: the master (`SSHCommand`'s options first, then `-o ControlMaster=yes -o
-  ControlPersist=no -S socket -N`), `-O check` and `-O exit`, a channel
+  ControlPersist=no -o ForkAfterAuthentication=no -S socket -N`), `-O check` and `-O exit`, a channel
   through it (`ControlMaster=no`, and `ProxyCommand=/usr/bin/false` so a channel never signs in
-  on its own), and `-O forward`.
+  on its own; `SSHCommand.channelOptions` turn off agent and X11 forwarding, local and remote
+  commands, a terminal and a subsystem, keep stdin and stay in the foreground, whatever the
+  config says), and `-O forward` and `-O cancel`.
   `ControlSocketDirectory` (macOS) is where the sockets live: the caches directory's `ssh/`, else
   `/tmp/glifftop-<uid>` when that path is too long for a socket or is refused; each is created
   0700, and refused if it is a symbolic link, not a directory or another user's. Sockets are named
@@ -106,10 +122,21 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
 - **The config's port forwards:** every ssh this module starts runs with
   `ClearAllForwardings=yes` (`SSHCommand`'s options, a channel's), and control requests read no
   config (`-F none`), so ssh opens none of the config's forwards: one on a busy port would end
-  the master under `ExitOnForwardFailure yes`, or fail a channel, which asks the master for them. `SSHResolvedConfig` reads the `LocalForward`
-  lines (`SSHLocalForward`); once the master is ready, `SystemSSHConnection` asks it for each,
-  off the open's path, always on 127.0.0.1, skipping one it refuses. `RemoteForward`,
-  `DynamicForward` and unix-socket `LocalForward` lines don't apply. Only counts are logged.
+  the master under `ExitOnForwardFailure yes`, or fail a channel, which asks the master for
+  them. `SSHResolvedConfig` reads the `LocalForward` lines (`SSHLocalForward`, its bind address kept for display), and `configuredForwards`
+  gives them for GliffPorts to apply. `RemoteForward`, `DynamicForward`, and unix-socket,
+  under-1024 or otherwise unholdable `LocalForward` lines don't apply; `notAppliedLines` keeps
+  their text, and `NotAppliedReason` says which are a Mac port under 1024. Only counts are
+  logged.
+- **Forward and cancel on the master** (`SystemSSHConnection+Forwards`): `-O forward` or
+  `-O cancel` with an `SSHForwardSpec` (`127.0.0.1:P:dest:port` or `[::1]:P:dest:port`, from
+  typed values only), one request at a time per connection (`MasterRequests`), each within
+  5 s. `SSHForwardClassifier` reads ssh's status and stderr, which are never logged: a busy
+  port is `.localPortInUse`, the master gone or ending `.connectionLost` (only then, whatever
+  ssh said), and cancelling a forward
+  already gone succeeds. Asking for a forward the master already holds succeeds too.
+  `LoopbackPorts` checks a port by binding 127.0.0.1 and ::1 without `SO_REUSEADDR`, so a Mac
+  server on `*:P`, which ssh's bind would shadow, makes the port taken.
 - **Screens:** `ScreenChoice` is what a session shows (the focused monitor, one by name,
   or a virtual screen) as gliff-server's arguments. `ScreenListParser` reads the host's
   `hyprctl -j monitors` as untrusted input into `RemoteScreen`s: at most 1 MiB, names only

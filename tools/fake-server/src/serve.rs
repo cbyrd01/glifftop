@@ -8,24 +8,39 @@ mod clipboard;
 mod clipboard_tests;
 mod cursor;
 mod input;
+mod messages;
 mod options;
+mod pongs;
+#[cfg(test)]
+mod pongs_tests;
+mod read;
 mod resize;
 #[cfg(test)]
 mod tests;
 
 pub use options::{parse, Options, Scenario, USAGE};
+pub use pongs::{feed, Feed};
+
+use messages::{hello_ack, hello_ack_session, skippable};
 
 use crate::acks::AckTracker;
-use crate::wire::{body, read_frame, write_frame};
-use gliff_proto::{
-    ChromaMode, ClientMsg, ClipboardFile, Codec, OutputInfo, Rect, ServerMsg, SessionInfo, VideoPipeline,
-};
+use crate::wire::{body, write_frame};
+use gliff_proto::{ChromaMode, ClientMsg, Codec, Rect, ServerMsg, VideoPipeline};
 use std::io::{self, Read, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Runs the scenario against a client on `input`/`output`.
 pub fn run(options: &Options, input: impl Read, output: impl Write) -> Result<(), String> {
-    let mut session = Session::new(options, input, output);
+    play(Session::new(options, input, output, None))
+}
+
+/// `run`, the client's frames read from `feed` (`--coalesce-pongs`).
+pub fn run_fed(options: &Options, feed: Feed, output: impl Write) -> Result<(), String> {
+    play(Session::new(options, io::empty(), output, Some(feed)))
+}
+
+fn play<R: Read, W: Write>(mut session: Session<'_, R, W>) -> Result<(), String> {
+    let options = session.options;
     // The banner goes out before anything else; the client may give up before its Hello.
     if options.scenario != Scenario::Garbage {
         session.read_hello()?;
@@ -171,11 +186,24 @@ struct Session<'a, R, W> {
     size: (u32, u32),
     /// The client said Bye mid-stream (with `--expect-bye`): the scenario ends, writing nothing more.
     bye: bool,
+    /// The client's frames, read on another thread (`--coalesce-pongs`); else from `input`.
+    feed: Option<Feed>,
+    pongs: pongs::PongQueue,
 }
 
 impl<'a, R: Read, W: Write> Session<'a, R, W> {
-    fn new(options: &'a Options, input: R, output: W) -> Self {
-        Self { options, input, output, acks: AckTracker::new(), last_frame_id: 0, size: (0, 0), bye: false }
+    fn new(options: &'a Options, input: R, output: W, feed: Option<Feed>) -> Self {
+        Self {
+            options,
+            input,
+            output,
+            acks: AckTracker::new(),
+            last_frame_id: 0,
+            size: (0, 0),
+            bye: false,
+            feed,
+            pongs: pongs::PongQueue::default(),
+        }
     }
 
     fn write_raw(&mut self, bytes: &[u8]) -> Result<(), String> {
@@ -194,31 +222,6 @@ impl<'a, R: Read, W: Write> Session<'a, R, W> {
 
     fn send(&mut self, message: &ServerMsg, payloads: &[&[u8]]) -> Result<(), String> {
         self.write_body(&body(message), payloads)
-    }
-
-    /// The client's next message, or None at the end of its stream. As upstream's
-    /// `read_msg`, a message whose variant v0.4.3 doesn't know is skipped with its payload.
-    fn recv(&mut self) -> Result<Option<ClientMsg>, String> {
-        Ok(self.recv_with_payload()?.map(|(message, _)| message))
-    }
-
-    /// `recv`, keeping the message's payload (a clipboard chunk's bytes).
-    fn recv_with_payload(&mut self) -> Result<Option<(ClientMsg, Vec<u8>)>, String> {
-        loop {
-            let Some(frame) = read_frame(&mut self.input).map_err(|e| format!("read failed: {e}"))? else {
-                return Ok(None);
-            };
-            match minicbor::decode(&frame.body) {
-                Ok(message) => return Ok(Some((message, frame.payload))),
-                Err(e) if is_unknown_message(&frame.body, &e) => continue,
-                Err(e) => return Err(format!("undecodable client message: {e}")),
-            }
-        }
-    }
-
-    /// Reads and discards everything until the client closes.
-    fn drain(&mut self) -> Result<(), String> {
-        io::copy(&mut self.input, &mut io::sink()).map(drop).map_err(|e| format!("read failed: {e}"))
     }
 
     fn read_hello(&mut self) -> Result<(), String> {
@@ -244,8 +247,11 @@ impl<'a, R: Read, W: Write> Session<'a, R, W> {
     fn handle(&mut self, message: ClientMsg) -> Result<bool, String> {
         match message {
             ClientMsg::FrameAck { frame_id, .. } => self.acks.acked(frame_id)?,
-            ClientMsg::Ping { t } => self.send(&ServerMsg::Pong { t, server_now_ms: now_ms() }, &[])?,
-            ClientMsg::Bye => return Ok(true),
+            ClientMsg::Ping { t } => self.pong(t)?,
+            ClientMsg::Bye => {
+                self.write_due_pong(None)?;
+                return Ok(true);
+            }
             _ => {}
         }
         Ok(false)
@@ -361,50 +367,6 @@ impl<'a, R: Read, W: Write> Session<'a, R, W> {
             }
         }
     }
-}
-
-fn hello_ack(version: u16, features: &[String]) -> ServerMsg {
-    hello_ack_session(version, features, false)
-}
-
-fn hello_ack_session(version: u16, features: &[String], headless: bool) -> ServerMsg {
-    ServerMsg::HelloAck {
-        version,
-        session: SessionInfo { headless, output: "FAKE-1".into() },
-        outputs: vec![OutputInfo { name: "FAKE-1".into(), width: 1280, height: 720, scale_milli: 1000 }],
-        features: features.to_vec(),
-    }
-}
-
-/// Messages (body, payload) a v0.4.3 server can send mid-stream that the client must skip
-/// or ignore.
-fn skippable() -> Vec<(Vec<u8>, Vec<u8>)> {
-    vec![
-        (
-            body(&ServerMsg::CursorShape { id: 1, width: 2, height: 2, hot_x: 0, hot_y: 0, argb_len: 16 }),
-            vec![0xFF; 16],
-        ),
-        (body(&ServerMsg::CursorPos { x: 10.5, y: 20.0, shape_id: 1, visible: true }), vec![]),
-        (
-            body(&ServerMsg::ClipboardOffer {
-                serial: 1,
-                mime_types: vec!["text/plain".into()],
-                files: Vec::<ClipboardFile>::new(),
-            }),
-            vec![],
-        ),
-        (body(&ServerMsg::ClipboardData { id: 2, offset: 0, data_len: 5, done: true }), b"hello".to_vec()),
-        (body(&ServerMsg::Pong { t: 0, server_now_ms: now_ms() }), vec![]),
-        // [77, []]: a variant no v0.4.3 client knows.
-        (vec![0x82, 0x18, 77, 0x80], vec![1, 2, 3, 4]),
-    ]
-}
-
-/// Whether `e` is the message's own variant being unknown, not a bad value inside a known
-/// message (upstream gliff-transport `is_unknown_message`).
-fn is_unknown_message(body: &[u8], e: &minicbor::decode::Error) -> bool {
-    let mut d = minicbor::Decoder::new(body);
-    e.is_unknown_variant() && d.array().is_ok() && e.position() == Some(d.position())
 }
 
 fn write_failed(error: io::Error) -> String {
