@@ -8,6 +8,13 @@ The module for a host's port forwards and the ports it offers. It holds the modu
 - **Its parser** (`PortListParser`, `PortFrameReader`): reads that untrusted output a chunk at
   a time into `PortFrame`s of `ListeningSocket`s, with caps on frame size and unframed output.
   Numbers come only from the kernel's rows; a name only labels a socket those rows listed.
+- **What is offered** (`PortFilter`, `RemotePort`): the person's own ports, one entry each,
+  split into available and other, never gliff's own server or sshd; a forward goes where the
+  socket listens.
+- **Which Mac port** (`LocalPortChooser`): the remembered or remote number when free, else
+  counting up, else one the system picks; the loopback check is injected.
+- **What is forwarded unasked** (`AutomaticPortPolicy`): only with names, never a database or
+  cache port.
 
 - **Imports:** Foundation, `os`, `Synchronization` and GliffTransport only. POSIX calls come
   through Foundation's re-export of Darwin.

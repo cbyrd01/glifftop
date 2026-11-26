@@ -4,16 +4,19 @@ import Foundation
 /// carried to `destination` at `remotePort`, seen from the host. There is no bind address: a
 /// forward listens on 127.0.0.1 and ::1 only (`Loopback`).
 public struct PortForward: Hashable, Sendable {
-    /// 1024–65535: no forward takes a privileged port on the Mac.
+    /// 1024–65535 (`localPorts`): no forward takes a privileged port on the Mac.
     public let localPort: Int
     public let destination: ForwardDestination
     /// 1–65535.
     public let remotePort: Int
 
     public init?(localPort: Int, destination: ForwardDestination, remotePort: Int) {
-        guard (1024...65535).contains(localPort), (1...65535).contains(remotePort) else { return nil }
+        guard Self.localPorts.contains(localPort), (1...65535).contains(remotePort) else { return nil }
         (self.localPort, self.destination, self.remotePort) = (localPort, destination, remotePort)
     }
+
+    /// The Mac ports a forward may take.
+    public static let localPorts = 1024...65535
 }
 
 /// Where the host connects for a forward: itself, an address it can reach, or a host name the
@@ -95,9 +98,14 @@ public struct IPLiteral: Hashable, Sendable {
 
     /// 127.0.0.0/8, ::1, or ::ffff:127.0.0.0/104.
     public var isLoopback: Bool {
-        if !isIPv6 { return bytes[0] == 127 }
-        if bytes == Self.ipv6Loopback { return true }
-        return bytes.starts(with: Self.mappedPrefix) && bytes[12] == 127
+        let address = unmapped
+        return address.isIPv6 ? address.bytes == Self.ipv6Loopback : address.bytes[0] == 127
+    }
+
+    /// An IPv4-mapped IPv6 address (`::ffff:a.b.c.d`) as its IPv4 address; any other unchanged.
+    public var unmapped: IPLiteral {
+        guard isIPv6, bytes.starts(with: Self.mappedPrefix) else { return self }
+        return IPLiteral(bytes: Array(bytes[12...])) ?? self
     }
 
     private static let ipv6Loopback = [UInt8](repeating: 0, count: 15) + [1]
