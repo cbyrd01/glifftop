@@ -43,15 +43,21 @@ the feature seam.
   handed to each `Session`) keeps the last modifier key release (the eight evdev codes of
   `MacKeyTranslator.modifierCodes`): for `InputBarrier.gap` (30 ms) after it goes, another
   session's input waits, the queue held (`InputQueue.hold(for:)`) with everything in order
-  until then. A release that waits counts from when it goes. Sessions are told apart by an
+  until then. A release that waits counts from when it leaves its queue: after the barrier's
+  wait, its queue's hold and any activation's pause still queued (`InputQueue.delay`). Sessions are told apart by an
   `InputBarrier.Sender` each, never reused. The queue keeps one timer per hold, sleeping on
   to the hold's latest end. `disconnect()` sends a held queue anyway, before Bye.
   `InputBarrier`, `InputQueue` and `ReconnectMemory` time themselves with `Clock.stopwatch()`
   (`Stopwatch.swift`).
   - The barrier is app-wide: a tab to another host can wait 30 ms too, which no one sees.
-  - It counts from when the release is queued, so a release that waits longer in its own
-    session (a stalled or backed-up link) isn't covered; a release the gate drops, or one
-    sent after the end, still sets it.
+  - It counts from when the release leaves its queue, so a release that waits longer behind
+    a stalled or backed-up link isn't covered; a release the gate drops, or one sent after
+    the end, still sets it.
+- **Activation:** `Session.activate(_:)` queues an activation's motions
+  (`InputController.activate(at:)`), then a pause (`Queued.pause`): input sent after
+  them waits `Session.activationPause` (50 ms) from when they go, behind any barrier wait. The
+  host's focus takes a moment to follow the motions, and a key that lands at once after them
+  reaches neither the window left nor the one reached.
 - **Resize:** `Session.setViewTarget(_:)` takes the window's size in pixels, its backing
   scale, text factor (`TextSize`) and resolution (`VirtualResolution`), as a `ViewTarget`,
   from any thread, latest wins; `Session.setLiveResize(_:)` the window's live resize, its

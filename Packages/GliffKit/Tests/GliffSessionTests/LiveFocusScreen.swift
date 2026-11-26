@@ -71,13 +71,13 @@
             let geometry = try #require(geometry)
             let target = try #require(
                 Self.target(macPointer: macPointer, host: pointer.latest, geometry: geometry))
-            // As the app: the nudge before what capture turning on sends.
+            // As the app: the nudge (`Session.activate`) before what capture turning on sends.
             let captured = input.withLock { controller in
                 [CaptureEvent.appActive(true), .picture(true), .windowKey(true)].map {
                     controller.capture($0)
                 }
             }
-            send(input.withLock { $0.activate(at: target) })
+            session.activate(input.withLock { $0.activate(at: target) }.messages)
             captured.forEach(send)
         }
 

@@ -27,7 +27,7 @@ extension SessionModel {
     func attachInput(to session: Session) {
         capture.attach(
             target: { [weak self] in self?.activationTarget(macPointer: $0) }, send: { session.send($0) },
-            pointer: remotePointer)
+            activate: { session.activate($0) }, pointer: remotePointer)
         clipboard.attach(session, host: host)
     }
 }

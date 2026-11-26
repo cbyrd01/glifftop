@@ -31,10 +31,14 @@ public final class InputBarrier: Sendable {
     }
 
     /// How long `input` from `sender` must wait: until `gap` after another session's last
-    /// modifier release, or nil. A modifier release is recorded at when it goes, after its own
-    /// wait, before its session's gate judges it: one the gate then drops (its press never went)
-    /// still holds the others for `gap`, which costs only that wait.
-    public func wait(before input: InputMessage, from sender: Sender) -> Duration? {
+    /// modifier release, or nil. A modifier release is recorded at when it goes, before its
+    /// session's gate judges it: `goesAfter` says how long after now that is, given its wait
+    /// here (its own queue may hold it longer: `InputQueue.delay(holding:)`). One the gate then
+    /// drops (its press never went) still holds the others for `gap`, which costs only that
+    /// wait.
+    public func wait(
+        before input: InputMessage, from sender: Sender, goesAfter: (Duration) -> Duration = { $0 }
+    ) -> Duration? {
         let now = elapsed()
         return last.withLock { last in
             var wait: Duration?
@@ -42,7 +46,7 @@ public final class InputBarrier: Sendable {
                 wait = at + Self.gap - now
             }
             if case .key(let code, false) = input, MacKeyTranslator.modifierCodes.contains(code) {
-                var goes = now + (wait ?? .zero)
+                var goes = now + goesAfter(wait ?? .zero)
                 // It goes after this session's own release still held.
                 if let (own, at) = last, own == sender { goes = max(goes, at) }
                 last = (sender, goes)

@@ -16,8 +16,9 @@
         /// Left Shift, and the flags it holds.
         static let shiftKey: UInt16 = 56
         static let shiftHeld: MacModifierFlags = [.shift, .leftShift]
-        /// Mac key codes: X, Return, and the digits 1, 2 and 3.
-        static let xKey: UInt16 = 7
+        /// Mac key codes: U (no binding of the host's has it), Return, and the digits 1, 2
+        /// and 3.
+        static let uKey: UInt16 = 32
         static let returnKey: UInt16 = 36
         static let one: UInt16 = 18
         static let two: UInt16 = 19
@@ -79,8 +80,32 @@
             let before = Set(try LiveHyprland.windows(on: screen.monitor.id))
             screen.screen.chord(returnKey)
             try await nap(2)
+            try recordNew(on: screen, since: before)
+        }
+
+        /// The windows on `screen`'s monitor that aren't in `before`, recorded to close at the end.
+        @discardableResult
+        private static func recordNew(on screen: Screen, since before: Set<String>) throws -> Set<String> {
             let opened = Set(try LiveHyprland.windows(on: screen.monitor.id)).subtracting(before)
             screen.screen.opened.withLock { $0.formUnion(opened) }
+            return opened
+        }
+
+        /// A key-counting terminal (`LiveHyprland.openCounter`) on `screen`'s workspace in front,
+        /// given 5 s to map and show its count, and recorded; its address.
+        static func openCounter(_ screen: Screen) async throws -> String {
+            let workspace = try #require(try LiveHyprland.activeWorkspace(on: screen.monitor))
+            let before = Set(try LiveHyprland.windows(on: screen.monitor.id))
+            try LiveHyprland.openCounter(on: workspace)
+            var counter: String?
+            for _ in 0..<50 where counter == nil {
+                try await nap(0.1)
+                let opened = try recordNew(on: screen, since: before)
+                if opened.count == 1, let address = opened.first, try LiveHyprland.counted(at: address) == 0 {
+                    counter = address
+                }
+            }
+            return try #require(counter, "no counter terminal showed its count on the screen")
         }
 
         /// A terminal on `screen`'s second workspace (Super+2), which stays in front. The host's

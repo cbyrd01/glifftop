@@ -234,7 +234,8 @@ AppKit adapters for what SwiftUI can't do:
   wake, an unlock and a user switch back while captured: before anything else, two motions
   onto `SessionModel.activationTarget` (`VideoNSView`'s Mac pointer over the uncovered picture, else the
   session's `RemotePointerSlot`, else the centre: `FocusTarget`), so the host's focus follows
-  to the tab's screen. `CaptureTracker` tells it
+  to the tab's screen. They go through `Session.activate`, so a key typed at once after a
+  switch waits for the host's focus. `CaptureTracker` tells it
   its window and whether the session's own picture shows (not a reconnect's last one); `InputSource` reads the selected layout (HIToolbox's
   TIS) as the keymap text and whether the keyboard is ISO; `MacKeyEvent+NSEvent` and
   `PointerEvent+NSEvent` turn an `NSEvent` into values.

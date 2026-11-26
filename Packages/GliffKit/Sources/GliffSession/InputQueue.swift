@@ -6,11 +6,14 @@ enum Queued: Equatable, Sendable {
     case input(InputMessage)
     /// A clipboard offer or revoke: input after it waits until it is on its way.
     case clipboard(ClipboardCommand)
+    /// What follows waits this long from when what came before goes.
+    case pause(Duration)
 }
 
 /// Input from the app, in order, waiting for the session: `Session.send` appends from any
 /// thread at once; the session takes what is queued each time `wakeups` fires. A hold (the
-/// `InputBarrier`'s wait) keeps everything queued until it ends. Closed when the session ends:
+/// `InputBarrier`'s wait, or a pause once reached) keeps everything queued until it ends.
+/// Closed when the session ends:
 /// nothing is kept after, and `wakeups` ends.
 final class InputQueue: Sendable {
     private struct State {
@@ -42,16 +45,18 @@ final class InputQueue: Sendable {
     /// longer stays.
     func hold(for duration: Duration) {
         let end = elapsed() + duration
-        state.withLock { state in
-            guard state.pending != nil, end > state.heldUntil ?? .zero else { return }
-            state.heldUntil = end
-            guard state.timer == nil else { return }
-            state.timersStarted += 1
-            state.timer = Task { [weak self, clock] in
-                while let left = self?.holdLeft() {
-                    try? await clock.sleep(for: left)
-                    guard !Task.isCancelled else { return }
-                }
+        state.withLock { hold(until: end, &$0) }
+    }
+
+    private func hold(until end: Duration, _ state: inout State) {
+        guard state.pending != nil, end > state.heldUntil ?? .zero else { return }
+        state.heldUntil = end
+        guard state.timer == nil else { return }
+        state.timersStarted += 1
+        state.timer = Task { [weak self, clock] in
+            while let left = self?.holdLeft() {
+                try? await clock.sleep(for: left)
+                guard !Task.isCancelled else { return }
             }
         }
     }
@@ -69,6 +74,19 @@ final class InputQueue: Sendable {
         }
         if left == nil { continuation.yield() }
         return left
+    }
+
+    /// How long after now what is appended now goes, if it is also held `wait`: once the
+    /// hold and that wait are both over, then after every pause still queued.
+    func delay(holding wait: Duration) -> Duration {
+        let now = elapsed()
+        return state.withLock { state in
+            let held = max((state.heldUntil ?? .zero) - now, wait)
+            let pauses = (state.pending ?? []).reduce(Duration.zero) { total, item in
+                if case .pause(let duration) = item { total + duration } else { total }
+            }
+            return held + pauses
+        }
     }
 
     /// Whether nothing is queued, held or not.
@@ -96,7 +114,7 @@ final class InputQueue: Sendable {
     }
 
     /// Keeps only the queued input `keep` admits, held or not, in its order; clipboard commands
-    /// stay.
+    /// and pauses stay.
     /// `keep` sees each input once, in order, so it may judge each after the ones before it.
     func keepInputs(_ keep: (InputMessage) -> Bool) {
         state.withLock { state in
@@ -119,21 +137,26 @@ final class InputQueue: Sendable {
         }
     }
 
-    /// The input queued before the first clipboard command, and that command; what follows it
-    /// stays queued. Nothing while held.
-    func takeUntilClipboard() -> (inputs: [InputMessage], command: ClipboardCommand?) {
+    /// The input queued before the first clipboard command or pause, and that command; what
+    /// follows it stays queued, and a pause starts holding it now. Nothing while held.
+    func take() -> (inputs: [InputMessage], command: ClipboardCommand?) {
         let now = elapsed()
         return state.withLock { state in
             let held = state.heldUntil.map { now < $0 } ?? false
             guard !held, let queued = state.pending else { return ([], nil) }
             var inputs: [InputMessage] = []
             for (index, item) in queued.enumerated() {
-                switch item {
-                case .input(let input): inputs.append(input)
-                case .clipboard(let command):
-                    state.pending = Array(queued[(index + 1)...])
-                    return (inputs, command)
+                if case .input(let input) = item {
+                    inputs.append(input)
+                    continue
                 }
+                state.pending = Array(queued[(index + 1)...])
+                switch item {
+                case .clipboard(let command): return (inputs, command)
+                case .pause(let duration): hold(until: now + duration, &state)
+                case .input: break
+                }
+                return (inputs, nil)
             }
             state.pending = []
             return (inputs, nil)

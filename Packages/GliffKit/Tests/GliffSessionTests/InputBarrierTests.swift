@@ -84,4 +84,11 @@ import Testing
         #expect(barrier.wait(before: .key(code: 29, pressed: false), from: a) == nil)
         #expect(barrier.wait(before: press, from: b) == .milliseconds(50))
     }
+
+    /// A release its own queue holds (an activation's pause) goes when that hold lets it: the
+    /// barrier counts from then.
+    @Test func aReleaseItsOwnQueueHoldsCountsFromWhenItGoes() {
+        _ = barrier.wait(before: superUp, from: a, goesAfter: { $0 + .milliseconds(50) })
+        #expect(barrier.wait(before: press, from: b) == .milliseconds(80))
+    }
 }

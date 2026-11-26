@@ -42,6 +42,8 @@ import Observation
     /// This app about to resign: the pointer can't be held until it resigns or is active again.
     @ObservationIgnored var resigning = false
     @ObservationIgnored private var send: ((InputMessage) -> Void)?
+    /// An activation's motions to the session (`Session.activate`).
+    @ObservationIgnored private var activateSession: (([InputMessage]) -> Void)?
     @ObservationIgnored private(set) weak var window: NSWindow?
     @ObservationIgnored private var picture = false
     @ObservationIgnored private var interrupted = false
@@ -78,14 +80,16 @@ import Observation
     }
 
     /// A session started, its Hello with no keymap: `send` queues input for it, the Mac's
-    /// layout first.
+    /// layout first, and `activate` an activation's motions.
     func attach(
         target: @escaping ((x: Double, y: Double)?) -> (x: Double, y: Double)?,
-        send: @escaping (InputMessage) -> Void, pointer: RemotePointerSlot
+        send: @escaping (InputMessage) -> Void, activate: @escaping ([InputMessage]) -> Void,
+        pointer: RemotePointerSlot
     ) {
         detach()
         controller = InputController(mode: mode, keymap: "")
-        (self.target, self.send, hostPointer) = (target, send, HostPointerFollower(pointer))
+        (self.target, self.send, activateSession) = (target, send, activate)
+        hostPointer = HostPointerFollower(pointer)
         keymapChanged()
         // The menu first: capture never rises under an open menu.
         apply(.menuOpen(MenuTracker.shared.isOpen))
@@ -100,7 +104,7 @@ import Observation
     func detach() {
         apply(.picture(false))
         controller = nil
-        (send, hostPointer) = (nil, nil)
+        (send, activateSession, hostPointer) = (nil, nil, nil)
         updateMonitor()
         hideHint()
     }
@@ -160,12 +164,13 @@ import Observation
         updateConfinement()
     }
 
-    /// Two motions onto the activation target, so the host's focus follows to this screen.
+    /// Two motions onto the activation target, so the host's focus follows to this screen;
+    /// input sent next waits for it (`Session.activate`).
     private func activate() {
         guard let target = target(videoView?.macPointerOverPicture()),
             let result = controller?.activate(at: target)
         else { return }
-        for message in result.messages { send?(message) }
+        activateSession?(result.messages)
     }
 
     func reactivate() {

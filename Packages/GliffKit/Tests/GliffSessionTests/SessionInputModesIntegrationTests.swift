@@ -124,6 +124,42 @@
             #expect(transport.serverFailure == nil)
         }
 
+        /// An activation's motions go at once; a key sent right after them waits
+        /// `Session.activationPause` from then (the queue's one sleeper), then goes.
+        @Test func keysWaitAfterAnActivation() async throws {
+            let clock = ManualClock()
+            let (session, transport) = try makeSession(
+                ["input", "--expect-nudge", "--expect-keys", "1"], barrier: InputBarrier(clock: clock))
+            let runner = Task { await session.run() }
+            for await status in session.status {
+                guard case .streaming = status else { continue }
+                session.activate([.pointerMotion(x: 99, y: 50), .pointerMotion(x: 100, y: 50)])
+                session.send(Self.press(30))
+                session.send(Self.release(30))
+                #expect(await clock.waitForSleepers(1))
+                try? await Task.sleep(for: .milliseconds(100))
+                #expect(await !session.inputs.isEmpty)
+                clock.advance(by: Session.activationPause)
+                #expect(await Self.emptied(session.inputs))
+                await session.disconnect()
+            }
+            await runner.value
+            #expect(transport.serverFailure == nil)
+        }
+
+        /// A modifier release sent behind an activation goes once its pause ends: another
+        /// session's input waits the barrier's gap after that.
+        @Test func aReleaseBehindAnActivationHoldsOthersFromWhenItGoes() throws {
+            let clock = ManualClock()
+            let barrier = InputBarrier(clock: clock)
+            let (session, _) = try makeSession(["input"], barrier: barrier)
+            session.activate([.pointerMotion(x: 99, y: 50), .pointerMotion(x: 100, y: 50)])
+            session.send(Self.release(125))
+            #expect(
+                barrier.wait(before: Self.press(30), from: InputBarrier.Sender())
+                    == Session.activationPause + InputBarrier.gap)
+        }
+
         /// Waits until `queue` is empty; false if it isn't within 5 s.
         private static func emptied(_ queue: InputQueue) async -> Bool {
             for _ in 0..<500 where !queue.isEmpty {

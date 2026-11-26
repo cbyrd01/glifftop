@@ -92,7 +92,15 @@
         /// `0x` and lowercase hex digits, as `hyprctl` gives them.
         static func closeCommand(address: String) -> String? {
             guard isAddress(address) else { return nil }
-            return #"hyprctl dispatch 'hl.dsp.window.close({ window = "address:"# + address + #"" })'"#
+            return dispatchCommand(#"hl.dsp.window.close({ window = "address:"# + address + #"" })"#)
+        }
+
+        /// `hyprctl dispatch` of the Lua dispatcher `lua` (which holds no single quote).
+        static func dispatchCommand(_ lua: String) -> String { "hyprctl dispatch '" + lua + "'" }
+
+        /// Whether `hyprctl dispatch` answered that it ran the dispatcher.
+        static func answeredOK(_ output: String) -> Bool {
+            output.trimmingCharacters(in: .whitespacesAndNewlines) == "ok"
         }
 
         /// Runs each address's `closeCommand` through `run`, every one even after a failure;
@@ -101,9 +109,7 @@
         static func close(_ addresses: [String], with run: (String) throws -> String) -> [any Error] {
             addresses.compactMap(closeCommand).compactMap { command in
                 do {
-                    let output = try run(command)
-                    return output.trimmingCharacters(in: .whitespacesAndNewlines) == "ok"
-                        ? nil : Failure.notOK
+                    return answeredOK(try run(command)) ? nil : Failure.notOK
                 } catch {
                     return error
                 }
@@ -123,6 +129,32 @@
                 left = addresses.intersection(try windows())
             }
             #expect(left.isEmpty, "\(left.count) windows the test opened are still open")
+        }
+
+        /// A terminal opened on `workspace`, leaving the focus where it is, that counts the
+        /// keys typed into it in its title: "keys" and the count, from 0. The script goes as
+        /// base64, so no quoting reaches the host's shells. It runs in Ghostty, which the host
+        /// must have.
+        static func openCounter(on workspace: Int) throws {
+            try #require(
+                !(try run("command -v ghostty")).isEmpty, "the key counter needs ghostty on the host")
+            let script =
+                #"n=0; printf '\033]2;keys %d\007' $n; "#
+                + #"while IFS= read -rsn1 c; do n=$((n+1)); printf '\033]2;keys %d\007' $n; done"#
+            let encoded = Data(script.utf8).base64EncodedString()
+            let command = #"ghostty -e bash -c "$(echo "# + encoded + #" | base64 -d)""#
+            let lua =
+                "hl.dsp.exec_cmd([[" + command + #"]], { workspace = ""# + String(workspace) + #" silent" })"#
+            guard answeredOK(try run(dispatchCommand(lua), checked: true)) else { throw Failure.notOK }
+        }
+
+        /// The keys a counter terminal (`openCounter`) at `address` has counted; nil unless its
+        /// title is a counter's.
+        static func counted(at address: String) throws -> Int? {
+            let clients = try #require(try json("clients") as? [[String: Any]])
+            let title = clients.first { $0["address"] as? String == address }?["title"] as? String
+            guard let title, let match = title.wholeMatch(of: /keys (\d+)/) else { return nil }
+            return Int(match.1)
         }
 
         /// The active workspace of `monitor`, if it is still there.

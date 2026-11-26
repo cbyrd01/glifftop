@@ -140,7 +140,9 @@ public actor Session {
     /// only if what it ends went (`InputGate`); a keymap always. Nothing is kept once the session has ended.
     /// Within `barrier`'s wait after another session's modifier release, everything queued waits.
     public nonisolated func send(_ input: InputMessage) {
-        if let wait = barrier?.wait(before: input, from: inputSender) { inputs.hold(for: wait) }
+        if let wait = barrier?.wait(before: input, from: inputSender, goesAfter: inputs.delay(holding:)) {
+            inputs.hold(for: wait)
+        }
         inputs.append(input)
     }
 
@@ -315,7 +317,7 @@ public actor Session {
     /// `finishing`: everything queued goes, clipboard commands dropped.
     func deliverInput(finishing: Bool = false) {
         guard finishing || !carryingOut else { return }
-        let (queued, command) = finishing ? (inputs.takeAll(), nil) : inputs.takeUntilClipboard()
+        let (queued, command) = finishing ? (inputs.takeAll(), nil) : inputs.take()
         guard writer != nil, !core.isFinished else { return }
         let streaming = core.state == .streaming
         for input in queued
