@@ -82,6 +82,25 @@ import Testing
         #expect(press.messages == [key(29, false)])
     }
 
+    /// A stale modifier let go may trigger a binding that moves the host's pointer: the next
+    /// click moves it first, as after any key sent.
+    @Test func aStaleReleaseOverTheChromeForgetsThePointer() {
+        var controller = captured()
+        _ = controller.key(flags(0x3B, [.control, .leftControl]))
+        controller.remoteAt = (10, 10)
+        #expect(controller.key(flags(0x37, command), overChrome: { true }).messages == [key(29, false)])
+        #expect(controller.remoteAt == nil)
+    }
+
+    @Test func aStaleReleaseOnAChordKeysRepeatForgetsThePointer() {
+        var controller = captured()
+        _ = controller.key(down(t, command), overChrome: { true })
+        _ = controller.key(flags(0x3B, command.union([.control, .leftControl])), overChrome: { false })
+        controller.remoteAt = (10, 10)
+        #expect(!controller.key(down(t, isRepeat: true), overChrome: { false }).messages.isEmpty)
+        #expect(controller.remoteAt == nil)
+    }
+
     /// ⌘ went to the Mac over the chrome: a held key's release there goes to the host without
     /// Super; back on the picture, the next one presses Super first.
     @Test func aReleaseOverTheChromeDoesNotPressSuper() {

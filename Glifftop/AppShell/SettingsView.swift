@@ -1,12 +1,13 @@
 import GliffClipboard
+import GliffInput
 import GliffMachines
 import GliffSession
 import GliffTransport
 import SwiftUI
 
 /// The app's defaults (Settings), stored in `UserDefaults`: the options a new host or machine
-/// starts from (`defaultOptions`), and whether the clipboard is shared, passwords included or
-/// not.
+/// starts from (`defaultOptions`), whether the clipboard is shared, passwords included or not,
+/// and the input mode a new window starts in.
 enum AppSettings {
     /// "focused" or "virtual".
     static let connectScreenKey = "connectScreen"
@@ -25,6 +26,13 @@ enum AppSettings {
     static let includePasswordsKey = "includePasswords"
     /// View ▸ Show Status Bar, app-wide; off by default.
     static let showsStatusBarKey = "showsStatusBar"
+    /// The input mode a new window starts in (`CaptureMode.stored`); Integrated by default.
+    static let inputModeKey = "inputMode"
+
+    /// Settings' input mode, which each new window starts in.
+    static var inputMode: CaptureMode {
+        CaptureMode(stored: UserDefaults.standard.string(forKey: inputModeKey))
+    }
 
     /// The options a host not yet saved, or a new machine, starts from.
     static var defaultOptions: MachineOptions {
@@ -45,13 +53,15 @@ enum AppSettings {
     }
 }
 
-/// Settings ▸ General: the options each new host or machine starts from, and the clipboard.
+/// Settings ▸ General: the options each new host or machine starts from, the clipboard, and
+/// the input mode.
 struct SettingsView: View {
     @AppStorage(AppSettings.connectScreenKey) private var connectScreen = "focused"
     @AppStorage(AppSettings.virtualTextSizeKey) private var virtualTextSize = TextSize.mac.factor
     @AppStorage(AppSettings.scaleToFitKey) private var scaleToFit = false
     @AppStorage(AppSettings.resolutionKey) private var resolution = VirtualResolution.automatic
     @AppStorage(AppSettings.reconnectsKey) private var reconnects = true
+    @AppStorage(AppSettings.inputModeKey) private var inputMode = CaptureMode.integrated.stored
     @StoredClipboardSharing private var clipboardSharing
     @State private var askingClipboard: ClipboardQuestion?
 
@@ -76,6 +86,16 @@ struct SettingsView: View {
             Text("A machine with its own Clipboard setting keeps it.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+            // Through `CaptureMode(stored:)`: a stored value that's neither shows as Integrated.
+            Picker("Input", selection: mode) {
+                ForEach(CaptureMode.allCases, id: \.self) { Text($0.label).tag($0) }
+            }
+            Text(
+                "Integrated: the pointer moves freely; over the toolbar ⌘ shortcuts are the Mac's. "
+                    + "Capture: the pointer stays in the picture until Shift+Esc."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
         }
         .formStyle(.grouped)
         .clipboardSharingConfirmation($askingClipboard) {
@@ -83,6 +103,10 @@ struct SettingsView: View {
         }
         .frame(width: 420)
         .fixedSize()
+    }
+
+    private var mode: Binding<CaptureMode> {
+        Binding(get: { CaptureMode(stored: inputMode) }, set: { inputMode = $0.stored })
     }
 
     private var textSize: Binding<TextSize> {

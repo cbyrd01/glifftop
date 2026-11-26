@@ -43,7 +43,7 @@ struct StreamingView: View {
             // the picture under it.
             ZStack {
                 if model.capture.showsHint {
-                    InputHintView()
+                    InputHintView(mode: model.capture.mode)
                         .padding(24)
                         .transition(.opacity)
                 }

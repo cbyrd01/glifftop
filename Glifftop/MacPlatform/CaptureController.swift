@@ -11,7 +11,7 @@ import Observation
     private(set) var isCaptured = false
     /// Input ▸ Release Input has something to release (`InputController.isReleasable`).
     private(set) var isReleasable = false
-    /// The "Shift+Esc releases input" hint, for 3 s at a time.
+    /// The mode's input hint (`InputHintView`), for 3 s at a time.
     private(set) var showsHint = false
     /// The Mac pointer is held over the picture (Capture mode): its cursor is hidden. Follows
     /// `confinement`.

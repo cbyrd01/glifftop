@@ -47,12 +47,14 @@ import Testing
             ])
     }
 
+    /// Super's release may trigger a binding that moves the host's pointer: the motion is sent
+    /// again before the button.
     @Test func aReleaseAfterCommandWentUpReleasesSuperFirst() {
         var controller = captured()
         _ = controller.pointer(Self.click(true, Self.command))
         #expect(
             controller.pointer(Self.click(false)).messages == [
-                key(125, false), .pointerButton(code: 272, pressed: false),
+                key(125, false), .pointerMotion(x: 10, y: 20), .pointerButton(code: 272, pressed: false),
             ])
     }
 

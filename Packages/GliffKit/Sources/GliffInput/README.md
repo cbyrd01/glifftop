@@ -60,8 +60,9 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   (`InputController+Modifiers.swift`): those the remote holds that are up are let go, last
   pressed first, then those held that it lacks are pressed, wherever they were pressed; a
   modifier's own event is left to itself. A repeat, Fn, an unknown key or an unheld release
-  still lets go of the stale ones. On a click or scroll: the modifiers, the motion, then the
-  button or scroll. Every way capture ends (and `.away`: sleep, lock) releases what the
+  still lets go of the stale ones. A release can trigger a binding that moves the host's
+  pointer, so any forgets where it was. On a click or scroll: the modifiers, the motion, then
+  the button or scroll. Every way capture ends (and `.away`: sleep, lock) releases what the
   remote holds, an open menu's included. A result's `activates` says the host's focus should
   follow (`activate(at:)`). A keymap is sent only when its text changes.
   Confined (`InputController+Confined.swift`, Capture mode once the pointer entered the

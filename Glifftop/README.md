@@ -56,7 +56,9 @@ a host already open elsewhere starts on a virtual screen, which its machine neve
 the toolbar, never under it; `InterruptionView`, a dimmed picture under a glass panel, while
 the server is quiet, with Disconnect and Reconnect Now; `ReconnectingView`, the last picture
 dimmed under a glass panel while a lost session is tried again: why it ended, the countdown
-and the try, Reconnect Now and Disconnect; the "Shift+Esc releases input" hint for a few seconds after capture; and
+and the try, Reconnect Now and Disconnect; the input hint (`InputHintView`, by mode: in
+Integrated "⌘ shortcuts work over the toolbar · Shift+Esc releases input" after capture, in
+Capture "Shift+Esc frees the pointer and keyboard" after confinement) for a few seconds; and
 under the picture, with View ▸ Show Status Bar, `StatusBar`: the state, fps, Mbit/s, round
 trip, chroma · encoder and the clipboard read, on the bar material, its height counted when
 a mirror's window is fitted), the window's title (the machine's name, else the host; numbered from a machine's second tab
@@ -79,14 +81,17 @@ output, the listed monitors labelled as the form labels them (at most 60 charact
 Refresh Screen List, while streaming, its error shown under it; the same screen again only
 after the session ended; everything the menu reads changes only with its value, never with
 the stats or a new StreamConfig (`hasPicture`, not `picture`), so Enter Full Screen isn't
-lost), the Input menu (Release Input, ⇧⎋), Settings (`SettingsView`: the options a
+lost), the Input menu (the key window's mode, Integrated or Capture, as radio items, then
+Release Input, ⇧⎋), Settings (`SettingsView`: the options a
 new host or machine starts from (`AppSettings.defaultOptions`: the screen, the virtual
 screen's text size (`TextSize`) and resolution, Scale to Fit, Reconnect automatically) and
 the clipboard (`ClipboardSharing`: Not shared by default, Shared, or Shared including passwords; a
 step up asks first; at once for an open session following Settings. A machine may have its
 own, which the options form and the toolbar's button set; Settings' doesn't override it, and
-every window to the machine follows it), in `UserDefaults` through
-`AppSettings`), the sign-in's questions (`SignInPrompter`, one per window, its
+every window to the machine follows it), and the Input mode each new window starts in
+(`AppSettings.inputMode`, stored and named through `CaptureMode+Labels`; the window keeps its
+own through reconnects, and the Input menu changes only that window's), in `UserDefaults`
+through `AppSettings`), the sign-in's questions (`SignInPrompter`, one per window, its
 `SignInQueue` the asker for the window's sessions, reconnects and Get Screens, the machine
 sheet's included; one question at a time as a sheet, on the machine sheet while that shows,
 shown while Glifftop is active and the window isn't minimized, and kept shown after (AppKit
@@ -208,7 +213,7 @@ AppKit adapters for what SwiftUI can't do:
   feeds GliffInput's `InputController` the window, app, picture, link, sleep and lock
   changes, swallows the window's key events while captured (a local monitor, only while there
   is a picture), takes the pointer events `VideoNSView` hands it (`onPointer`), sends what it
-  says through `Session.send`, and shows the Shift+Esc hint for 3 s (its app, workspace and window
+  says through `Session.send`, and shows the mode's hint for 3 s (its app, workspace and window
   observers in `CaptureController+Observers.swift`). It holds the mode (Integrated or
   Capture), applied on change and to each session attached; any menu of the app open
   (`MenuTracker`) holds capture off, and Input ▸ Release Input stays enabled through it. In Integrated, a key with ⌘ over the chrome

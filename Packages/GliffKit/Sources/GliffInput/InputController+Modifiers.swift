@@ -8,11 +8,17 @@ extension InputController {
         releaseStaleModifiers(flags, except: code) + pressMissingModifiers(flags, except: code)
     }
 
-    /// Releases for modifiers the remote holds that `flags` says are up, last pressed first.
+    /// Releases for modifiers the remote holds that `flags` says are up, last pressed first. A
+    /// release can trigger a binding that moves the host's pointer, so any forgets where it was.
     mutating func releaseStaleModifiers(_ flags: UInt, except code: UInt32? = nil) -> [InputMessage] {
         let up = MacKeyTranslator.modifiersUp(flags)
-        return ledger.heldKeys.filter { up.contains($0) && $0 != code }.reversed()
+        let releases = ledger.heldKeys.filter { up.contains($0) && $0 != code }.reversed()
             .compactMap { ledger.release(key: $0) }
+        if !releases.isEmpty {
+            remoteAt = nil
+            recentMotions = []
+        }
+        return releases
     }
 
     /// Presses for modifiers `flags` says are down that the remote doesn't hold. `code` counts
