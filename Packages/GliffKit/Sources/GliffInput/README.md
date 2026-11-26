@@ -13,7 +13,8 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
 - **`InputLedger`:** the keys and pointer buttons the remote holds. A release goes out only for
   what is held; a fresh press of something held releases it first (its release was missed);
   `releaseAll()` lets go of everything (buttons, then keys, each last pressed first) and runs
-  on every way input can leave; `releaseAllKeys()` lets go of the keys alone.
+  on every way input can leave; `releaseAllKeys()` and `releaseAllButtons()` let go of the
+  keys alone or the buttons alone.
 - **`MacKeyEvent`, `MacModifierFlags`, `MacKeyTranslator`:** a Mac key event as values, and
   what it means (`KeyAction`): press, release, a Caps Lock toggle, Shift+Esc (release the
   keyboard; Esc is never sent), or nothing (repeats, Fn, unknown keys). A modifier's state
@@ -68,7 +69,11 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   sends nothing, and clicks and scrolls land at the virtual position; the host's CursorPos
   (`hostPointer`) moves it when it is a warp, not an echo. Confinement ends whenever
   `isConfined` falls, leaving its place in `unconfinedAt` for the app to put the Mac cursor
-  there. A recapturing click's drag moves it but sends nothing until the up.
+  there; still captured (a suspension), the buttons held come up, as their releases may go
+  elsewhere. A recapturing click's drag moves it but sends nothing until the up.
+- **`StartWarp`:** the first motion after the app warps the Mac pointer to the view's centre
+  to confine it: the warp's displacement taken out when the delta comes within a quarter of
+  the warp's length (or 1 point) of it.
 - **`VirtualPointer`:** the confined pointer's logical place: deltas clamped to the output, and
   the host's reports, of which one within 1.5 on both axes of a position sent in the last
   second (at most 1024 kept, a 1 kHz mouse's second, each as the host rounds it) or of the

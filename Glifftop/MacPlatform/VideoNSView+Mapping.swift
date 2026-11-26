@@ -24,17 +24,29 @@ extension VideoNSView {
     fileprivate func remotePosition(ofWindowPoint windowPoint: NSPoint) -> (
         position: (x: Double, y: Double), inside: Bool
     )? {
-        guard let picture = slot.latest?.picture, bounds.width > 0, bounds.height > 0 else { return nil }
-        let drawable = drawableSize()
+        guard let layout = layout() else { return nil }
         let point = convert(windowPoint, from: nil)
         // Not flipped: AppKit's y grows upward, the drawable's downward.
-        let x = (point.x - bounds.minX) * Double(drawable.width) / bounds.width
-        let y = (bounds.maxY - point.y) * Double(drawable.height) / bounds.height
-        let rect = pictureRect(for: picture, in: drawable)
+        let x = (point.x - bounds.minX) * layout.pixelsPerPoint.x
+        let y = (bounds.maxY - point.y) * layout.pixelsPerPoint.y
+        let rect = layout.rect
         let inside = x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height
-        guard let position = PointerMapper.remote(x: x, y: y, in: rect, geometry: picture.pointerGeometry)
+        guard
+            let position = PointerMapper.remote(
+                x: x, y: y, in: rect, geometry: layout.picture.pointerGeometry)
         else { return nil }
         return (position, inside)
+    }
+
+    /// Whether a window `location` is over the picture as drawn (not the bars beside it) and
+    /// nothing covers it there (`isHit`).
+    func isOverPicture(at location: NSPoint) -> Bool {
+        isHit(at: location) && isInsidePicture(at: location)
+    }
+
+    /// Whether a window `location` lies inside the picture as drawn, covered or not.
+    func isInsidePicture(at location: NSPoint) -> Bool {
+        remotePosition(ofWindowPoint: location)?.inside == true
     }
 
     /// The picture's rectangle in drawable pixels, as the renderer draws it.
@@ -50,7 +62,7 @@ extension VideoNSView {
     func macPointerOverPicture() -> (x: Double, y: Double)? {
         guard let window else { return nil }
         let mouse = NSEvent.mouseLocation
-        guard NSWindow.windowNumber(at: mouse, belowWindowWithWindowNumber: 0) == window.windowNumber,
+        guard isFrontmost(onScreen: mouse),
             let mapped = remotePosition(ofWindowPoint: window.convertPoint(fromScreen: mouse)), mapped.inside
         else { return nil }
         return mapped.position
@@ -59,6 +71,54 @@ extension VideoNSView {
     /// The view's frame in AppKit screen coordinates; nil outside a window.
     var frameOnScreen: NSRect? {
         window?.convertToScreen(convert(bounds, to: nil))
+    }
+
+    /// The centre of the view in AppKit screen coordinates: where a confined pointer freezes.
+    var centreOnScreen: NSPoint? {
+        frameOnScreen.map { NSPoint(x: $0.midX, y: $0.midY) }
+    }
+
+    /// The latest picture's pointer geometry; nil without a picture.
+    var geometry: PictureGeometry? { slot.latest?.picture.pointerGeometry }
+
+    /// A remote logical point over the picture as drawn, in AppKit screen coordinates, clamped
+    /// into the picture; nil without a picture or a window.
+    func screenPoint(ofRemote remote: (x: Double, y: Double)) -> NSPoint? {
+        guard let window, let layout = layout(), layout.rect.width > 0, layout.rect.height > 0,
+            let local = PointerMapper.local(
+                x: remote.x, y: remote.y, in: layout.rect, geometry: layout.picture.pointerGeometry)
+        else { return nil }
+        let rect = layout.rect
+        // Half a pixel inside each edge: still on the picture once in points.
+        let x = min(max(local.x, rect.x + 0.5), rect.x + rect.width - 0.5)
+        let y = min(max(local.y, rect.y + 0.5), rect.y + rect.height - 0.5)
+        // Drawable pixels from the top-left to the view's points (AppKit's y grows upward).
+        let point = NSPoint(
+            x: bounds.minX + x / layout.pixelsPerPoint.x, y: bounds.maxY - y / layout.pixelsPerPoint.y)
+        return window.convertPoint(toScreen: convert(point, to: nil))
+    }
+
+    /// A motion of the Mac pointer in points (NSEvent's deltas, `y` growing down) as a remote
+    /// logical delta, at the scale the absolute mapping uses; nil without a picture.
+    func remoteDelta(ofPoints delta: (dx: Double, dy: Double)) -> (dx: Double, dy: Double)? {
+        guard let layout = layout() else { return nil }
+        return PointerMapper.remoteDelta(
+            dx: delta.dx * layout.pixelsPerPoint.x, dy: delta.dy * layout.pixelsPerPoint.y, in: layout.rect,
+            geometry: layout.picture.pointerGeometry)
+    }
+
+    /// The latest picture, where it is drawn (drawable pixels) and the drawable's pixels per
+    /// view point on each axis; nil without a picture or a size.
+    private func layout() -> (
+        picture: GliffVideo.Picture, rect: PictureRect, pixelsPerPoint: (x: Double, y: Double)
+    )? {
+        guard let picture = slot.latest?.picture, bounds.width > 0, bounds.height > 0 else { return nil }
+        let drawable = drawableSize()
+        guard drawable.width > 0, drawable.height > 0 else { return nil }
+        return (
+            picture, pictureRect(for: picture, in: drawable),
+            (Double(drawable.width) / bounds.width, Double(drawable.height) / bounds.height)
+        )
     }
 
     /// The drawable's size: the view's bounds in backing pixels.

@@ -227,6 +227,27 @@ AppKit adapters for what SwiftUI can't do:
   under it, the video view's frame on screen and the menu bar's strip, and lets GliffInput's
   `PointerPlace.classify` decide: the chrome is the session window's title bar, toolbar, tab
   bar and status bar, its popovers (child windows), and the menu bar;
+- Capture mode's confined pointer (`CaptureController+Confinement.swift`): once GliffInput says
+  it is confined (captured and the pointer has entered the picture), `PointerConfinement`
+  warps the hidden Mac cursor to the video view's centre, cuts it off from the mouse
+  (`CGAssociateMouseAndMouseCursorPosition`) and takes every mouse event of the app through a
+  local monitor. Each motion's deltas become a remote delta at the absolute mapping's scale
+  (`VideoNSView.remoteDelta`) and move the virtual pointer; buttons and scrolls land where it
+  is. The start warp's displacement is taken out of the first motion within 0.25 s that
+  carries it (`StartWarp`). It doesn't start where the centre is off every display or another window
+  covers it. When it ends, the Mac pointer comes back
+  over the virtual pointer's place on the picture, if the window is on screen on the active
+  Space. Where the pointer is comes from the video view (`onHover`: over the picture drawn,
+  not its bars, at each motion, the tracking area's enter and exit, a click and a scroll;
+  ignored while confined) and, at the window's key edge and the app's active edge, from the
+  pointer's place before the edge; each is reported when it changes, or when anything else
+  was applied since. Suspensions report it off the picture: another app activating (no
+  holding until this one is active and in front again), the app about to resign (none until
+  it resigns or is active again), another Space, the window
+  moving or changing size or screen, full screen's transitions (no holding until each
+  ends), a sheet, and a check on each display-link tick (`onTick`) that the app is active,
+  the window key, on screen and on the active Space, with no sheet or modal window. While
+  confined the picture's cursor is hidden;
 - `MenuTracker`: whether any of the app's menus is open (the menu bar's, a toolbar
   pull-down's, a context menu's), counting `NSMenu`'s tracking begins against its ends once
   for the app, with a debug log line of the count;

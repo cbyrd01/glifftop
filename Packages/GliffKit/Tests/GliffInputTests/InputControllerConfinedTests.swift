@@ -258,4 +258,25 @@ import Testing
         _ = controller.hostPointer(bufferX: 100, bufferY: 100, visible: false, geometry: geometry, at: .zero)
         #expect(controller.confinedPointer?.visible == false)
     }
+
+    /// A suspension mid-drag: the release may go elsewhere, so the host's button comes up now;
+    /// keys stay held (capture stays).
+    @Test func aSuspensionReleasesTheButtonsHeld() {
+        var controller = confined()
+        _ = controller.key(down(0x00))
+        _ = controller.pointer(.button(number: 0, pressed: true, x: 100, y: 100, flags: 0))
+        let result = controller.capture(.pointerOnPicture(false))
+        #expect(result.messages == [.pointerButton(code: 0x110, pressed: false)])
+        #expect(controller.confinedPointer == nil)
+    }
+
+    /// Sleep or a lock mid-drag: every button and key comes up.
+    @Test func awayMidDragReleasesTheButton() {
+        var controller = confined()
+        _ = controller.key(down(0x00))
+        _ = controller.pointer(.button(number: 0, pressed: true, x: 100, y: 100, flags: 0))
+        let result = controller.capture(.away)
+        #expect(result.messages.contains(.pointerButton(code: 0x110, pressed: false)))
+        #expect(result.messages.contains(.key(code: 30, pressed: false)))
+    }
 }

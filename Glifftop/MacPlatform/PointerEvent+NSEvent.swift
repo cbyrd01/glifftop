@@ -8,9 +8,11 @@ extension PointerEvent {
     init?(_ event: NSEvent, at position: (x: Double, y: Double)) {
         let (x, y) = position
         let flags = event.modifierFlags.rawValue
-        switch event.type {
-        case .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged:
+        if event.isPointerMotion {
             self = .moved(x: x, y: y)
+            return
+        }
+        switch event.type {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             self = .button(number: event.buttonNumber, pressed: true, x: x, y: y, flags: flags)
         case .leftMouseUp, .rightMouseUp, .otherMouseUp:
@@ -22,6 +24,16 @@ extension PointerEvent {
                 isMomentum: !event.momentumPhase.isEmpty)
             self = .scroll(scroll, x: x, y: y, flags: flags)
         default: return nil
+        }
+    }
+}
+
+extension NSEvent {
+    /// Motion of the pointer: a move, or a drag with any button.
+    var isPointerMotion: Bool {
+        switch type {
+        case .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged: true
+        default: false
         }
     }
 }

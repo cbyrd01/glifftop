@@ -33,6 +33,7 @@ struct StreamingView: View {
             onTarget: model.viewTargetChanged, capture: model.capture,
             cursor: model.viewCursor,
             captured: model.capture.isCaptured,
+            confined: model.capture.isConfined,
             videoHasPointer: CursorLook.videoHasPointer(model.snapshot.session)
         )
         // A new session's slot gets a new video view: the old one would keep drawing the old slot.

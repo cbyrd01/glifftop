@@ -12,8 +12,29 @@ import Observation
     private(set) var isReleasable = false
     /// The "Shift+Esc releases input" hint, for 3 s at a time.
     private(set) var showsHint = false
+    /// The Mac pointer is held over the picture (Capture mode): its cursor is hidden. Follows
+    /// `confinement`.
+    private(set) var isConfined = false
 
-    @ObservationIgnored private var controller: InputController?
+    /// The session's input rules; `CaptureController+Confinement.swift` drives its pointer too.
+    @ObservationIgnored var controller: InputController?
+    /// Holds the Mac pointer while confined (`CaptureController+Confinement.swift`).
+    @ObservationIgnored var confinement: PointerConfinement? {
+        didSet { isConfined = confinement != nil }
+    }
+    /// The start of the clock the confined pointer's times count from.
+    @ObservationIgnored let clockStart = ContinuousClock.now
+    /// The pointer's place last reported (`.pointerOnPicture`); nil once anything else is
+    /// applied, so the next report goes through again (after a suspension, an edge, a fall).
+    @ObservationIgnored var hovering: Bool?
+    /// When full screen began being entered or left (the frame moving), until it ends: the
+    /// pointer can't be held meanwhile.
+    @ObservationIgnored var transitionStarted: Duration?
+    /// Another app coming forward (this one still active for a moment): the pointer can't be
+    /// held until this app is active and in front again.
+    @ObservationIgnored var leaving = false
+    /// This app about to resign: the pointer can't be held until it resigns or is active again.
+    @ObservationIgnored var resigning = false
     @ObservationIgnored private var send: ((InputMessage) -> Void)?
     @ObservationIgnored private(set) weak var window: NSWindow?
     @ObservationIgnored private var picture = false
@@ -107,12 +128,19 @@ import Observation
     func release() { apply(.release) }
 
     func apply(_ event: CaptureEvent) {
+        if case .pointerOnPicture = event {} else { hovering = nil }
+        if case .appActive(let active) = event {
+            resigning = false
+            if active { leaving = false }
+        }
+        // Where the pointer is, before the edge it may confine at.
+        if event == .windowKey(true) || event == .appActive(true) { reportEntry() }
         guard let result = controller?.capture(event) else { return }
         handle(result)
     }
 
-    /// An activation's nudge goes before anything else.
-    private func handle(_ result: InputResult) {
+    /// An activation's nudge goes before anything else; confinement follows what it says.
+    func handle(_ result: InputResult) {
         let captured = controller?.isCaptured ?? false
         if result.activates { activate() }
         for message in result.messages { send?(message) }
@@ -122,6 +150,7 @@ import Observation
         if releasable != isReleasable { isReleasable = releasable }
         // The hint says how to release input: gone once it is released.
         if !captured { hideHint() }
+        updateConfinement()
     }
 
     /// Two motions onto the activation target, so the host's focus follows to this screen.

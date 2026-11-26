@@ -28,6 +28,8 @@ struct VideoView: NSViewRepresentable {
     let capture: CaptureController
     let cursor: CursorSlot
     let captured: Bool
+    /// The Mac pointer is held over the picture (Capture mode): its cursor is hidden.
+    let confined: Bool
     let videoHasPointer: Bool
 
     func makeNSView(context: Context) -> VideoNSView {
@@ -45,6 +47,9 @@ struct VideoView: NSViewRepresentable {
         nsView.onTarget = onTarget
         nsView.onPointer = capture.pointer
         capture.videoView = nsView
-        nsView.updateCursor(slot: cursor, captured: captured, videoHasPointer: videoHasPointer)
+        nsView.onHover = capture.hover
+        nsView.onTick = capture.tick
+        nsView.updateCursor(
+            slot: cursor, captured: captured, confined: confined, videoHasPointer: videoHasPointer)
     }
 }

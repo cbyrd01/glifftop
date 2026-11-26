@@ -9,6 +9,7 @@ extension VideoNSView {
     /// Motion, a drag's too (one goes on after ⌘Tab): on the picture, focused, its cursor; else given back.
     @discardableResult func followPointer(_ event: NSEvent) -> Bool {
         let hit = isHit(at: event.locationInWindow)
+        onHover(hit && isInsidePicture(at: event.locationInWindow))
         if hit, isFocused { showCursor() } else { giveBackCursor() }
         return hit
     }
@@ -39,14 +40,21 @@ extension VideoNSView {
         refreshCursor()
     }
 
-    /// The session's shapes, whether input is captured and the video carries the pointer: the
-    /// cursor changes at once if the pointer is over the picture.
-    func updateCursor(slot: CursorSlot, captured: Bool, videoHasPointer: Bool) {
-        guard cursor.slot !== slot || cursor.captured != captured || cursor.videoHasPointer != videoHasPointer
+    /// The session's shapes, whether input is captured, whether the Mac pointer is held
+    /// (confined) and whether the video carries the pointer: the cursor changes at once if the
+    /// pointer is over the picture.
+    func updateCursor(slot: CursorSlot, captured: Bool, confined: Bool, videoHasPointer: Bool) {
+        guard
+            cursor.slot !== slot || cursor.captured != captured || cursor.confined != confined
+                || cursor.videoHasPointer != videoHasPointer
         else {
             return
         }
-        (cursor.slot, cursor.captured, cursor.videoHasPointer) = (slot, captured, videoHasPointer)
+        // Confined, the view sees no button's release.
+        if confined, !cursor.confined { pressedHere = false }
+        (cursor.slot, cursor.captured, cursor.confined, cursor.videoHasPointer) = (
+            slot, captured, confined, videoHasPointer
+        )
         refreshCursor()
     }
 
@@ -109,8 +117,13 @@ extension VideoNSView {
     /// (window coordinates) on screen.
     private func isFrontmost(at location: NSPoint) -> Bool {
         guard let window else { return false }
-        return NSWindow.windowNumber(
-            at: window.convertPoint(toScreen: location), belowWindowWithWindowNumber: 0)
-            == window.windowNumber
+        return isFrontmost(onScreen: window.convertPoint(toScreen: location))
+    }
+
+    /// Whether this window, not another app's or another of ours, is the one at `point` (AppKit
+    /// screen coordinates).
+    func isFrontmost(onScreen point: NSPoint) -> Bool {
+        guard let window else { return false }
+        return NSWindow.windowNumber(at: point, belowWindowWithWindowNumber: 0) == window.windowNumber
     }
 }

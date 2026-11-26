@@ -8,6 +8,8 @@ final class RemoteCursor {
     /// Another session's shapes: what was made from the last one's doesn't carry over.
     var slot: CursorSlot? { didSet { if slot !== oldValue { made = nil } } }
     var captured = false
+    /// The Mac pointer is held over the picture: its cursor is hidden.
+    var confined = false
     var videoHasPointer = false
     /// The last shape made into a cursor, and at what size: made again only when either changes.
     private var made: (generation: UInt64, pointsPerPixel: Double, cursor: NSCursor?)?
@@ -20,7 +22,7 @@ final class RemoteCursor {
         let latest = slot?.latest
         switch CursorLook.choose(
             captured: captured, videoHasPointer: videoHasPointer, image: latest?.image,
-            pointsPerPixel: pointsPerPixel)
+            pointsPerPixel: pointsPerPixel, confined: confined)
         {
         case .arrow: return .arrow
         case .hidden: return hidden

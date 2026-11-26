@@ -34,9 +34,13 @@ public struct InputLedger: Sendable {
     /// Releases for every held button, then every held key, each last pressed first (⌘W lets
     /// go of W, then ⌘).
     public mutating func releaseAll() -> [InputMessage] {
-        let buttons = heldButtons.reversed().map { InputMessage.pointerButton(code: $0, pressed: false) }
-        heldButtons.removeAll()
-        return buttons + releaseAllKeys()
+        releaseAllButtons() + releaseAllKeys()
+    }
+
+    /// Releases for every held button, last pressed first; keys stay held.
+    public mutating func releaseAllButtons() -> [InputMessage] {
+        defer { heldButtons.removeAll() }
+        return heldButtons.reversed().map { .pointerButton(code: $0, pressed: false) }
     }
 
     /// Releases for every held key, last pressed first; buttons stay held.

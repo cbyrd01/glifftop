@@ -87,4 +87,18 @@ import Testing
         #expect(released == [.pointerButton(code: 0x110, pressed: false), .key(code: 29, pressed: false)])
         #expect(ledger.heldButtons.isEmpty && ledger.heldKeys.isEmpty)
     }
+
+    /// The confined pointer ending mid-drag lets go of the buttons only.
+    @Test func releaseAllButtonsKeepsKeys() {
+        var ledger = InputLedger()
+        _ = ledger.press(key: 125)
+        _ = ledger.press(button: 0x110)
+        _ = ledger.press(button: 0x111)
+        #expect(
+            ledger.releaseAllButtons() == [
+                .pointerButton(code: 0x111, pressed: false), .pointerButton(code: 0x110, pressed: false),
+            ])
+        #expect(ledger.heldButtons.isEmpty)
+        #expect(ledger.heldKeys == [125])
+    }
 }

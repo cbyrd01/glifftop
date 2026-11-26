@@ -72,6 +72,11 @@ final class VideoNSView: NSView {
     /// A pointer event over the picture, in remote coordinates: true when it was for the remote
     /// (or took input back), and so goes no further on the Mac.
     var onPointer: (PointerEvent) -> Bool = { _ in false }
+    /// Whether the pointer is over the picture drawn (not its bars, an overlay or another
+    /// window): each motion, the tracking area's enter and exit, a click and a scroll.
+    var onHover: (Bool) -> Void = { _ in }
+    /// Each display-link tick, before the cursor and the picture.
+    var onTick: () -> Void = {}
 
     /// The pointer's look over the picture.
     let cursor = RemoteCursor()
@@ -195,11 +200,15 @@ final class VideoNSView: NSView {
     }
 
     // Leaving the view; overlays are inside (`followPointer` handles them).
-    override func mouseExited(with event: NSEvent) { giveBackCursor() }
+    override func mouseExited(with event: NSEvent) {
+        onHover(false)
+        giveBackCursor()
+    }
 
     // Coming back in, the picture's cursor. Not sent during a drag, even with
     // `.enabledDuringMouseDrag` (checked by hand): `followPointer` covers a drag.
     override func mouseEntered(with event: NSEvent) {
+        onHover(isOverPicture(at: event.locationInWindow))
         if NSEvent.pressedMouseButtons == 0 { refreshCursor() }
     }
 
@@ -220,6 +229,11 @@ final class VideoNSView: NSView {
     /// Hands `event` to `onPointer` at its remote position; false when there's no picture to
     /// map it over, or it wasn't for the remote.
     private func pointer(_ event: NSEvent) -> Bool {
+        switch event.type {
+        case .leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel:
+            onHover(isOverPicture(at: event.locationInWindow))
+        default: break
+        }
         guard let position = remotePosition(of: event), let pointerEvent = PointerEvent(event, at: position)
         else {
             return false
@@ -259,6 +273,7 @@ final class VideoNSView: NSView {
 
     /// One display-link tick (`VideoDisplayLinkTarget`): the cursor, then the picture.
     func step() {
+        onTick()
         // A new shape, or the picture's size on screen changing (the first picture, Actual Size,
         // another screen), shows under a resting pointer without waiting for motion.
         let seen = (generation: cursor.generation, pointsPerPixel: cursorPointsPerPixel())

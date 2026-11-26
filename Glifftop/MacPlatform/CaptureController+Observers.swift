@@ -9,7 +9,16 @@ extension CaptureController {
         let app = NotificationCenter.default
         observe(app, NSApplication.didBecomeActiveNotification) { $0.apply(.appActive(true)) }
         observe(app, NSApplication.didResignActiveNotification) { $0.apply(.appActive(false)) }
+        // The pointer free while the app is still in front.
+        observe(app, NSApplication.willResignActiveNotification) { $0.resign() }
         let workspace = NSWorkspace.shared.notificationCenter
+        // Suspensions: another app activated (before this one resigns), another Space.
+        // Not while this one is in front: its own activation, or a late notification of a quick
+        // switch away and back.
+        observe(workspace, NSWorkspace.didActivateApplicationNotification) {
+            if !$0.isFrontmostApp { $0.leave() }
+        }
+        observe(workspace, NSWorkspace.activeSpaceDidChangeNotification) { $0.suspendConfinement() }
         for name in [
             NSWorkspace.willSleepNotification, NSWorkspace.screensDidSleepNotification,
             NSWorkspace.sessionDidResignActiveNotification,
@@ -33,27 +42,55 @@ extension CaptureController {
     func observeWindow() {
         windowObservers.forEach(NotificationCenter.default.removeObserver)
         windowObservers = []
+        // A transition of another window (or one that failed) holds nothing here.
+        transitionStarted = nil
         guard let window else { return }
         for (name, key) in [
             (NSWindow.didBecomeKeyNotification, true), (NSWindow.didResignKeyNotification, false),
         ] {
-            windowObservers.append(
-                NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) {
-                    [weak self] _ in
-                    MainActor.assumeIsolated { self?.apply(.windowKey(key)) }
-                })
+            observeWindow(window, name) { $0.apply(.windowKey(key)) }
+        }
+        // Suspensions: the window moves or changes size or screen (the frozen point would be
+        // left elsewhere), or a sheet takes it.
+        for name in [
+            NSWindow.didMoveNotification, NSWindow.didResizeNotification,
+            NSWindow.didChangeScreenNotification,
+            NSWindow.willBeginSheetNotification,
+        ] {
+            observeWindow(window, name) { $0.suspendConfinement() }
+        }
+        // Full screen's transitions: no holding until each ends.
+        for (name, on) in [
+            (NSWindow.willEnterFullScreenNotification, true), (NSWindow.willExitFullScreenNotification, true),
+            (NSWindow.didEnterFullScreenNotification, false), (NSWindow.didExitFullScreenNotification, false),
+        ] {
+            observeWindow(window, name) { $0.fullScreenTransition(on) }
         }
     }
 
+    private func observeWindow(
+        _ window: NSWindow, _ name: Notification.Name,
+        _ action: @escaping @MainActor (CaptureController) -> Void
+    ) {
+        windowObservers.append(observer(NotificationCenter.default, name, object: window, action: action))
+    }
+
+    /// `action` on each `name` from `center`, for the controller's life.
     fileprivate func observe(
         _ center: NotificationCenter, _ name: Notification.Name,
         _ action: @escaping @MainActor (CaptureController) -> Void
     ) {
-        let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+        observers.append((center, observer(center, name, action: action)))
+    }
+
+    private func observer(
+        _ center: NotificationCenter, _ name: Notification.Name, object: AnyObject? = nil,
+        action: @escaping @MainActor (CaptureController) -> Void
+    ) -> any NSObjectProtocol {
+        center.addObserver(forName: name, object: object, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 if let self { action(self) }
             }
         }
-        observers.append((center, observer))
     }
 }

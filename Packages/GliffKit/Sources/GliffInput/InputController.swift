@@ -250,12 +250,15 @@ public struct InputController: Sendable {
 
     public mutating func capture(_ event: CaptureEvent) -> InputResult {
         let change = capture.apply(event)
+        let wasConfined = virtual != nil
         if !capture.isConfined { unconfine() }
         if event == .pointerOnPicture(false) { recentMotions = [] }
         var result = InputResult(showHint: change.showHint, activates: change.activates)
         // A recapturing click cut short (its up gone elsewhere, or never coming after sleep or
         // a lock) is forgotten.
         guard !capture.isCaptured || event == .away else {
+            // Confinement ended mid-drag (a suspension): the release may go elsewhere, so up now.
+            if wasConfined, virtual == nil { result.messages = ledger.releaseAllButtons() }
             return result
         }
         if let held = recapturingButton { strayUp = held }
