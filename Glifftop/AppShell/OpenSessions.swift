@@ -62,13 +62,15 @@ import Observation
     }
 
     /// The monitors the windows to `destination` show (`MonitorPlanning`): a live session's
-    /// monitor, an ended named mirror's, and whether a live Focused Monitor mirror's output is
-    /// still unnamed.
+    /// monitor (a reconnecting Focused Monitor mirror's, the one its try asks for), an ended named
+    /// mirror's, and whether a live Focused Monitor mirror's output is still unnamed.
     func shown(for destination: SSHTarget) -> ShownMonitors {
         var shown = ShownMonitors()
         for model in models where model.destination == destination {
             if model.canDisconnect {
-                if let monitor = model.mirroredMonitor {
+                if let monitor = model.reconnectScreen.monitor(
+                    shownBy: model.screenChoice, output: model.outputName)
+                {
                     shown.live.insert(monitor)
                 } else if model.screenChoice == .focused, model.outputName == nil {
                     shown.unnamedFocused = true

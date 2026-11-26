@@ -146,7 +146,10 @@ and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes
   in full screen meanwhile (`isSwitching`); a lost session tried again with backoff
   (`SessionModel+Reconnect.swift`, GliffSession's `Reconnector`): a session that streamed and
   ended with a reason a retry may fix, Reconnect automatically on, each try a new session in
-  the same window, its size and full screen kept; Disconnect, closing the window, quitting,
+  the same window, its size and full screen kept, a Focused Monitor mirror's (and its Try
+  Again's) asking for the monitor it last showed (GliffMachines' `ReconnectScreen`), its
+  choice still Focused Monitor, and with that monitor missing the focused one at once, in the
+  same try; Disconnect, closing the window, quitting,
   another connection or Reconnect automatically turned off stops it (the last, with why it was
   lost on the end screen); `SessionEndedView` after
   an end the person didn't choose, with Try Again, Edit Machine… and Close: Disconnect and

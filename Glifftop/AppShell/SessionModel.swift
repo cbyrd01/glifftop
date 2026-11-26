@@ -177,6 +177,8 @@ import os
     var showsVirtualNotice = false
     /// The last picture's slot and stream, shown while reconnecting.
     var heldPicture: (slot: PictureSlot, stream: StreamInfo)?
+    /// What a reconnect asks for: a Focused Monitor mirror's, the monitor it last showed.
+    @ObservationIgnored var reconnectScreen = ReconnectScreen()
     /// The session is a reconnect's try: the window keeps its size.
     private(set) var keepsWindow = false
     /// The last picture shown, its slot and stream: what a reconnect holds.
@@ -236,14 +238,19 @@ import os
     private(set) var isActive = false
 
     /// Ends any session, then starts one with `destination` showing `screen`; a reconnect's
-    /// try (or a revival) keeps the window's size.
-    func start(_ destination: SSHTarget, screen: ScreenChoice, reconnecting: Bool = false) {
+    /// try (or a revival) keeps the window's size. It, or Try Again (`restoring`), asks for
+    /// what `reconnectScreen` says; any other start follows the host's focus afresh.
+    func start(
+        _ destination: SSHTarget, screen: ScreenChoice, reconnecting: Bool = false, restoring: Bool = false
+    ) {
         guard !quitting else {
             isSwitching = false
             return
         }
         // A listing still running is the form's, which the session replaces.
         screenList.stop()
+        let restores = reconnecting || restoring
+        if !restores { reconnectScreen.forget() }
         if !reconnecting {
             cancelReconnect()
             (gaveUp, sheetScreen) = (false, nil)
@@ -277,7 +284,8 @@ import os
             return
         }
         let session = makeSession(
-            to: destination, screen: screen, reconnecting: reconnecting, decoder: decoder)
+            to: destination, screen: restores ? reconnectScreen.screen(for: screen) : screen,
+            reconnecting: reconnecting, decoder: decoder)
         self.session = session
         sendViewTarget()
         if inLiveResize { session.setLiveResize(true) }
@@ -290,7 +298,9 @@ import os
             // A replaced session's last statuses (its `.ended`) must not reach the new one's.
             for await status in session.status where self.session === session {
                 switch status {
-                case .ended: clipboard.detach()
+                case .ended(let end):
+                    if restartsFocused(after: end, on: destination, reconnecting: reconnecting) { continue }
+                    clipboard.detach()
                 case .clipboardOffer(let offer): clipboard.remoteOffered(offer)
                 default: break
                 }

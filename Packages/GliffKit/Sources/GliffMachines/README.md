@@ -29,6 +29,14 @@ name) and reads and writes them as JSON.
   those past the last display cascading on it, each window on a display a cascade step
   (windows that stay counted); only new windows and a movable key window move, a monitor
   shown twice takes the key window's place, and a virtual-screen key window takes no slot. Plain rectangles: no AppKit.
+- `ReconnectScreen`: what a window's reconnect (or Try Again) asks the server for. A Focused
+  Monitor mirror asks for the monitor its last Focused Monitor session streamed, by name (a
+  name a monitor's could be), so the reconnect restores its picture though the host's focus
+  has moved; the window's choice stays Focused Monitor. A session that ends with that monitor
+  missing is started again at once, asking for the focused monitor (its end not shown, nor
+  counted as a try). Once another choice streams or the person starts a connection, it asks
+  for the focused monitor too. Any other choice asks for itself. Show All Monitors counts a reconnecting
+  Focused Monitor mirror as showing the monitor its try asks for.
 - It has no storage of its own: the app keeps the data (in `UserDefaults`).
 - Imports Foundation, GliffTransport, GliffSession and GliffClipboard only. Must not import AppKit, UIKit,
   SwiftUI, Observation or GliffVideo.

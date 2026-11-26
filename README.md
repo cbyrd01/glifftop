@@ -57,7 +57,9 @@ encode).
 1. Type the ssh destination, as you would after `ssh` (for example `omarchy`, a `Host` in
    your `~/.ssh/config`), pick the screen under **Options**, and connect. **Get Screens**
    lists the host's monitors. Each host you connect to is kept under **Machines**, with its
-   options.
+   options. **Focused Monitor** shows the monitor that has the host's focus when you
+   connect; a reconnect brings back the monitor the window showed, unless the host no longer
+   has it.
 
    <img src="docs/media/screen-choice.png" width="480" alt="The Glifftop window: the host omarchy, Options open with the Screen menu listing Focused Monitor, Virtual Screen and two monitors, and omarchy under Machines">
 2. While the window is in front, the keyboard and pointer go to the remote computer. With
