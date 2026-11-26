@@ -25,6 +25,8 @@ The name combines *gliff*, the Scots word for a glimpse, with *desktop* and *cli
   follows the window's size.
 - A shared clipboard (text, HTML and images, both ways), off until you turn it on.
 - Saved machines, each with its options, and reconnecting by itself after a lost link.
+- Several monitors at once (Connection ▸ Show All Monitors), each in a tab or window, the
+  pointer handing over between them.
 
 <img src="docs/media/screensaver.png" width="480" alt="Omarchy's screensaver in Glifftop: the logo's colour gradient, sharp at full chroma">
 
@@ -85,6 +87,28 @@ encode).
    - Hyprland combines the modifiers of every keyboard, so two tabs to one host share their
      held keys; switching tabs lets go of the old tab's keys first, and the new tab's first
      input waits 30 ms for that to land.
+6. **Connection ▸ Show All Monitors**, while a window streams, opens the host's other
+   monitors: **Show as Tabs** as tabs of that window, **Show as Windows** each in a window of
+   its own, behind it. Neither moves the host's pointer or focus. With **Place Windows in the
+   Host's Order** (also under Settings ▸ General), Show as Windows puts the host's leftmost
+   monitor on the Mac's leftmost display, and so on; extra windows go on the last display.
+
+   Rest the pointer on another monitor's window for a moment (with input in Integrated) and it
+   comes to the front: input and the host's focus follow, and the host's pointer lands where
+   yours entered.
+
+   Known limits:
+   - A host copy on the Mac goes when the window it came from closes, even with other windows
+     to that host open.
+   - Show All Monitors may open a monitor again whose Focused Monitor window is still
+     connecting.
+   - The handover moves the host's focus only where the focus follows the pointer (Hyprland's
+     `follow_mouse`), as switching windows does.
+   - With placement off, windows cascade, and resting the pointer on the uncovered strip of a
+     back window hands over too.
+   - Each tab or window takes one ssh channel. Past 10 to one host, a further ssh connection
+     opens; it may ask you to sign in, and its windows' held keys aren't ordered against the
+     first connection's.
 
 ## Build
 

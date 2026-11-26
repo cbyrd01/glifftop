@@ -82,7 +82,7 @@ the monitors no window to the destination shows, counting `OpenSessions.shown(fo
 mirrors, a Focused Monitor mirror not yet named as the focused monitor, and its ended named
 mirrors, which start again in place; each other opens by name with the window's options in
 a window or tab from a `TabRequest` whose `WindowStart` connects it as it opens, its screen
-its own, carrying `joined` for start macros; with the placement setting on, Show as Windows
+its own, carrying the source's input mode and `joined`; with the placement setting on, Show as Windows
 gives each window its `MonitorPlacement` slot (a display and a cascade step), counting the
 windows already showing a monitor, and moves the key window to its own when it is a mirror
 of a listed monitor alone in its window and not in full screen (`WindowPlacement.move`, then

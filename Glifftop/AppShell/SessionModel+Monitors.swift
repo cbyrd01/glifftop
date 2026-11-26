@@ -1,4 +1,5 @@
 import Foundation
+import GliffInput
 import GliffMachines
 import GliffSession
 import GliffTransport
@@ -45,6 +46,7 @@ extension SessionModel {
 
     /// Starts a window's session from `start` as it opens (Show All Monitors' windows).
     func connect(_ start: WindowStart) {
+        capture.mode = start.mode
         do throws(SSHTargetError) {
             try connect(to: start.host, options: start.options, screenIsOwn: start.screenIsOwn)
         } catch {
@@ -72,7 +74,8 @@ extension SessionModel {
                 ? [:] : placeInHostOrder(openings, listed: screens, on: destination, source: source)
             var opened = 0
             for opening in openings {
-                let start = WindowStart(host: host, options: opening.options, source: source)
+                let start = WindowStart(
+                    host: host, options: opening.options, mode: capture.mode, source: source)
                 if opening.inPlace, let ended = OpenSessions.shared.ended(opening.name, on: destination) {
                     ended.connect(start)
                     continue
@@ -99,8 +102,9 @@ extension SessionModel {
     ) -> [String: Slot] {
         let inPlace = Set(openings.filter(\.inPlace).map(\.name))
         var windows = openings.filter { !$0.inPlace }.map { PlacedWindow.new(monitor: $0.name) }
-        // The key window's group counts as the key window.
-        var counted = Set(tabGroup?.tabs ?? [source])
+        // The key window's group counts as the key window when it shows a monitor; else as its
+        // first tab that does.
+        var counted = mirroredMonitor == nil ? [] : Set(tabGroup?.tabs ?? [source])
         for model in OpenSessions.shared.models where model.destination == destination {
             let tabs = model.tabGroup?.tabs ?? []
             guard counted.isDisjoint(with: tabs), let monitor = model.placedMonitor(restarting: inPlace)

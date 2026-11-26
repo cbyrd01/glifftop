@@ -1,3 +1,4 @@
+import GliffInput
 import GliffMachines
 import SwiftUI
 
@@ -23,10 +24,11 @@ struct WindowStart: Codable, Hashable {
     /// The destination as typed.
     var host: String
     var options: MachineOptions
+    /// The source window's input mode: a monitor's window hands over only in Integrated.
+    var mode: CaptureMode
     /// The screen is the window's own: never kept on the machine.
     var screenIsOwn = true
-    /// Whether the window joins the source's connection rather than being a person's
-    /// connect, for start macros to read.
+    /// The window joins the source's connection rather than being a person's connect.
     var joined = true
     /// The window number of the window the command ran from.
     var source: Int

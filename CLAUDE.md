@@ -23,7 +23,9 @@ desktop for Hyprland/Omarchy, written in Swift. Not affiliated with Gliff.
   - the shared clipboard: text, HTML and images, both ways, off until turned on;
   - saved machines with their options, and reconnecting by itself after a lost link;
   - tabs and windows, one session each, sharing one ssh connection per host, with input and
-    the host's focus following the window on top.
+    the host's focus following the window on top;
+  - several monitors at once (Connection ▸ Show All Monitors), the pointer handing over between
+    their windows.
 - **Not yet:**
   - files over the clipboard;
   - an optional event tap for ⌘Space and ⌘Tab (they stay with the Mac);

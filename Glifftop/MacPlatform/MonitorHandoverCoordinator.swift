@@ -95,13 +95,13 @@ final class MonitorHandoverCoordinator {
             return
         }
         let mapped = view.remotePosition(ofWindowPoint: event.locationInWindow)
-        lastPosition = mapped?.position
-        answer(
-            rule.moved(
-                over: ObjectIdentifier(target), source: facts, target: target.handoverFacts,
-                pointer: pointer(over: view, at: event.locationInWindow, inside: mapped?.inside == true),
-                at: now),
-            target: target)
+        let answer = rule.moved(
+            over: ObjectIdentifier(target), source: facts, target: target.handoverFacts,
+            pointer: pointer(over: view, at: event.locationInWindow, inside: mapped?.inside == true),
+            at: now)
+        // Only the counted window's motions: a covered one maps the point in its own picture.
+        if rule.target == ObjectIdentifier(target) || answer == .handOver { lastPosition = mapped?.position }
+        self.answer(answer, target: target)
     }
 
     private func exited(_ target: CaptureController) {
@@ -119,11 +119,12 @@ final class MonitorHandoverCoordinator {
             stopCount()
             return
         }
-        let inside = view.remotePosition(ofWindowPoint: location)?.inside == true
+        let mapped = view.remotePosition(ofWindowPoint: location)
+        lastPosition = mapped?.position
         answer(
             rule.tick(
                 source: source.handoverFacts, target: target.handoverFacts,
-                pointer: pointer(over: view, at: location, inside: inside), at: now),
+                pointer: pointer(over: view, at: location, inside: mapped?.inside == true), at: now),
             target: target)
     }
 

@@ -1,6 +1,6 @@
 /// How a captured window treats the pointer and ⌘ chords ("Integrated" and "Capture"). Both
 /// capture keys and the pointer on the same conditions.
-public enum CaptureMode: Sendable, Equatable, CaseIterable {
+public enum CaptureMode: String, Sendable, Equatable, CaseIterable, Codable {
     /// The pointer moves freely; over the chrome, ⌘ chords are the Mac's
     /// (`InputController.key(_:overChrome:)`).
     case integrated

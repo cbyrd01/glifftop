@@ -135,16 +135,24 @@ final class ClipboardController {
 
     /// The sharing in force may have changed. Both switches change before either is judged: a
     /// sharing change sees the passwords setting as it now is.
-    func sharingChanged() {
+    /// Returns the actions carried out.
+    @discardableResult func sharingChanged() -> [ClipboardPolicy.Action] {
         let (wasSharing, wasIncluding) = (sharing, includePasswords)
         current = inForce()
+        var actions: [ClipboardPolicy.Action] = []
         if sharing != wasSharing {
             // The ledger first: a holder turning sharing off hands its copy over, and the new
             // holder's offer supersedes ours, so no empty offer of ours clears it.
             HostClipboards.shared.sharing(id, sharing)
-            carryOut(policy.handle(.sharing(sharing, mac())))
+            actions += policy.handle(.sharing(sharing, mac()))
+            carryOut(actions)
         }
-        if includePasswords != wasIncluding { carryOut(policy.handle(.recheck(mac()))) }
+        if includePasswords != wasIncluding {
+            let rechecked = policy.handle(.recheck(mac()))
+            carryOut(rechecked)
+            actions += rechecked
+        }
+        return actions
     }
 
     /// The host's clipboard changed: ours is no longer there, so withdrawing it later sends no
@@ -168,11 +176,14 @@ final class ClipboardController {
     func handOver() -> Bool {
         guard session != nil else { return false }
         // Settings may have just changed, its notice not yet here: the copy goes only as they
-        // now allow.
-        sharingChanged()
+        // now allow, and an offer that change made is this handover's.
+        let offers = { (actions: [ClipboardPolicy.Action]) in
+            actions.contains { if case .offerMac = $0 { true } else { false } }
+        }
+        if offers(sharingChanged()) { return true }
         let actions = policy.handle(.handOver(mac()))
         carryOut(actions)
-        return !actions.isEmpty
+        return offers(actions)
     }
 
     private func pasteboardChecked() {
