@@ -9,6 +9,7 @@ struct GlifftopApp: App {
         WindowGroup(for: TabRequest.self) { $request in
             SessionWindow(request: request)
                 .onAppear {
+                    AppPorts.shared.start()
                     appDelegate.beforeQuit = {
                         await OpenSessions.shared.shutdownAll()
                         await AppConnections.closeAll()

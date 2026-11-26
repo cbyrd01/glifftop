@@ -19,9 +19,8 @@
     ///   nil only after `close()`. A master that ends itself, even cleanly, is a lost connection.
     /// - A sign-in still unfinished after its limits fails as `.signInTimedOut`, which is not retried:
     ///   a retry would only ask for the approval again.
-    /// - Once the master is ready, the config's `LocalForward`s are asked of it in a task of
-    ///   their own, one `-O forward` at a time on 127.0.0.1, never delaying or failing the open.
-    ///   One refused (a busy port) is skipped. Only counts are logged.
+    /// - The config's `LocalForward`s are read with the open's probe and given by
+    ///   `configuredForwards`; GliffPorts applies them, never this connection.
     /// - Forwards and cancels (`SystemSSHConnection+Forwards`) go to the master one at a time.
     public final class SystemSSHConnection: HostConnection {
         let command: SSHMasterCommand
@@ -54,7 +53,7 @@
 
         /// Opens a master for `target` on `socket`, read through one `ssh -G`: a connect timeout
         /// where `SSHConnectTimeout` finds one wanted, `questions` asked through `helper`, and
-        /// the config's `LocalForward`s added once it is ready.
+        /// the config's `LocalForward`s kept for `configuredForwards` (GliffPorts applies them).
         public static func open(
             target: SSHTarget, socket: String, questions: (any SignInAsker)? = nil, helper: URL? = nil
         ) async throws(TransportError) -> SystemSSHConnection {
@@ -92,7 +91,7 @@
                 knownHostsName: config?.hasProxy == false ? config?.knownHostsName : nil,
                 configured: config.map(ConfiguredForwards.init(config:)) ?? .none, limit: limit,
                 ceiling: ceiling)
-            connection.addForwardsInBackground(probed: config != nil)
+            if config == nil { Self.log.info("config forwards not read: no ssh -G") }
             return connection
         }
 

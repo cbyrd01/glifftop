@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The session's controls in the window's toolbar, in three groups: the screen (and a virtual
-/// screen's text size), the shared clipboard, and Connection Info and Disconnect. Hidden while
+/// screen's text size), the shared clipboard and the ports, and Connection Info and Disconnect. Hidden while
 /// no session is shown; each is in the menu bar too.
 struct SessionToolbar: ToolbarContent {
     @Bindable var model: SessionModel
@@ -15,6 +15,8 @@ struct SessionToolbar: ToolbarContent {
         ToolbarSpacer(.fixed)
             .hidden(!model.isActive)
         ToolbarItem { ClipboardToolbarItem(model: model) }
+            .hidden(!model.isActive)
+        ToolbarItem { PortsToolbarItem(model: model) }
             .hidden(!model.isActive)
         ToolbarSpacer(.fixed)
             .hidden(!model.isActive)

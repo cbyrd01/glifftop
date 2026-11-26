@@ -11,7 +11,7 @@ import Testing
 
     @Test func aForwardThatFailsLosesItsNotice() async throws {
         let (tab, hold, channel) = try await bench.firstFrame([(5173, "node")])
-        await bench.registry.setAutomatic(true)
+        bench.registry.setAutomatic(true)
         channel.send([(5173, "node"), (3000, "node")])
         #expect(await bench.until { $0.notices.count == 1 && $0.forwarded.first?.state != .waiting })
         for port in 3000..<3100 { bench.mac.take(port) }

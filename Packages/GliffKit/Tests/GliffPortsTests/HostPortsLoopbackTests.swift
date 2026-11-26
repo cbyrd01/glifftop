@@ -21,7 +21,7 @@ import Testing
 
     @Test func anAutomaticForwardWhosePortLeavesLoopbackStops() async throws {
         let (tab, hold, channel) = try await bench.firstFrame([(5173, "node")])
-        await bench.registry.setAutomatic(true)
+        bench.registry.setAutomatic(true)
         channel.send([(5173, "node"), (3000, "node")])
         #expect(await bench.until { $0.forwarded.first?.state == .active(local: 3000, loopbacks: .both) })
         channel.send([(5173, "node"), (3000, "node")], lan: [3000])
@@ -46,7 +46,7 @@ import Testing
 
     @Test func framesAreReadWhileAnAutomaticForwardApplies() async throws {
         let (tab, hold, channel) = try await bench.firstFrame([(5173, "node")])
-        await bench.registry.setAutomatic(true)
+        bench.registry.setAutomatic(true)
         let connection = bench.opener.made[0]
         connection.block(.forward(3000, .ipv4))
         channel.send([(5173, "node"), (3000, "node")])
@@ -61,7 +61,7 @@ import Testing
 
     @Test func noWindowNoAutomaticForward() async throws {
         let (tab, hold, channel) = try await bench.firstFrame([(5173, "node")])
-        await bench.registry.setAutomatic(true)
+        bench.registry.setAutomatic(true)
         await hold.end()
         channel.send([(5173, "node"), (3000, "node")])
         #expect(await bench.until { $0.available.map(\.port) == [3000, 5173] })

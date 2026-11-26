@@ -25,6 +25,8 @@ enum AppSettings {
     static let includePasswordsKey = "includePasswords"
     /// View ▸ Show Status Bar, app-wide; off by default.
     static let showsStatusBarKey = "showsStatusBar"
+    /// "Forward new ports automatically" (`AppPorts.automatic`), app-wide; off by default.
+    static let forwardNewPortsKey = "forwardNewPortsAutomatically"
 
     /// The options a host not yet saved, or a new machine, starts from.
     static var defaultOptions: MachineOptions {

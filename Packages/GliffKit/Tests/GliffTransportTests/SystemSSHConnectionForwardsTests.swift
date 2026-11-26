@@ -97,7 +97,8 @@
             let connection = try await open(config: config)
             let reported = try #require(await connection.configuredForwards.local.first?.forward)
             #expect(SSHForwardSpec.make(reported, on: .ipv4) == "127.0.0.1:8080:[2001:db8::1]:80")
-            #expect(await eventually { self.requests.contains("-forward 127.0.0.1:8080:[2001:db8::1]:80") })
+            try await connection.forward(reported, on: .ipv4)
+            #expect(requests.last == "-forward 127.0.0.1:8080:[2001:db8::1]:80")
             await connection.close()
         }
 

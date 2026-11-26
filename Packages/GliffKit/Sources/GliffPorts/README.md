@@ -12,7 +12,8 @@ The module for a host's port forwards and the ports it offers. It holds the modu
   split into available and other, never gliff's own server or sshd; a forward goes where the
   socket listens.
 - **Which Mac port** (`LocalPortChooser`): the remembered or remote number when free, else
-  counting up, else one the system picks; the loopback check is injected.
+  counting up, else one the system picks; the loopback check is injected. `start(for:)` is
+  where it starts with nothing remembered.
 - **What is forwarded unasked** (`AutomaticPortPolicy`): only with names, never a database or
   cache port.
 - **A host's forwards** (`HostPorts`, `PortsRegistry`, `PortsHold`, `PortsSnapshot`): one actor
@@ -25,7 +26,11 @@ The module for a host's port forwards and the ports it offers. It holds the modu
   or forwarded under the automatic setting (the registry's) until frames have shown it gone
   10 s. A frame cut at 64 sockets shows no port gone. Only a forward to the host itself
   (`localhost` or a loopback address) takes one of its ports; the ports go from view when the
-  watcher stops, and an offer not answered comes back with its port.
+  watcher stops, and an offer not answered comes back with its port. Detection is idle while
+  not attached, and stopped only once the watcher gave up.
+- **The popover's text** (`PortsText`): a forward's Mac address (`localhost:P` on both
+  loopbacks, `127.0.0.1:P` on IPv4 alone), the page it opens, a destination (the port alone on
+  the host itself) and the Mac port a moved forward had.
 
 - **Imports:** Foundation, `os`, `Synchronization` and GliffTransport only. POSIX calls come
   through Foundation's re-export of Darwin.

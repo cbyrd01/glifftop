@@ -35,7 +35,7 @@ import Testing
 
     @Test func anAbsenceEndsWithItsChannel() async throws {
         let (tab, hold, channel) = try await bench.firstFrame([(5173, "node")])
-        await bench.registry.setAutomatic(true)
+        bench.registry.setAutomatic(true)
         channel.send([(5173, "node"), (3000, "node")])
         #expect(await bench.until { $0.forwarded.first?.state == .active(local: 3000, loopbacks: .both) })
         channel.send([(5173, "node")])
@@ -52,7 +52,7 @@ import Testing
 
     @Test func aStoppingForwardIsNotTimed() async throws {
         let (tab, hold, channel) = try await bench.firstFrame([(5173, "node")])
-        await bench.registry.setAutomatic(true)
+        bench.registry.setAutomatic(true)
         channel.send([(5173, "node"), (3000, "node")])
         #expect(await bench.until { $0.forwarded.first?.state == .active(local: 3000, loopbacks: .both) })
         let id = try #require(try await bench.row(3000)?.id)
@@ -87,10 +87,10 @@ import Testing
     }
 
     @Test func theRegistryKeepsTheAutomaticSetting() async throws {
-        await bench.registry.setAutomatic(true)
+        bench.registry.setAutomatic(true)
         let (tab, hold, _) = try await bench.watching()
         #expect(try await bench.ports().automatic)
-        await bench.registry.setAutomatic(false)
+        bench.registry.setAutomatic(false)
         #expect(try await !bench.ports().automatic)
         await hold.end()
         await tab.end()

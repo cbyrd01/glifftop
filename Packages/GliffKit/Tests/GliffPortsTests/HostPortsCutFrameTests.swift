@@ -14,7 +14,7 @@ import Testing
 
     @Test func aCutFrameStartsNoAbsence() async throws {
         let (tab, hold, channel) = try await bench.firstFrame([(5173, "node")])
-        await bench.registry.setAutomatic(true)
+        bench.registry.setAutomatic(true)
         channel.send([(5173, "node"), (3000, "node")])
         #expect(await bench.until { $0.forwarded.first?.state == .active(local: 3000, loopbacks: .both) })
         channel.send(crowded)
@@ -26,7 +26,7 @@ import Testing
 
     @Test func aCutFrameEndsAnAbsenceUnderWay() async throws {
         let (tab, hold, channel) = try await bench.firstFrame([(5173, "node")])
-        await bench.registry.setAutomatic(true)
+        bench.registry.setAutomatic(true)
         channel.send([(5173, "node"), (3000, "node")])
         #expect(await bench.until { $0.forwarded.first?.state == .active(local: 3000, loopbacks: .both) })
         channel.send([(5173, "node")])

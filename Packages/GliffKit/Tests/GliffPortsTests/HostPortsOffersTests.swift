@@ -71,7 +71,7 @@ import Testing
     /// The automatic setting on, after a first frame of 5173.
     func automatic() async throws -> (tab: HostLease, hold: PortsHold, channel: PortsChannel) {
         let watching = try await bench.firstFrame([(5173, "node")])
-        await bench.registry.setAutomatic(true)
+        bench.registry.setAutomatic(true)
         return watching
     }
 

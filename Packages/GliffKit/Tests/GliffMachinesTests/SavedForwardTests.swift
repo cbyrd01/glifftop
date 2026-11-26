@@ -1,4 +1,5 @@
 import Foundation
+import GliffTransport
 import Testing
 
 @testable import GliffMachines
@@ -75,6 +76,35 @@ import Testing
             ]}
             """
         #expect(try decode(json).forwards.map(\.destination) == ["::1", "localhost"])
+    }
+
+    /// A forward kept from the one running, and back: only to the host or an address, never to
+    /// a name the ssh_config gave.
+    @Test func aRunningForwardIsKeptAndComesBack() throws {
+        let address = try #require(IPLiteral("2001:db8::1"))
+        let saved = try #require(SavedForward(.address(address), remotePort: 5173, localPort: 5174))
+        #expect(saved.destination == "2001:db8::1")
+        #expect(saved.forwardDestination == .address(address))
+        #expect(saved.forwards(.address(address), 5173))
+        #expect(!saved.forwards(.localhost, 5173))
+        #expect(!saved.forwards(.address(address), 5174))
+        #expect(SavedForward(.localhost, remotePort: 80, localPort: nil)?.forwardDestination == .localhost)
+        let configured = try #require(ForwardDestination(configuredHost: "db"))
+        #expect(SavedForward(configured, remotePort: 5432, localPort: nil) == nil)
+    }
+
+    /// Forward When Connected adds a forward with its Mac port, and again removes it.
+    @Test func forwardWhenConnectedToggles() throws {
+        var options = MachineOptions()
+        options.toggleForwardWhenConnected(.localhost, 5173, localPort: 5174)
+        #expect(options.forwardsWhenConnected(.localhost, 5173))
+        #expect(options.forwards.map(\.localPort) == [5174])
+        options.toggleForwardWhenConnected(.localhost, 5173, localPort: 5180)
+        #expect(!options.forwardsWhenConnected(.localhost, 5173))
+        #expect(options.forwards.isEmpty)
+        let configured = try #require(ForwardDestination(configuredHost: "db"))
+        options.toggleForwardWhenConnected(configured, 5432, localPort: nil)
+        #expect(options.forwards.isEmpty)
     }
 
     @Test func aHostNameDestinationIsRefused() throws {

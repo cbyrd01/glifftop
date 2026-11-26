@@ -37,8 +37,11 @@ public enum ForwardState: Equatable, Sendable {
 /// Whether the host's listening ports are being followed.
 public enum PortDetection: Equatable, Sendable {
     case running
+    /// Not attached to a connection: not yet, or no longer.
+    case idle
     /// The host can't list them (no `/proc`).
     case unavailable
+    /// The watcher failed five times in a row and gave up until the next attachment.
     case stopped
     /// The connection has no free place for the watcher.
     case waitingForPlace
@@ -59,9 +62,6 @@ public struct ForwardRow: Equatable, Sendable, Identifiable {
     public let listening: Bool
     /// A config forward whose bind address isn't loopback: it is bound on loopback only.
     public let bindNotLoopback: Bool
-
-    /// The destination as a row shows it: `localhost:5173`.
-    public var destinationText: String { "\(destination.bracketedHost):\(remotePort)" }
 }
 
 /// What a host's ports look like now, for the toolbar item and the popover.
@@ -71,7 +71,7 @@ public struct PortsSnapshot: Equatable, Sendable {
     public var other: [RemotePort] = []
     /// The ssh_config's forward lines not applied (display only, never logged).
     public var notApplied: [String] = []
-    public var detection: PortDetection = .stopped
+    public var detection: PortDetection = .idle
     public var notices: [PortNotice] = []
 
     public init() {}

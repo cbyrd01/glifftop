@@ -17,6 +17,19 @@ import Testing
         await tab.end()
     }
 
+    /// Not watching yet, or no longer attached, is idle; only giving up is stopped.
+    @Test func withoutAConnectionDetectionIsIdle() async throws {
+        let hold = await bench.registry.hold(try bench.omarchy(), saved: [])
+        #expect(try await bench.snapshot().detection == .idle)
+        let tab = try await bench.connections.lease(for: bench.omarchy())
+        _ = try await bench.channel()
+        #expect(await bench.until { $0.detection == .running })
+        bench.opener.made[0].lose()
+        #expect(await bench.until { $0.detection == .idle })
+        await hold.end()
+        await tab.end()
+    }
+
     @Test func aFullConnectionWaitsForAFreedPlace() async throws {
         let first = try await bench.connections.lease(for: bench.omarchy())
         let second = try await bench.connections.lease(for: bench.omarchy())

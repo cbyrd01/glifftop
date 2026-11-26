@@ -1,5 +1,7 @@
 #if os(macOS)
     import Foundation
+    import GliffPorts
+    import GliffTestSupport
     import Testing
 
     @testable import GliffTransport
@@ -13,9 +15,10 @@
             "set GLIFFTOP_LIVE_SSHD=1 to run against a loopback sshd"))
     struct LiveForwardTests {
         /// A `LocalForward` on a port another program holds, under `ExitOnForwardFailure yes`,
-        /// leaves the master up and is skipped; a second, free one is forwarded on 127.0.0.1
-        /// only, its config's `localhost` bind not used, and carries a TCP connection.
-        @Test func aBusyForwardIsSkippedAndAFreeOneCarriesAConnection() async throws {
+        /// leaves the master up and fails as in use; a second, free one is forwarded by the
+        /// host's ports on both loopbacks, its config's `localhost` bind not used, and carries a
+        /// TCP connection on each.
+        @Test func aBusyForwardFailsAndAFreeOneCarriesAConnection() async throws {
             let sshd = try LoopbackSSHD()
             defer { sshd.stop() }
             try sshd.trustHostKey()
@@ -38,14 +41,29 @@
             let command = SSHMasterCommand(
                 target: target, socket: sshd.directory.appending(path: "m").path, sshArguments: arguments)
             let connection = try await SystemSSHConnection.open(
-                command: command, executable: URL(filePath: SSHCommand.executable))
+                command: command, executable: URL(filePath: SSHCommand.executable),
+                configured: ConfiguredForwards(config: config))
+            // The grace never runs out: the test ends the master itself.
+            let connections = HostConnections(open: { _, _ in connection }, clock: ManualClock())
+            let registry = PortsRegistry(connections: connections, clock: ManualClock())
             do {
                 // A channel opening while the busy port is held, before and after the forwards.
                 #expect(try await Self.echo(on: connection))
-                #expect(await connection.addForwards(ConfiguredForwards(config: config).local) == 1)
+                let tab = try await connections.lease(for: target)
+                let hold = await registry.hold(target, saved: [])
+                let ports = try #require(await registry.ports(for: target))
+                let wanted: [ForwardState] = [
+                    .failed(.localPortInUse), .active(local: free, loopbacks: .both),
+                ]
+                #expect(
+                    await eventually(within: .seconds(10)) {
+                        await ports.snapshot.forwarded.map(\.state) == wanted
+                    })
                 #expect(try await Self.echo(on: connection))
                 #expect(Self.firstBytes(host: "127.0.0.1", port: free)?.hasPrefix("SSH-2.0-") == true)
-                #expect(Self.firstBytes(host: "::1", port: free) == nil)
+                #expect(Self.firstBytes(host: "::1", port: free)?.hasPrefix("SSH-2.0-") == true)
+                await hold.end()
+                await tab.end()
             } catch {
                 await connection.close()
                 throw error

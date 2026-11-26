@@ -59,29 +59,5 @@ extension ConfiguredForwards {
                     executable: executable, arguments: arguments, timeout: .seconds(5))
             }
         }
-
-        /// Adds `config`'s local forwards in a task of their own.
-        func addForwardsInBackground(probed: Bool) {
-            guard probed else {
-                Self.log.info("config forwards not read: no ssh -G")
-                return
-            }
-            guard configured != .none else { return }
-            Task { await addForwards(configured.local, notApplied: configured.notApplied.count) }
-        }
-
-        /// Forwards each of `forwards` on 127.0.0.1 until the master ends, as `forward` does (so
-        /// a later cancel matches it); returns how many it added.
-        @discardableResult
-        func addForwards(_ forwards: [ConfiguredForward], notApplied: Int = 0) async -> Int {
-            var applied = 0
-            for each in forwards where !masterGone {
-                if (try? await forward(each.forward, on: .ipv4)) != nil { applied += 1 }
-            }
-            Self.log.info(
-                "config forwards: \(applied) applied, \(forwards.count - applied) skipped, \(notApplied) not applied"
-            )
-            return applied
-        }
     }
 #endif

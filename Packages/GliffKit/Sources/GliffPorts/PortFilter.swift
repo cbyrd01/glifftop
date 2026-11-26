@@ -71,7 +71,7 @@ public enum PortFilter {
 extension ForwardDestination {
     /// `.localhost` or a loopback address: a forward here reaches the host's own loopback and
     /// wildcard sockets, the ports the watcher sees and offers.
-    var isLoopback: Bool {
+    public var isLoopback: Bool {
         switch self {
         case .localhost: true
         case .address(let address): address.isLoopback

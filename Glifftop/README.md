@@ -65,9 +65,17 @@ Connected", `SessionModel+Chrome.swift`), the toolbar (`SessionToolbar`, while a
 shown, shown on hover in full screen: Screen and, on a virtual screen, Text Size; the
 clipboard (`ClipboardToolbarItem`: one button stepping through Not shared, Shared and Shared
 including passwords, each step up asking first as Settings does, with the clipboard read
-beside it); Connection Info, a popover of `StatsView`'s numbers and "The host draws W × H",
+beside it); Ports (`PortsToolbarItem`: the `network` symbol, a badge counting the forwards
+listening on this Mac, else a dot for an offer the popover hasn't shown, and the Ports popover,
+`PortsPopover`: Forwarded, Available, From ssh config with each line not applied and why,
+Other ports, Forward a Port… and "Forward new ports automatically"; each forward's row,
+`PortsForwardRow`, with Open or Try Again and a menu of Open in Browser, Copy Address,
+Forward When Connected (the machine's, disabled for a host not saved) and Stop; every address
+`localhost:P` on both loopbacks, `127.0.0.1:P` on IPv4 alone); Connection Info, a popover of
+`StatsView`'s numbers and "The host draws W × H",
 and Disconnect), the Connection menu (`ConnectionCommands`: Disconnect ⇧⌘D, Reconnect ⇧⌘R,
-Connection Info ⌘I, Edit Machine… ⌘E; and File's New Tab, New Window, New Machine… and Close
+Connection Info ⌘I, Show Ports ⌥⌘P (`PortsCommands`: the popover, or a sheet with the same
+content while the toolbar isn't shown), Edit Machine… ⌘E; and File's New Tab, New Window, New Machine… and Close
 Window), the View menu (Actual Size ⌘0, disabled on a virtual
 screen, turning Scale to Fit off; Scale to Fit ⌥⌘0; Show Status Bar ⌘/, app-wide, off by default; `ScreenMenus.swift`: Text Size, a virtual screen only, its steps
 showing the remote scale on the window's display and the ones that change nothing off;
@@ -130,7 +138,12 @@ and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes
   an end the person didn't choose, with Try Again, Edit Machine… and Close: Disconnect and
   Cancel go straight back to the machines), `AppConnections` (the app's one `HostConnections`:
   each session and Get Screens is a channel on its host's one signed-in ssh, which asks its
-  questions through the bundle's askpass helper), `ScreenList`
+  questions through the bundle's askpass helper), `AppPorts` (the app's one `PortsRegistry`
+  on those connections, started at launch; a hold on each open window's host while its
+  session is active, with
+  its machine's "Forward when connected" ports, following `OpenSessions` and each model's
+  session and machine; each window's `PortsModel`, the host's latest snapshot and the actions
+  on it; and "Forward new ports automatically", in `UserDefaults`), `ScreenList`
   (the host's monitors, listed through a lister closure, by default on the host's shared
   connection, and never saved:
   one listing at a time, stopped (its error dismissed) when a session starts; a refresh keeps the list until the
@@ -150,6 +163,8 @@ and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes
 AppKit adapters for what SwiftUI can't do:
 
 - the attached displays' size in pixels (`DisplayMetrics`);
+- whether a window's toolbar is on screen (`WindowToolbar`), and text put on the clipboard
+  (`TextPasteboard`, Copy Address);
 - committing what a field holds before a form reads it, text still being composed or put
   there by AutoFill (`TextComposition`: commits the composition in place, tells the input
   method, and returns the field's own value; the SwiftUI binding may update later);

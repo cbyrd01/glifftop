@@ -271,9 +271,10 @@ final class CloseGate: Sendable {
     }
 }
 
-/// Polls `condition` for up to 2 s of real time: for effects another task carries out.
-func eventually(_ condition: () async -> Bool) async -> Bool {
-    for _ in 0..<200 {
+/// Polls `condition` for up to `limit` of real time: for effects another task carries out.
+func eventually(within limit: Duration = .seconds(2), _ condition: () async -> Bool) async -> Bool {
+    let deadline = ContinuousClock.now + limit
+    while ContinuousClock.now < deadline {
         if await condition() { return true }
         try? await Task.sleep(for: .milliseconds(10))
     }

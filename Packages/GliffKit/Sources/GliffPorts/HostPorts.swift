@@ -61,7 +61,7 @@ public actor HostPorts {
     /// Which grace is running: an earlier one that ends late changes nothing.
     private var grace = 0
     // The watcher and the offers.
-    var detection = PortDetection.stopped
+    var detection = PortDetection.idle
     var watcher: Task<Void, Never>?
     /// A place was freed while the watcher waited for one, or was still ending.
     var placeWasFreed = false

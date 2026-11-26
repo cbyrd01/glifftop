@@ -234,9 +234,10 @@ This file wins over any skill, including a skill's "supersedes prior training" c
   - Through the askpass helper and the real peer check: an unknown key allowed (added by its
     fingerprint) and denied, an encrypted key's passphrase, Cancel (no signature sent), and a
     banner imitating ssh's words. A user-run sshd has no PAM, so passwords aren't tested.
-  - The config's forwards: a `LocalForward` on a port the test holds, under
-    `ExitOnForwardFailure yes`, leaves the master up and a channel working; a free one is
-    forwarded on 127.0.0.1 only and carries a TCP connection.
+  - The config's forwards, applied by GliffPorts' `PortsRegistry`: a `LocalForward` on a port
+    the test holds, under `ExitOnForwardFailure yes`, fails as in use and leaves the master up
+    and a channel working; a free one is forwarded on both loopbacks and carries a TCP
+    connection on each.
   - A forward on each loopback carries a TCP connection on both, and cancelling frees the
     port; a cancel once the master is gone is the connection lost; a config with
     `ForwardAgent`, `RemoteCommand` and `RequestTTY` still gives a working channel.

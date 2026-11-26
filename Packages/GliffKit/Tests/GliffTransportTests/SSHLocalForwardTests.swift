@@ -67,6 +67,16 @@ struct SSHLocalForwardTests {
         #expect(config.notAppliedLines == ["localforward 80 [localhost]:80"])
     }
 
+    /// Why a line isn't applied: a `LocalForward` under 1024 says so; any other says only that.
+    @Test func aLineNotAppliedSaysWhy() {
+        #expect(NotAppliedReason(line: "localforward 80 [localhost]:80") == .privilegedPort)
+        #expect(NotAppliedReason(line: "LocalForward 127.0.0.1:443 [h]:443") == .privilegedPort)
+        #expect(NotAppliedReason(line: "localforward 8080 [fe80::1%en0]:80") == .other)
+        #expect(NotAppliedReason(line: "localforward /tmp/x.sock [host]:22") == .other)
+        #expect(NotAppliedReason(line: "remoteforward 80 [localhost]:80") == .other)
+        #expect(NotAppliedReason(line: "dynamicforward 1080") == .other)
+    }
+
     /// Each line not applied keeps its text as `ssh -G` printed it, in order.
     @Test func notAppliedLinesKeepTheirText() {
         let config = SSHResolvedConfig(

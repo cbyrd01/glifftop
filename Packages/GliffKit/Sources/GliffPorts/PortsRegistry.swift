@@ -9,7 +9,7 @@ public actor PortsRegistry {
     private let chooser: LocalPortChooser
     private var hosts: [String: HostPorts] = [:]
     private var nextHold = 0
-    private let automatic = AutomaticSetting()
+    private nonisolated let automatic = AutomaticSetting()
     private nonisolated let hub = SnapshotHub()
 
     public init(
@@ -43,7 +43,7 @@ public actor PortsRegistry {
     }
 
     /// Whether new ports are forwarded without a notice, on every host's ports from now on.
-    public func setAutomatic(_ on: Bool) { automatic.set(on) }
+    public nonisolated func setAutomatic(_ on: Bool) { automatic.set(on) }
 
     /// `target`'s ports while a window holds them or their grace runs.
     public func ports(for target: SSHTarget) -> HostPorts? { hosts[target.value] }

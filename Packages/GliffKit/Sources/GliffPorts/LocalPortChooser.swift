@@ -31,9 +31,15 @@ public struct LocalPortChooser: Sendable {
     /// The system's own check and pick: blocking, so off the main actor.
     public static let system = LocalPortChooser(check: LoopbackPorts.check, pick: LoopbackPorts.pick)
 
+    /// The Mac port a forward of `remote` tries first with nothing remembered: its own number,
+    /// or 8000 for one under 1024.
+    public static func start(for remote: Int) -> Int {
+        PortForward.localPorts.contains(remote) ? remote : lowStart
+    }
+
     public func choose(remote: Int, remembered: Int? = nil, skipping: Set<Int> = []) -> Choice? {
         let ports = PortForward.localPorts
-        let start = [remembered, remote].compactMap { $0 }.first(where: ports.contains) ?? Self.lowStart
+        let start = remembered.flatMap { ports.contains($0) ? $0 : nil } ?? Self.start(for: remote)
         for port in start..<min(start + Self.tries, ports.upperBound + 1) where !skipping.contains(port) {
             if let choice = exactly(port) { return choice }
         }

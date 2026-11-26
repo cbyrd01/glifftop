@@ -123,11 +123,11 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   `ClearAllForwardings=yes` (`SSHCommand`'s options, a channel's), and control requests read no
   config (`-F none`), so ssh opens none of the config's forwards: one on a busy port would end
   the master under `ExitOnForwardFailure yes`, or fail a channel, which asks the master for them. `SSHResolvedConfig` reads the `LocalForward`
-  lines (`SSHLocalForward`, its bind address kept for display); once the master is ready,
-  `SystemSSHConnection` asks it for each, off the open's path, on 127.0.0.1, skipping one it
-  refuses. `RemoteForward`, `DynamicForward`, and unix-socket, under-1024 or otherwise
-  unholdable `LocalForward` lines don't apply; `notAppliedLines` keeps their text, and
-  `configuredForwards` gives both. Only counts are logged.
+  lines (`SSHLocalForward`, its bind address kept for display), and `configuredForwards`
+  gives them for GliffPorts to apply. `RemoteForward`, `DynamicForward`, and unix-socket,
+  under-1024 or otherwise unholdable `LocalForward` lines don't apply; `notAppliedLines` keeps
+  their text, and `NotAppliedReason` says which are a Mac port under 1024. Only counts are
+  logged.
 - **Forward and cancel on the master** (`SystemSSHConnection+Forwards`): `-O forward` or
   `-O cancel` with an `SSHForwardSpec` (`127.0.0.1:P:dest:port` or `[::1]:P:dest:port`, from
   typed values only), one request at a time per connection (`MasterRequests`), each within

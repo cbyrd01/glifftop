@@ -32,7 +32,7 @@ extension HostPorts {
         watcher?.cancel()
         watcher = nil
         forgetPorts()
-        (known, detection) = (nil, .stopped)
+        (known, detection) = (nil, .idle)
     }
 
     /// Runs on the watcher's task: a cancelled one changes nothing.

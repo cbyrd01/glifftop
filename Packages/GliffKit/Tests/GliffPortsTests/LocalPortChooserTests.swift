@@ -99,6 +99,12 @@ import Testing
         #expect(fake.chooser.exactly(5174) == .init(port: 5174, loopbacks: .both))
     }
 
+    @Test func aForwardWithNothingRememberedStartsAtItsOwnPort() {
+        #expect(LocalPortChooser.start(for: 5173) == 5173)
+        #expect(LocalPortChooser.start(for: 1024) == 1024)
+        #expect(LocalPortChooser.start(for: 80) == 8000)
+    }
+
     @Test(arguments: [0, 80, 1023, 65536]) func aTypedPortOutsideTheRangeIsRefused(_ port: Int) {
         let fake = Fake()
         #expect(fake.chooser.exactly(port) == nil)

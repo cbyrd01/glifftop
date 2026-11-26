@@ -48,7 +48,8 @@ let package = Package(
             swiftSettings: strictSettings),
         .testTarget(
             name: "GliffTransportTests",
-            dependencies: ["GliffTransport", "GliffAskpass", "GliffTestSupport"],
+            // GliffPorts: the live check of the config's forwards, applied as the app applies them.
+            dependencies: ["GliffTransport", "GliffAskpass", "GliffTestSupport", "GliffPorts"],
             swiftSettings: strictSettings),
         .target(
             name: "GliffVideo", dependencies: ["GliffProtocol"], exclude: ["README.md"],
