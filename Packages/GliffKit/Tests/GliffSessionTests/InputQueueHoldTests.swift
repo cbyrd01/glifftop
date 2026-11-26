@@ -78,6 +78,18 @@ import Testing
         #expect(queue.timersStarted == 1)
     }
 
+    /// Judging what is held: inputs kept or dropped in place, a clipboard command kept.
+    @Test func heldInputCanBeJudged() {
+        let queue = InputQueue(clock: clock)
+        queue.hold(for: .milliseconds(30))
+        queue.append(key)
+        queue.append(.keymap("k"))
+        queue.append(.clipboard(.revoke(sendEmpty: false)))
+        queue.append(release)
+        queue.keepInputs { $0 != key }
+        #expect(queue.takeAll() == [.keymap("k"), release])
+    }
+
     @Test func takeAllIgnoresAHold() {
         let queue = InputQueue(clock: clock)
         queue.hold(for: .milliseconds(30))

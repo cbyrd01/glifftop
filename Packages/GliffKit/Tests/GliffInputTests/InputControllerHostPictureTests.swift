@@ -75,4 +75,40 @@ import Testing
         #expect(host(&controller, 500, 300, geometry: doubled, at: .zero))
         #expect(controller.confinedPointer?.x == 500)
     }
+
+    /// `pictureDrawn`, callable inside `#expect`.
+    private func drawn(_ controller: inout InputController, _ geometry: PictureGeometry, at time: Duration)
+        -> Bool
+    {
+        controller.pictureDrawn(geometry, at: time)
+    }
+
+    /// A warp that came before its picture: followed once the picture is drawn, though the host
+    /// reports nothing more.
+    @Test func aSkippedWarpIsFollowedOnceThePictureIsDrawn() {
+        var controller = confined()
+        controller.hostPictureChanged(at: .zero)
+        #expect(!host(&controller, 1000, 600, geometry: geometry, at: .milliseconds(10)))
+        #expect(!drawn(&controller, geometry, at: .milliseconds(20)))
+        #expect(drawn(&controller, doubled, at: .milliseconds(30)))
+        #expect(controller.confinedPointer?.x == 500)
+        #expect(controller.confinedPointer?.y == 300)
+    }
+
+    /// The picture never changes size: at the limit, the skipped warp is followed in it.
+    @Test func aSkippedWarpIsFollowedAtTheLimit() {
+        var controller = confined()
+        controller.hostPictureChanged(at: .zero)
+        #expect(!host(&controller, 500, 300, geometry: geometry, at: .milliseconds(10)))
+        #expect(drawn(&controller, geometry, at: InputController.newPictureLimit))
+        #expect(controller.confinedPointer?.x == 500)
+    }
+
+    /// With nothing skipped, a drawn picture only resizes.
+    @Test func aDrawnPictureWithNothingSkippedMovesNothing() {
+        var controller = confined()
+        controller.hostPictureChanged(at: .zero)
+        #expect(!drawn(&controller, doubled, at: .milliseconds(30)))
+        #expect(controller.confinedPointer?.x == 100)
+    }
 }

@@ -61,13 +61,30 @@ extension InputController {
     /// are in its stream's pixels, so they wait until it is drawn.
     public mutating func hostPictureChanged(at time: Duration) {
         guard virtual != nil, let virtualGeometry else { return }
-        pendingPicture = (virtualGeometry, time)
+        pendingPicture = (virtualGeometry, time, nil)
+    }
+
+    /// The picture drawn now, each tick: a new picture's wait ends once it is drawn, or at
+    /// `newPictureLimit`, and the virtual pointer follows the report it skipped (the host may
+    /// send no other). Otherwise as `resizeConfined`. Returns whether it followed one (a warp).
+    public mutating func pictureDrawn(_ geometry: PictureGeometry, at time: Duration) -> Bool {
+        guard let pending = pendingPicture,
+            geometry != pending.geometry || time - pending.at >= Self.newPictureLimit
+        else {
+            resizeConfined(geometry)
+            return false
+        }
+        pendingPicture = nil
+        resizeConfined(geometry)
+        guard let skipped = pending.skipped else { return false }
+        return hostPointer(
+            bufferX: skipped.x, bufferY: skipped.y, visible: skipped.visible, geometry: geometry, at: time)
     }
 
     /// The host's pointer from a CursorPos (capture-buffer pixels of the picture the virtual
     /// pointer follows; `geometry` is the picture drawn). After `hostPictureChanged`, a report
-    /// is skipped until the picture drawn changes, or for `newPictureLimit`, and then the
-    /// virtual pointer follows the new picture. Returns whether the virtual pointer followed
+    /// is skipped (the last one kept for `pictureDrawn`) until the picture drawn changes, or
+    /// for `newPictureLimit`, and then the virtual pointer follows the new picture. Returns whether the virtual pointer followed
     /// it (a warp); the host is already there, so nothing is sent.
     public mutating func hostPointer(
         bufferX: Double, bufferY: Double, visible: Bool, geometry: PictureGeometry, at time: Duration
@@ -75,6 +92,7 @@ extension InputController {
         guard virtual != nil, var stream = virtualGeometry else { return false }
         if let pending = pendingPicture {
             guard geometry != pending.geometry || time - pending.at >= Self.newPictureLimit else {
+                pendingPicture?.skipped = (bufferX, bufferY, visible)
                 return false
             }
             pendingPicture = nil

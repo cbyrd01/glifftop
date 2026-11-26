@@ -10,11 +10,20 @@
     /// output, or (with its flags) a key before the keymap, input before the activation nudge, or
     /// too few keys or pointer messages.
     extension SessionIntegrationTests {
-        private static func press(_ code: UInt32) -> InputMessage { .key(code: code, pressed: true) }
-        private static func release(_ code: UInt32) -> InputMessage { .key(code: code, pressed: false) }
+        static func press(_ code: UInt32) -> InputMessage { .key(code: code, pressed: true) }
+        static func release(_ code: UInt32) -> InputMessage { .key(code: code, pressed: false) }
+
+        /// A controller in `mode` with the window key, the app active and a picture: captured.
+        static func captured(_ mode: CaptureMode = .integrated) -> InputController {
+            var controller = InputController(mode: mode, keymap: "k1")
+            for event: CaptureEvent in [.windowKey(true), .appActive(true), .picture(true)] {
+                _ = controller.capture(event)
+            }
+            return controller
+        }
 
         /// Runs `serve input` with `args`; once streaming, sends `inputs` and disconnects at once.
-        private func input(_ args: [String], _ inputs: [InputMessage]) async throws -> Outcome {
+        func input(_ args: [String], _ inputs: [InputMessage]) async throws -> Outcome {
             try await session(
                 ["input"] + args,
                 onStatus: { status, session in
@@ -33,10 +42,7 @@
 
         /// A window coming to the front nudges the remote pointer before anything else it sends.
         @Test func activationNudgesFirst() async throws {
-            var controller = InputController(keymap: "k1")
-            for event: CaptureEvent in [.windowKey(true), .appActive(true), .picture(true)] {
-                _ = controller.capture(event)
-            }
+            var controller = Self.captured()
             let nudge = controller.activate(at: (x: 100, y: 50)).messages
             let outcome = try await input(
                 ["--expect-nudge", "--expect-keys", "2"], nudge + [Self.press(30), Self.release(30)])

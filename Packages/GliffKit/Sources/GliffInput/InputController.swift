@@ -65,8 +65,9 @@ public struct InputController: Sendable {
     /// The picture the virtual pointer's coordinates belong to.
     var virtualGeometry: PictureGeometry?
     /// A new picture the host announced while confined, not yet drawn: the picture drawn then,
-    /// and when (`hostPictureChanged`).
-    var pendingPicture: (geometry: PictureGeometry, at: Duration)?
+    /// when (`hostPictureChanged`), and the last report skipped meanwhile (buffer pixels).
+    var pendingPicture:
+        (geometry: PictureGeometry, at: Duration, skipped: (x: Double, y: Double, visible: Bool)?)?
     /// Where the virtual pointer was when confinement last ended, for the app to put the Mac
     /// cursor there; nil once confinement starts again.
     public internal(set) var unconfinedAt: (x: Double, y: Double)?
@@ -260,8 +261,9 @@ public struct InputController: Sendable {
         // A recapturing click cut short (its up gone elsewhere, or never coming after sleep or
         // a lock) is forgotten.
         guard !capture.isCaptured || event == .away else {
-            // Confinement ended mid-drag (a suspension): the release may go elsewhere, so up now.
-            if wasConfined, virtual == nil { result.messages = ledger.releaseAllButtons() }
+            // Confinement ended mid-drag or mid-scroll (a suspension): the release or the
+            // gesture's end may go elsewhere, so up and stopped now.
+            if wasConfined, virtual == nil { result.messages = stopScrolling() + ledger.releaseAllButtons() }
             return result
         }
         if let held = recapturingButton { strayUp = held }
@@ -270,11 +272,15 @@ public struct InputController: Sendable {
         recentMotions = []
         // A chord key's key-up may go to another window now.
         chordKeys = MacChordKeys()
-        let stops = [Axis.vertical, .horizontal].filter(scrolling.contains).map {
+        result.messages = stopScrolling() + ledger.releaseAll()
+        return result
+    }
+
+    /// Stops for the precise axes scrolled since their last stop.
+    private mutating func stopScrolling() -> [InputMessage] {
+        defer { scrolling = [] }
+        return [Axis.vertical, .horizontal].filter(scrolling.contains).map {
             InputMessage.pointerAxis(axis: $0, value: 0, discrete: nil, stop: true)
         }
-        scrolling = []
-        result.messages = stops + ledger.releaseAll()
-        return result
     }
 }

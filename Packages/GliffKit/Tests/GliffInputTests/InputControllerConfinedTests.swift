@@ -1,3 +1,4 @@
+import GliffProtocol
 import Testing
 
 @testable import GliffInput
@@ -268,6 +269,17 @@ import Testing
         let result = controller.capture(.pointerOnPicture(false))
         #expect(result.messages == [.pointerButton(code: 0x110, pressed: false)])
         #expect(controller.confinedPointer == nil)
+    }
+
+    /// A suspension mid-scroll: the gesture's end may go elsewhere, so its axis stops now.
+    @Test func aSuspensionStopsAScrollUnderWay() {
+        var controller = confined()
+        let scroll = ScrollEvent(deltaX: 0, deltaY: 2, isPrecise: true, phase: .changed, isMomentum: false)
+        _ = controller.pointer(.scroll(scroll, x: 100, y: 100, flags: 0))
+        let result = controller.capture(.pointerOnPicture(false))
+        #expect(result.messages == [.pointerAxis(axis: .vertical, value: 0, discrete: nil, stop: true)])
+        // Stopped once: capture ending later sends no second stop.
+        #expect(controller.capture(.windowKey(false)).messages.isEmpty)
     }
 
     /// Sleep or a lock mid-drag: every button and key comes up.

@@ -32,7 +32,8 @@ the feature seam.
   scrolling only while streaming and not interrupted; a release (or a scroll's stop) only if
   what it ends went, and then even while interrupted (so the remote never holds a key or
   button past a stall, nor gets an unpaired release); a keymap always.
-  Anything queued before the handshake is judged then (a press is dropped). `disconnect()`
+  Anything queued before the handshake is judged then, held by the barrier or not (a press is
+  dropped). `disconnect()`
   sends the queue before Bye; after the end nothing is kept. While the transport is still
   connecting, `disconnect()` cancels that connect instead (`TransportError.cancelled`).
 - **The barrier between sessions:** a session's input is in order within that session only;

@@ -25,12 +25,12 @@
         func makeSession(
             _ args: [String], decoder: any FrameDecoder = NullFrameDecoder(),
             features: [any SessionFeature] = [], cursor: CursorSlot = CursorSlot(),
-            clipboard: ClipboardSetup? = nil
+            clipboard: ClipboardSetup? = nil, barrier: InputBarrier? = nil
         ) throws -> (Session, ObservedTransport) {
             let transport = try #require(ObservedTransport(args))
             let session = Session(
                 transport: transport, configuration: SessionConfiguration(maxWidth: 4096, maxHeight: 4096),
-                decoder: decoder, features: features, cursor: cursor, clipboard: clipboard)
+                decoder: decoder, features: features, cursor: cursor, clipboard: clipboard, barrier: barrier)
             return (session, transport)
         }
 

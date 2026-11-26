@@ -170,8 +170,8 @@ AppKit adapters for what SwiftUI can't do:
   screen, glass on its own content, announced to VoiceOver); ⌘ and the key held 1 s (the
   observing monitor's key-ups end it; at the deadline `CGEventSource.keyState` and the
   modifier flags confirm it) or a fresh press while it shows quits, from the run loop; let go
-  early, it stays 1.5 s, then fades. Quit from a menu, the Dock, logout or restart isn't
-  guarded;
+  early, it stays 1.5 s, then fades. Quit from a menu, or by an Apple event (the Dock, logout,
+  restart, a script), isn't guarded;
 - native tabs (`WindowTabbing`): a SwiftUI window is already ordered in when its content
   reaches it, so a new tab joins its group with `addTabbedWindow`, after the group's last tab,
   and a window opened alone that macOS tabbed anyway leaves its group, as does a new window
@@ -260,7 +260,8 @@ AppKit adapters for what SwiftUI can't do:
   sprite): nothing while the host hides its pointer, or with no shape to show over a video that
   carries it. Confinement starts where an activation puts the remote pointer, shown or hidden
   as the host's is, and each tick reads every `CursorPos` since the last (a nil one, a new
-  picture, is `hostPictureChanged`). Where the pointer
+  picture, is `hostPictureChanged`), then gives it the picture drawn (`pictureDrawn`). Where
+  the pointer
   is comes from the video view (`onHover`: over the picture drawn, not its bars, at each
   motion, the tracking area's enter and exit, a click and a scroll; ignored while confined)
   and, at the window's key edge and the app's active edge, from the pointer's place before the

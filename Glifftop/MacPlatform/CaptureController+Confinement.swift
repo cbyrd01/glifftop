@@ -96,7 +96,7 @@ extension CaptureController {
                     at: now)
             }
         }
-        controller?.resizeConfined(geometry)
+        _ = controller?.pictureDrawn(geometry, at: now)
         showSprite()
     }
 

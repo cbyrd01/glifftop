@@ -32,7 +32,11 @@ import os
             confirmed = false
             return false
         }
-        guard guarded, let event, event.type == .keyDown, event.modifierFlags.contains(.command) else {
+        // An Apple event's quit (logout, restart, the Dock, a script) passes, whatever event
+        // came last.
+        guard guarded, NSAppleEventManager.shared().currentAppleEvent == nil, let event,
+            event.type == .keyDown, event.modifierFlags.contains(.command)
+        else {
             return false
         }
         keyCode = event.keyCode

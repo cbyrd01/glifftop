@@ -71,9 +71,11 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   (`hostPointer`) moves it when it is a warp, not an echo. It starts hidden where the host's
   last report hid its pointer (`confine(hostHiddenAt:)`), and after `hostPictureChanged` a
   report waits until the new picture is drawn (at most `newPictureLimit`), as it is in that
-  picture's pixels. Confinement ends whenever
+  picture's pixels; `pictureDrawn`, each tick, ends the wait and follows the last report
+  skipped. Confinement ends whenever
   `isConfined` falls, leaving its place in `unconfinedAt` for the app to put the Mac cursor
-  there; still captured (a suspension), the buttons held come up, as their releases may go
+  there; still captured (a suspension), a precise scroll under way stops and the buttons held
+  come up, as their stop and releases may go
   elsewhere. A recapturing click's drag moves it but sends nothing until the up.
 - **`StartWarp`:** the first motion after the app warps the Mac pointer to the view's centre
   to confine it: the warp's displacement taken out when the delta comes within a quarter of
