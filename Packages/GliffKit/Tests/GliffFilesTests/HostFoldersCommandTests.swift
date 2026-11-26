@@ -57,8 +57,9 @@ import Testing
     /// `xdg-user-dir` that prints `answers[key]`, or `$HOME` for a key not set, as the real one
     /// does; with `answers` nil there is no `xdg-user-dir`.
     func run(answers: [String: String]?, folders: [String]) throws -> (HostFolders?, home: String) {
-        let base = FileManager.default.temporaryDirectory.appending(path: "HostFolders-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: base) }
+        let temporary = try TemporaryFolder()
+        defer { temporary.remove() }
+        let base = temporary.url
         let home = base.appending(path: "home")
         let bin = base.appending(path: "bin")
         for folder in [home, bin] + folders.map({ home.appending(path: $0) }) {

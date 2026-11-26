@@ -22,6 +22,8 @@ public enum FilesError: Error, Equatable, Sendable {
     case noSpace
     case changedWhileCopying
     case cancelled
+    /// An operation on this Mac failed.
+    case local(LocalFailure)
 
     /// The error for a STATUS code that isn't OK; the host's text is never kept.
     init(status code: SFTPStatusCode) {
@@ -74,6 +76,7 @@ public enum FilesError: Error, Equatable, Sendable {
         case .noSpace: "There isn't enough space on \(host) for these items."
         case .changedWhileCopying: "An item changed on \(host) while it was copied."
         case .cancelled: "The transfer was stopped."
+        case .local(let failure): failure.message
         }
     }
 }

@@ -23,12 +23,6 @@
             await session.close()
         }
 
-        func temporaryFolder() throws -> URL {
-            let folder = FileManager.default.temporaryDirectory.appending(path: "SFTPSessionTests-\(UUID())")
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            return folder
-        }
-
         @Test func startReadsTheExtensions() async throws {
             try await withSession { session in
                 #expect(session.extensions.posixRename)
@@ -41,8 +35,9 @@
         }
 
         @Test func aFileRoundTrips() async throws {
-            let folder = try temporaryFolder()
-            defer { try? FileManager.default.removeItem(at: folder) }
+            let temporary = try TemporaryFolder()
+            defer { temporary.remove() }
+            let folder = temporary.url
             try await withSession { session in try await roundTrip(on: session, in: folder) }
         }
 

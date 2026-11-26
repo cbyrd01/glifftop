@@ -36,3 +36,20 @@ public struct RemotePath: Hashable, Sendable {
         RemotePath(components: components + [name])
     }
 }
+
+/// A path is kept as its bytes, and read back under the same rules as a path the host gave.
+extension RemotePath: Codable {
+    public init(from decoder: any Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode([UInt8].self)
+        guard let path = RemotePath(absolute: raw) else {
+            throw DecodingError.dataCorrupted(
+                .init(codingPath: decoder.codingPath, debugDescription: "not a path"))
+        }
+        self = path
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(raw)
+    }
+}
