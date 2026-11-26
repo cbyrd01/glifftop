@@ -132,6 +132,37 @@ public enum LocalFiles {
         guard errno == ENOENT, rename(from, to) == 0 else { throw .local(LocalFailure(errno: errno)) }
     }
 
+    /// An item's status, never following a link.
+    /// A trailing `/`, which would make `lstat` follow a link, is dropped first.
+    public static func status(_ url: URL) throws(FilesError) -> stat {
+        var path = url.path(percentEncoded: false)
+        while path.count > 1, path.hasSuffix("/") { path.removeLast() }
+        var status = stat()
+        guard lstat(path, &status) == 0 else {
+            throw .local(LocalFailure(errno: errno))
+        }
+        return status
+    }
+
+    /// Where a link leads, every link on the way resolved.
+    public static func linkTarget(_ url: URL) throws(FilesError) -> URL {
+        guard let resolved = realpath(url.path(percentEncoded: false), nil) else {
+            throw .local(LocalFailure(errno: errno))
+        }
+        defer { free(resolved) }
+        return URL(filePath: String(cString: resolved))
+    }
+
+    /// A folder's names, sorted.
+    public static func names(in folder: URL) throws(FilesError) -> [String] {
+        do {
+            return try FileManager.default.contentsOfDirectory(atPath: folder.path(percentEncoded: false))
+                .sorted()
+        } catch {
+            throw .local(LocalFailure(error: error))
+        }
+    }
+
     /// The bytes free to this user on `url`'s volume; nil when the system can't say.
     public static func freeSpace(at url: URL) -> UInt64? {
         let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])

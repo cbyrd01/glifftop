@@ -1,3 +1,4 @@
+import Foundation
 import GliffSFTP
 import GliffTransport
 
@@ -22,6 +23,8 @@ public enum FilesError: Error, Equatable, Sendable {
     case noSpace
     case changedWhileCopying
     case cancelled
+    /// A batch past `TransferLimits`.
+    case tooLarge
     /// An operation on this Mac failed.
     case local(LocalFailure)
 
@@ -76,6 +79,8 @@ public enum FilesError: Error, Equatable, Sendable {
         case .noSpace: "There isn't enough space on \(host) for these items."
         case .changedWhileCopying: "An item changed on \(host) while it was copied."
         case .cancelled: "The transfer was stopped."
+        case .tooLarge:
+            "There are too many items to copy at once (at most \(TransferLimits.maxEntries.formatted(.number.locale(Locale(identifier: "en_US")))), \(TransferLimits.maxDepth) folders deep)."
         case .local(let failure): failure.message
         }
     }

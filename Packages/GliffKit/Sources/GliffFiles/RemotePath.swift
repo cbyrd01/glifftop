@@ -23,7 +23,14 @@ public struct RemotePath: Hashable, Sendable {
 
     /// The path as the host takes it: `/` and the components joined by `/`.
     public var raw: [UInt8] {
-        components.isEmpty ? [0x2F] : components.flatMap { [0x2F] + $0.raw }
+        guard !components.isEmpty else { return [0x2F] }
+        var raw: [UInt8] = []
+        raw.reserveCapacity(components.reduce(0) { $0 + 1 + $1.raw.count })
+        for name in components {
+            raw.append(0x2F)
+            raw.append(contentsOf: name.raw)
+        }
+        return raw
     }
 
     /// The last component; nil for `/`.

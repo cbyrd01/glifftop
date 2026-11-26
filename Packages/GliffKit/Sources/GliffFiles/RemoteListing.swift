@@ -21,18 +21,21 @@ public struct RemoteListing: Equatable, Sendable {
     public static let maxNameBytes = 16 << 20
     public static let maxLinkLookups = 256
 
-    /// Reads `folder`. A folder read to its end is kept though the host fails to close it.
-    public static func read(_ folder: RemotePath, on session: SFTPSession) async throws(FilesError)
-        -> RemoteListing
+    /// Reads `folder`, stopping past `limit` items. A folder read to its end is kept though the
+    /// host fails to close it.
+    public static func read(_ folder: RemotePath, on session: SFTPSession, limit: Int = maxEntries)
+        async throws(FilesError) -> RemoteListing
     {
         let handle = try await session.opendir(folder.raw)
         defer { try? await session.close(handle: handle) }
         var listing = RemoteListing(folder: folder)
-        try await listing.fill(from: handle, on: session)
+        try await listing.fill(from: handle, on: session, limit: min(limit, maxEntries))
         return listing
     }
 
-    private mutating func fill(from handle: [UInt8], on session: SFTPSession) async throws(FilesError) {
+    private mutating func fill(from handle: [UInt8], on session: SFTPSession, limit: Int)
+        async throws(FilesError)
+    {
         var received = 0
         var nameBytes = 0
         var listed: Set<RemoteName> = []
@@ -41,7 +44,7 @@ public struct RemoteListing: Equatable, Sendable {
                 let isDotEntry = RemoteName.isDotEntry(item.name)
                 if !isDotEntry { received += 1 }
                 nameBytes += item.name.count
-                guard received <= Self.maxEntries, nameBytes <= Self.maxNameBytes else {
+                guard received <= limit, nameBytes <= Self.maxNameBytes else {
                     truncated = true
                     return
                 }

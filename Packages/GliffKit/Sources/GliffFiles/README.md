@@ -28,7 +28,8 @@ The sftp client: a session over any byte stream.
   uploaded name is NFC.
 - `RemoteListing`: a host folder's items (`RemoteEntry`: kind, size, time), with unusable or
   repeated names counted, hidden names kept for a view to show or not, and the listing stopped
-  at 100,000 items (`.` and `..` aside) or 16 MiB of names from the host. Reading sends no
+  at 100,000 items (`.` and `..` aside; fewer when the caller asks, as a plan does) or 16 MiB
+  of names from the host. Reading sends no
   STAT, so the listing comes back first; `lookUpLinks` then finds the target kind of at most
   256 links, leaving a refused one unknown and throwing any other failure (a STAT stuck in a
   hung mount holds sftp-server up until the session's time limit ends it).
@@ -53,6 +54,16 @@ The sftp client: a session over any byte stream.
   recorded isn't made. `FileLedgerStore` keeps it as a JSON file written atomically before a
   name is made (it survives a quit or crash, not a power loss), skipping an entry it can't
   read.
+- `TransferPlan` (`UploadPlan`, `DownloadPlan`): what a batch copies, found before any byte
+  moves, through `lstat` or LSTAT and listings: regular files and folders only, each folder
+  before what it holds, sizes summed saturating. Links inside a folder, devices, FIFOs,
+  sockets and host items without permissions are skipped and counted, as are host names with
+  no usable Mac form; a link at the top level is followed (on the host, to where REALPATH
+  says it leads) and its target must be a file or folder, and one that leads nowhere is
+  skipped. More than 64 folders deep or 100,000 entries, skipped ones included, fails the
+  plan (`tooLarge`); a cancelled caller stops it (`cancelled`). An unreadable folder fails it.
+- `NameClash`: Finder's " 2", " 3" before the last extension, at most 1,000 tries, within
+  255 bytes; `caseFolded` is the form under which this Mac takes two names as one.
 - The module's logger: counts, byte totals, kinds and outcomes only; never a file name, a path,
   a single item's size, host text or a socket path.
 

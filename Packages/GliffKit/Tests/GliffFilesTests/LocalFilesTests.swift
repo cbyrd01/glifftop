@@ -15,19 +15,9 @@ import Testing
     @Test func aSocketIsNotOpenedForReading() throws {
         let folder = try TemporaryFolder()
         defer { folder.remove() }
-        let path = folder.url.appending(path: "s").path(percentEncoded: false)
-        let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
+        let (url, descriptor) = try folder.socket("s")
         defer { close(descriptor) }
-        var address = sockaddr_un()
-        address.sun_family = sa_family_t(AF_UNIX)
-        withUnsafeMutableBytes(of: &address.sun_path) { $0.copyBytes(from: path.utf8) }
-        let bound = withUnsafePointer(to: &address) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                bind(descriptor, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
-            }
-        }
-        try #require(bound == 0)
-        #expect(try LocalFiles.openForReading(URL(filePath: path)) == nil)
+        #expect(try LocalFiles.openForReading(url) == nil)
     }
 
     @Test func aStemNeverLeavesItsFolder() throws {
