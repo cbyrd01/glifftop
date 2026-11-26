@@ -95,7 +95,6 @@ final class InputQueue: Sendable {
         continuation.finish()
     }
 
-    /// Everything queued, held or not: a closing session's last input goes before its Bye.
     /// Keeps only the queued input `keep` admits, held or not, in place; clipboard commands stay.
     func keepInputs(_ keep: (InputMessage) -> Bool) {
         state.withLock { state in
@@ -103,6 +102,7 @@ final class InputQueue: Sendable {
         }
     }
 
+    /// Everything queued, held or not: a closing session's last input goes before its Bye.
     func takeAll() -> [InputMessage] {
         state.withLock { state in
             guard let taken = state.pending else { return [] }

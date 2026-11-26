@@ -27,9 +27,7 @@ import Observation
         }
     }
     /// Where the session's host pointer is (`attach`): the confined pointer follows its warps.
-    @ObservationIgnored var remotePointer: RemotePointerSlot?
-    /// The host pointer's generation last followed (or seen when confinement began or ended).
-    @ObservationIgnored var seenGeneration: UInt64 = 0
+    @ObservationIgnored var hostPointer: HostPointerFollower?
     /// The start of the clock the confined pointer's times count from.
     @ObservationIgnored let clockStart = ContinuousClock.now
     /// The pointer's place last reported (`.pointerOnPicture`); nil once anything else is
@@ -87,7 +85,7 @@ import Observation
     ) {
         detach()
         controller = InputController(mode: mode, keymap: "")
-        (self.target, self.send, remotePointer) = (target, send, pointer)
+        (self.target, self.send, hostPointer) = (target, send, HostPointerFollower(pointer))
         keymapChanged()
         // The menu first: capture never rises under an open menu.
         apply(.menuOpen(MenuTracker.shared.isOpen))
@@ -102,7 +100,7 @@ import Observation
     func detach() {
         apply(.picture(false))
         controller = nil
-        (send, remotePointer) = (nil, nil)
+        (send, hostPointer) = (nil, nil)
         updateMonitor()
         hideHint()
     }

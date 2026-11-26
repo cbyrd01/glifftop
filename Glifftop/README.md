@@ -254,14 +254,14 @@ AppKit adapters for what SwiftUI can't do:
   window covers it. When it ends, the Mac pointer comes back over the virtual pointer's place
   on the picture, if the window is on screen on the active Space. While confined, each
   display-link tick follows the picture's size (`resizeConfined`) and each new `CursorPos` in
-  the session's `RemotePointerSlot` (`hostPointer`: the host's own moves are adopted, echoes
-  ignored). `ConfinedCursorLayer`, a layer over the picture, draws the pointer where the
+  the session's `RemotePointerSlot` (`InputController.followHost`: the host's own moves are
+  adopted, echoes ignored). `ConfinedCursorLayer`, a layer over the picture, draws the pointer where the
   virtual one is, after each motion and each tick, with the captured look (`RemoteCursor`'s
   sprite): nothing while the host hides its pointer, or with no shape to show over a video that
   carries it. Confinement starts where an activation puts the remote pointer, shown or hidden
-  as the host's is, and each tick reads every `CursorPos` since the last (a nil one, a new
-  picture, is `hostPictureChanged`), then gives it the picture drawn (`pictureDrawn`). Where
-  the pointer
+  as the host's is, and each tick gives every `CursorPos` since the last (a nil one is a new
+  picture) and the picture drawn to `InputController.followHost`, both read through the
+  session's `HostPointerFollower`. Where the pointer
   is comes from the video view (`onHover`: over the picture drawn, not its bars, at each
   motion, the tracking area's enter and exit, a click and a scroll; ignored while confined)
   and, at the window's key edge and the app's active edge, from the pointer's place before the

@@ -34,12 +34,11 @@ extension CaptureController {
             return
         }
         let at = target(videoView.macPointerOverPicture()) ?? (size.width / 2, size.height / 2)
-        // One look at the host's pointer: whether it is hidden now, and only reports after it
-        // are followed.
-        let host = remotePointer?.read()
-        seenGeneration = host?.generation ?? 0
-        let hidden = host?.position.flatMap { $0.visible ? nil : (bufferX: $0.x, bufferY: $0.y) }
-        controller?.confine(x: at.x, y: at.y, hostHiddenAt: hidden, geometry: geometry, at: now)
+        // One look at the host's pointer: only reports after it are followed.
+        let host = hostPointer?.start()
+        controller?.confine(
+            x: at.x, y: at.y, hostHiddenAt: host?.hiddenAt, newPicture: host?.newPicture ?? false,
+            geometry: geometry, at: now)
         guard controller?.confinedPointer != nil else { return }
         let confinement = PointerConfinement(view: videoView) { [weak self] in self?.confined($0, delta: $1) }
         confinement.start()
@@ -79,24 +78,11 @@ extension CaptureController {
 
     /// While confined, each tick: each CursorPos since the last tick, in order (so a warp
     /// followed at once by an echo is still seen), moves the virtual pointer when it is the
-    /// host's own move (`hostPointer`; a new picture's wait until it is drawn); the picture's
-    /// size keeps the pointer inside it; and the sprite follows.
+    /// host's own move (`InputController.followHost`; a new picture's wait until it is drawn);
+    /// the picture's size keeps the pointer inside it; and the sprite follows.
     private func followHost() {
         guard let geometry = videoView?.geometry else { return }
-        if let reports = remotePointer?.reports(after: seenGeneration) {
-            seenGeneration = reports.generation
-            for position in reports.positions {
-                // None: a new picture (or the session's end).
-                guard let position else {
-                    controller?.hostPictureChanged(at: now)
-                    continue
-                }
-                _ = controller?.hostPointer(
-                    bufferX: position.x, bufferY: position.y, visible: position.visible, geometry: geometry,
-                    at: now)
-            }
-        }
-        _ = controller?.pictureDrawn(geometry, at: now)
+        _ = controller?.followHost(hostPointer?.reports() ?? [], drawn: geometry, at: now)
         showSprite()
     }
 

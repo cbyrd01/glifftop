@@ -69,10 +69,12 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   picture): the app's logical deltas (`pointerMoved`) move a `VirtualPointer`, absolute motion
   sends nothing, and clicks and scrolls land at the virtual position; the host's CursorPos
   (`hostPointer`) moves it when it is a warp, not an echo. It starts hidden where the host's
-  last report hid its pointer (`confine(hostHiddenAt:)`), and after `hostPictureChanged` a
+  last report hid its pointer (`confine(hostHiddenAt:)`), and after `hostPictureChanged` (or
+  `confine(newPicture:)`, the last report a new picture's announcement) a
   report waits until the new picture is drawn (at most `newPictureLimit`), as it is in that
-  picture's pixels; `pictureDrawn`, each tick, ends the wait and follows the last report
-  skipped. Confinement ends whenever
+  picture's pixels; `pictureDrawn` ends the wait and follows the last report skipped.
+  `followHost` is one tick: the reports since the last (nil: a new picture), then the picture
+  drawn. Confinement ends whenever
   `isConfined` falls, leaving its place in `unconfinedAt` for the app to put the Mac cursor
   there; still captured (a suspension), a precise scroll under way stops and the buttons held
   come up, as their stop and releases may go

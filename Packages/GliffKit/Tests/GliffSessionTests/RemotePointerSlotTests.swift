@@ -42,6 +42,15 @@ import Testing
         #expect(positions.last??.x == Double(count - 1))
     }
 
+    /// A generation the slot hasn't reached (another slot's): nothing new.
+    @Test func aGenerationAheadGetsNothing() {
+        let slot = RemotePointerSlot()
+        slot.publish(RemotePointerSlot.Position(x: 1, y: 2, visible: true))
+        let reports = slot.reports(after: 5)
+        #expect(reports.positions.isEmpty)
+        #expect(reports.generation == 1)
+    }
+
     @Test func readMatchesLatest() {
         let slot = RemotePointerSlot()
         let position = RemotePointerSlot.Position(x: 1, y: 2, visible: false)

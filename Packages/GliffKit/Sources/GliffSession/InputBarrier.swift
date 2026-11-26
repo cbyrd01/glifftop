@@ -32,7 +32,8 @@ public final class InputBarrier: Sendable {
 
     /// How long `input` from `sender` must wait: until `gap` after another session's last
     /// modifier release, or nil. A modifier release is recorded at when it goes, after its own
-    /// wait.
+    /// wait, before its session's gate judges it: one the gate then drops (its press never went)
+    /// still holds the others for `gap`, which costs only that wait.
     public func wait(before input: InputMessage, from sender: Sender) -> Duration? {
         let now = elapsed()
         return last.withLock { last in

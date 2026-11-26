@@ -10,11 +10,12 @@ extension InputController {
     /// (the clock `pointerMoved` and `hostPointer` use). The absolute motions sent just before
     /// count as its own, so their late echoes are no warps. `hostHiddenAt`: the host's last
     /// report hid its pointer there (capture-buffer pixels), so it starts hidden, and that place
-    /// re-sent on showing is no warp. Only while confined, and only once: an entry reported
-    /// again keeps it where it is.
+    /// re-sent on showing is no warp. `newPicture`: the host's last report announced a new
+    /// picture, so its next reports wait for it (`hostPictureChanged`). Only while confined, and
+    /// only once: an entry reported again keeps it where it is.
     public mutating func confine(
         x: Double, y: Double, hostHiddenAt hidden: (bufferX: Double, bufferY: Double)? = nil,
-        geometry: PictureGeometry, at time: Duration
+        newPicture: Bool = false, geometry: PictureGeometry, at time: Duration
     ) {
         guard isConfined, virtual == nil, x.isFinite, y.isFinite, let size = geometry.logicalSize else {
             return
@@ -28,6 +29,7 @@ extension InputController {
         recentMotions = []
         virtualGeometry = geometry
         pendingPicture = nil
+        if newPicture { pendingPicture = (geometry, time, nil) }
         unconfinedAt = nil
     }
 
@@ -59,15 +61,36 @@ extension InputController {
 
     /// The host announced a new picture (a StreamConfig with a new size or codec): its reports
     /// are in its stream's pixels, so they wait until it is drawn.
-    public mutating func hostPictureChanged(at time: Duration) {
+    mutating func hostPictureChanged(at time: Duration) {
         guard virtual != nil, let virtualGeometry else { return }
         pendingPicture = (virtualGeometry, time, nil)
+    }
+
+    /// One tick of the host's reports (capture-buffer pixels; nil: a new picture), in order,
+    /// then the picture drawn now (`pictureDrawn`). Returns whether the virtual pointer followed
+    /// a warp.
+    public mutating func followHost(
+        _ reports: [(bufferX: Double, bufferY: Double, visible: Bool)?], drawn geometry: PictureGeometry,
+        at time: Duration
+    ) -> Bool {
+        var warped = false
+        for report in reports {
+            guard let report else {
+                hostPictureChanged(at: time)
+                continue
+            }
+            let followed = hostPointer(
+                bufferX: report.bufferX, bufferY: report.bufferY, visible: report.visible, geometry: geometry,
+                at: time)
+            warped = warped || followed
+        }
+        return pictureDrawn(geometry, at: time) || warped
     }
 
     /// The picture drawn now, each tick: a new picture's wait ends once it is drawn, or at
     /// `newPictureLimit`, and the virtual pointer follows the report it skipped (the host may
     /// send no other). Otherwise as `resizeConfined`. Returns whether it followed one (a warp).
-    public mutating func pictureDrawn(_ geometry: PictureGeometry, at time: Duration) -> Bool {
+    mutating func pictureDrawn(_ geometry: PictureGeometry, at time: Duration) -> Bool {
         guard let pending = pendingPicture,
             geometry != pending.geometry || time - pending.at >= Self.newPictureLimit
         else {
@@ -86,7 +109,7 @@ extension InputController {
     /// is skipped (the last one kept for `pictureDrawn`) until the picture drawn changes, or
     /// for `newPictureLimit`, and then the virtual pointer follows the new picture. Returns whether the virtual pointer followed
     /// it (a warp); the host is already there, so nothing is sent.
-    public mutating func hostPointer(
+    mutating func hostPointer(
         bufferX: Double, bufferY: Double, visible: Bool, geometry: PictureGeometry, at time: Duration
     ) -> Bool {
         guard virtual != nil, var stream = virtualGeometry else { return false }

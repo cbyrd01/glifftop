@@ -33,9 +33,11 @@ public final class RemotePointerSlot: Sendable {
 
     /// The reports published after `generation`, oldest first (at most `recentLimit`), and the
     /// generation now: a reader that polls sees a host move followed at once by another report.
+    /// A generation not reached yet (another slot's) gets none.
     public func reports(after generation: UInt64) -> (positions: [Position?], generation: UInt64) {
         state.withLock { state in
-            let missed = min(state.generation &- generation, UInt64(Self.recentLimit))
+            guard generation < state.generation else { return ([], state.generation) }
+            let missed = min(state.generation - generation, UInt64(Self.recentLimit))
             let positions = (0..<missed).reversed().map { state.recent[Self.place(state.generation &- $0)] }
             return (positions, state.generation)
         }

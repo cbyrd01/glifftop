@@ -181,9 +181,9 @@ public actor Session {
         }
         await perform(core.start())
         // Whatever was queued before now is judged now, held or not: a press before the stream is
-        // dropped.
-        let streaming = core.state == .streaming
-        inputs.keepInputs { inputGate.admits($0, streaming: streaming, interrupted: liveness.isInterrupted) }
+        // dropped. Delivery judges what stays again, so this judges on a copy of the gate.
+        inputs.keepInputs(
+            inputGate.preview(streaming: core.state == .streaming, interrupted: liveness.isInterrupted))
         deliverInput()
         inputDrain = Task { [weak self, inputs] in
             for await _ in inputs.wakeups { await self?.deliverInput() }

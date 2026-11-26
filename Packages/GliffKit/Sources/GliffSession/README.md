@@ -33,7 +33,8 @@ the feature seam.
   what it ends went, and then even while interrupted (so the remote never holds a key or
   button past a stall, nor gets an unpaired release); a keymap always.
   Anything queued before the handshake is judged then, held by the barrier or not (a press is
-  dropped). `disconnect()`
+  dropped), on a copy of the gate (`InputGate.preview`), as delivery judges what stays.
+  `disconnect()`
   sends the queue before Bye; after the end nothing is kept. While the transport is still
   connecting, `disconnect()` cancels that connect instead (`TransportError.cancelled`).
 - **The barrier between sessions:** a session's input is in order within that session only;
@@ -78,7 +79,10 @@ the feature seam.
   isn't a number is dropped), cleared by a StreamConfig that brings a new picture and by the
   session's end. Each publish moves its generation (`read()`), so a poller sees a report at
   the same place, and the last `recentLimit` reports are kept (`reports(after:)`), so a poller
-  sees each one since its last look. A shape
+  sees each one since its last look. `HostPointerFollower` is one such reader for a confined
+  pointer: `start()` is one look (the last report, where the host hid its pointer, whether a
+  new picture is pending), as `InputController.confine` takes it; `reports()` is every report
+  since the last look, as `InputController.followHost` takes them. A shape
   or a position before the first StreamConfig is a protocol error (upstream).
 - **`SessionSnapshot`:** the statuses folded into what a window shows (phase, the server's
   session (headless or not), its own output from HelloAck (`output`; nil when HelloAck lists

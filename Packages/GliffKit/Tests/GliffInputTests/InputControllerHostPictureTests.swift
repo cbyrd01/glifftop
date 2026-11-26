@@ -12,15 +12,19 @@ import Testing
     private let doubled = PictureGeometry(
         streamWidth: 2560, streamHeight: 1440, viewWidth: 2560, viewHeight: 1440, scaleMilli: 2000)
 
-    /// Capture mode, captured and confined at (100, 100), hidden at `hiddenAt` (buffer pixels).
-    private func confined(hiddenAt: (bufferX: Double, bufferY: Double)? = nil) -> InputController {
+    /// Capture mode, captured and confined at (100, 100), hidden at `hiddenAt` (buffer pixels),
+    /// with a new picture announced and not yet drawn with `newPicture`.
+    private func confined(hiddenAt: (bufferX: Double, bufferY: Double)? = nil, newPicture: Bool = false)
+        -> InputController
+    {
         var controller = InputController(mode: .confined, keymap: "k1")
         for event: CaptureEvent in [
             .windowKey(true), .appActive(true), .picture(true), .pointerOnPicture(true),
         ] {
             _ = controller.capture(event)
         }
-        controller.confine(x: 100, y: 100, hostHiddenAt: hiddenAt, geometry: geometry, at: .zero)
+        controller.confine(
+            x: 100, y: 100, hostHiddenAt: hiddenAt, newPicture: newPicture, geometry: geometry, at: .zero)
         return controller
     }
 
@@ -35,6 +39,13 @@ import Testing
     @Test func confiningWhileTheHostHidesItsPointerStartsHidden() {
         let controller = confined(hiddenAt: (500, 300))
         #expect(controller.confinedPointer?.visible == false)
+    }
+
+    /// Confining just after a new picture was announced: its reports wait for it.
+    @Test func confiningDuringANewPicturesWaitWaits() {
+        var controller = confined(newPicture: true)
+        #expect(!host(&controller, 2000, 1000, geometry: geometry, at: .milliseconds(10)))
+        #expect(controller.confinedPointer?.x == 100)
     }
 
     @Test func theHiddenPlaceReSentOnShowingIsNoWarp() {
@@ -110,5 +121,30 @@ import Testing
         controller.hostPictureChanged(at: .zero)
         #expect(!drawn(&controller, doubled, at: .milliseconds(30)))
         #expect(controller.confinedPointer?.x == 100)
+    }
+
+    /// `followHost`, callable inside `#expect`.
+    private func tick(
+        _ controller: inout InputController, _ reports: [(bufferX: Double, bufferY: Double, visible: Bool)?],
+        _ geometry: PictureGeometry, at time: Duration
+    ) -> Bool {
+        controller.followHost(reports, drawn: geometry, at: time)
+    }
+
+    /// A tick: a warp among its reports is followed.
+    @Test func aTickFollowsAWarp() {
+        var controller = confined()
+        #expect(tick(&controller, [(500, 300, true)], geometry, at: .seconds(2)))
+        #expect(controller.confinedPointer?.x == 500)
+    }
+
+    /// A tick: a nil report announces a new picture, so the report after it waits, and a later
+    /// tick with the new picture drawn follows it.
+    @Test func aTickWaitsForANewPicture() {
+        var controller = confined()
+        #expect(!tick(&controller, [nil, (2000, 1000, true)], geometry, at: .milliseconds(10)))
+        #expect(controller.confinedPointer?.x == 100)
+        #expect(tick(&controller, [], doubled, at: .milliseconds(30)))
+        #expect(controller.confinedPointer?.x == 1000)
     }
 }

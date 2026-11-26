@@ -16,6 +16,14 @@ struct InputGate {
     /// Axes scrolled precisely since their last stop.
     private var scrolling: Set<Axis> = []
 
+    /// A judge of queued input ahead of its delivery, on a copy of this gate: each input judged
+    /// after the ones before it, as delivery in order would, and the gate left as it was for
+    /// that delivery.
+    func preview(streaming: Bool, interrupted: Bool) -> (InputMessage) -> Bool {
+        var gate = self
+        return { gate.admits($0, streaming: streaming, interrupted: interrupted) }
+    }
+
     mutating func admits(_ input: InputMessage, streaming: Bool, interrupted: Bool) -> Bool {
         let live = streaming && !interrupted
         switch input {
