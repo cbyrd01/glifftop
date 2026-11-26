@@ -2,8 +2,9 @@
 
 Owns the saved machines and their options: `Machine` (a name, the ssh destination, whether
 it's a favourite, when it last connected) and `MachineOptions` (the screen, a virtual screen's
-text size and resolution, Scale to Fit, reconnect, and the clipboard's sharing: nil follows
-Settings'), and `MachineList`, which keeps each
+text size and resolution, Scale to Fit, reconnect, the clipboard's sharing: nil follows
+Settings', and `SavedForward`, the ports it forwards when connected), and `MachineList`, which
+keeps each
 destination once in the order the list shows (favourites, then the most recent, then by
 name) and reads and writes them as JSON.
 
@@ -11,7 +12,9 @@ name) and reads and writes them as JSON.
   rest kept; the next store drops it for good. An option missing or unreadable takes its
   default. Saving a machine with another's destination replaces that one. A stored monitor name must be one Get Screens would offer
   and not a session's virtual screen (`ScreenChoice`'s decoding), as it becomes a server
-  argument.
+  argument. A saved forward's destination must be `localhost` or an IP literal (kept in one
+  spelling) and its ports in range; one that isn't, or repeats an earlier one, is dropped and
+  the rest kept. A window's record never changes its machine's forwards.
 - `TabPlanning`: a new tab to a machine open elsewhere starts as a virtual screen, and a
   window's tabs are titled with their machine's name, numbered from its second tab.
 - It has no storage of its own: the app keeps the data (in `UserDefaults`).
