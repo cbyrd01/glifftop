@@ -64,6 +64,19 @@ The sftp client: a session over any byte stream.
   plan (`tooLarge`); a cancelled caller stops it (`cancelled`). An unreadable folder fails it.
 - `NameClash`: Finder's " 2", " 3" before the last extension, at most 1,000 tries, within
   255 bytes; `caseFolded` is the form under which this Mac takes two names as one.
+- `NameClashPolicy`: how a batch settles a taken name: Finder's " 2" without asking, or a
+  question (Replace, Keep Both, Stop, with "apply to all"); Replace only for a file over a
+  file, on a server with `posix-rename`.
+- `Pipeline`: a host's flow of reads and writes: 32 KiB blocks (or the server's smaller
+  limit), at most 64 in flight across a batch, or 8 while the host streams; a new window
+  applies at the next request.
+- `Upload`: a batch from this Mac to the host under `.<name>.glifftop-<8 hex>` names, opened
+  with their final permissions, renamed in when whole (plain RENAME, so a name taken meanwhile
+  is never overwritten; Replace is `posix-rename`). A folder is filled under real names, up
+  to 8 files at once, and the first failure stops the rest. Every temporary is in the ledger
+  before it is made; a failure or cancel removes it by name once it was made.
+- `TransferProgress`: a batch's counts (items and bytes done of total, top-level items done,
+  files skipped as special at open), polled.
 - The module's logger: counts, byte totals, kinds and outcomes only; never a file name, a path,
   a single item's size, host text or a socket path.
 

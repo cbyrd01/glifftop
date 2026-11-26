@@ -12,9 +12,13 @@ struct TemporaryFolder {
 
     func remove() { try? FileManager.default.removeItem(at: url) }
 
-    /// Writes `text` to a new file `name` in the folder.
+    /// Writes `text` to a new file at `name` (a relative path) in the folder, making the
+    /// folders on the way.
+    @discardableResult
     func file(_ name: String, _ text: String = "") throws -> URL {
         let file = url.appending(path: name)
+        try FileManager.default.createDirectory(
+            at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(text.utf8).write(to: file)
         return file
     }

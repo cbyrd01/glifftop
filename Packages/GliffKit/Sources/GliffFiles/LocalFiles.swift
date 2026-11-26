@@ -80,11 +80,18 @@ public enum LocalFiles {
     /// on a character boundary so the name fits 255 bytes as a file URL keeps it, decomposed;
     /// a `/` or NUL in the stem becomes `_`, so the temporary stays in `folder`.
     public static func temporaryURL(in folder: URL, stem: String) -> URL {
-        let suffix = String(format: ".glifftop-%08x", UInt32.random(in: .min ... .max))
-        var cut = Substring(
+        let stem = String(
             stem.decomposedStringWithCanonicalMapping.map { $0 == "/" || $0 == "\0" ? "_" : $0 })
+        return folder.appending(path: temporaryName(stem: stem), directoryHint: .notDirectory)
+    }
+
+    /// `.<stem>.glifftop-<8 hex>` (random hex), the stem cut on a character boundary so the
+    /// name fits 255 UTF-8 bytes: every temporary's name, on either side.
+    static func temporaryName(stem: String) -> String {
+        let suffix = String(format: ".glifftop-%08x", UInt32.random(in: .min ... .max))
+        var cut = Substring(stem)
         while cut.utf8.count > 255 - 1 - suffix.utf8.count { cut.removeLast() }
-        return folder.appending(path: "." + cut + suffix, directoryHint: .notDirectory)
+        return "." + cut + suffix
     }
 
     /// Creates a new file at `url`, mode 0600, never replacing or following anything.

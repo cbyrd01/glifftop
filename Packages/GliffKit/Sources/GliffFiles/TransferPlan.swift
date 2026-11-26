@@ -43,6 +43,19 @@ public struct TransferPlan<Source: Sendable, Destination: Sendable>: Sendable {
 
     init(destination: Destination) { self.destination = destination }
 
+    /// The batch by top-level item: each one, and the items it holds after it.
+    public var topLevel: [(item: Item, contents: ArraySlice<Item>)] {
+        var groups: [(item: Item, contents: ArraySlice<Item>)] = []
+        var start = items.startIndex
+        while start < items.endIndex {
+            var end = start + 1
+            while end < items.endIndex, items[end].path.count > 1 { end += 1 }
+            groups.append((items[start], items[start + 1..<end]))
+            start = end
+        }
+        return groups
+    }
+
     /// Counts `count` more entries seen; a cancelled caller stops here.
     private mutating func see(_ count: Int = 1) throws(FilesError) {
         guard !Task.isCancelled else { throw .cancelled }
