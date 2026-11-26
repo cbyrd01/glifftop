@@ -8,7 +8,9 @@
     /// - Pipes are read and written with `DispatchIO` on one serial queue, so no blocking call
     ///   runs on the cooperative thread pool, and reading and writing never wait on each other.
     /// - `incoming` ends once stdout and stderr have closed and the process has exited. If a
-    ///   grandchild keeps a pipe open after the process exits, the pipes are closed 1 s later.
+    ///   grandchild keeps a pipe open after the process exits, the pipe is closed once a late
+    ///   reader has nothing left in it, checked a second after the exit and each second after
+    ///   for up to 10 s (`ExitGrace`).
     /// - `close()`: close stdin, wait 2 s, SIGTERM, wait 1 s, SIGKILL; it returns once the
     ///   process has been reaped (an error is logged if even SIGKILL doesn't end it in 5 s).
     ///   Waits are timers, not polling, and ignore task cancellation: closing from a cancelled
@@ -25,6 +27,10 @@
         private struct State {
             var stdoutDone = false
             var stderrDone = false
+            /// Bytes came from stdout, or stderr, since the last check after the exit
+            /// (`ExitGrace`).
+            var stdoutRead = false
+            var stderrRead = false
             var exitStatus: Int32?
             var stderrTail: [UInt8] = []
             var stdinClosed = false
@@ -112,22 +118,22 @@
                 guard case .cancelled = termination, let self else { return }
                 Task { await self.close() }
             }
-            read(stdout) { [continuation] bytes in
-                continuation.yield(bytes)
-            } ended: {
-                $0.stdoutDone = true
-            }
-            read(stderr) { [self] bytes in
-                self.state.withLock { state in
-                    state.stderrTail += bytes
-                    // Trimmed in batches, so a chatty process doesn't cost a shift per chunk.
-                    if state.stderrTail.count > 2 * Self.stderrLimit {
-                        state.stderrTail.removeFirst(state.stderrTail.count - Self.stderrLimit)
+            read(
+                stdout, marking: { $0.stdoutRead = true },
+                chunk: { [continuation] bytes in continuation.yield(bytes) },
+                ended: { $0.stdoutDone = true })
+            read(
+                stderr, marking: { $0.stderrRead = true },
+                chunk: { [self] bytes in
+                    self.state.withLock { state in
+                        state.stderrTail += bytes
+                        // Trimmed in batches, so a chatty process doesn't cost a shift per chunk.
+                        if state.stderrTail.count > 2 * Self.stderrLimit {
+                            state.stderrTail.removeFirst(state.stderrTail.count - Self.stderrLimit)
+                        }
                     }
-                }
-            } ended: {
-                $0.stderrDone = true
-            }
+                },
+                ended: { $0.stderrDone = true })
         }
 
         /// The process didn't start: release the pipes and end `incoming`.
@@ -150,11 +156,15 @@
         }
 
         private func read(
-            _ io: DispatchIO, chunk: @escaping @Sendable ([UInt8]) -> Void,
+            _ io: DispatchIO, marking read: @escaping @Sendable (inout State) -> Void,
+            chunk: @escaping @Sendable ([UInt8]) -> Void,
             ended: @escaping @Sendable (inout State) -> Void
         ) {
             io.read(offset: 0, length: .max, queue: queue) { [self] done, data, _ in
-                if let data, !data.isEmpty { chunk([UInt8](data)) }
+                if let data, !data.isEmpty {
+                    state.withLock { read(&$0) }
+                    chunk([UInt8](data))
+                }
                 guard done else { return }
                 io.close()
                 state.withLock { ended(&$0) }
@@ -274,17 +284,40 @@
             Self.log.debug("pid \(self.processIdentifier) exited with status \(status)")
             let waiters = state.withLock { state in
                 state.exitStatus = status
+                (state.stdoutRead, state.stderrRead) = (false, false)
                 defer { state.exitWaiters = [] }
                 return state.exitWaiters
             }
             for waiter in waiters { waiter.resume(exited: true) }
             finishIfDone()
-            // A grandchild may hold the pipes open after the process is gone.
-            queue.asyncAfter(deadline: .now() + 1) { [self] in
-                stdout.close(flags: .stop)
-                stderr.close(flags: .stop)
-            }
+            closeOutputsAfterExit(check: 1)
             closeStdin()
+        }
+
+        /// A grandchild may hold the pipes open after the process is gone: each closes at a check
+        /// a second apart once a late reader has nothing left in it (`ExitGrace`).
+        private func closeOutputsAfterExit(check: Int) {
+            queue.asyncAfter(deadline: .now() + 1) { [self] in
+                // A pipe whose read is done was closed by its handler on this queue, and its
+                // descriptor may have been reused since: it isn't polled.
+                let (stdoutDone, stderrDone, stdoutRead, stderrRead) = state.withLock { state in
+                    defer { (state.stdoutRead, state.stderrRead) = (false, false) }
+                    return (state.stdoutDone, state.stderrDone, state.stdoutRead, state.stderrRead)
+                }
+                var waiting = 0
+                for (io, done, read) in [(stdout, stdoutDone, stdoutRead), (stderr, stderrDone, stderrRead)]
+                where !done {
+                    if ExitGrace.closes(io.fileDescriptor, readSinceLastCheck: read, check: check) {
+                        io.close(flags: .stop)
+                    } else {
+                        waiting += 1
+                    }
+                }
+                guard waiting > 0 else { return }
+                Self.log.debug(
+                    "pid \(self.processIdentifier), \(check) s after its exit: pipes unread \(waiting)")
+                closeOutputsAfterExit(check: check + 1)
+            }
         }
 
         /// Ends `incoming` once stdout, stderr and the process are all done.

@@ -158,4 +158,7 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   `SSHCommand.arguments`, after the `ssh -G` probe; cancelled by then, it throws
   `.cancelled` without starting ssh, as `ProcessOutput` does. `close()` closes stdin, waits 2 s, SIGTERMs, waits 1 s, SIGKILLs,
   and returns once the process is reaped; it also runs when the reader of `incoming` goes
-  away.
+  away. After the process exits, a pipe a grandchild still holds is closed at a check each
+  second unless bytes or its end wait in it with nothing read since the last check
+  (`ExitGrace`, at most 10 checks): a reader running late loses none of the process's
+  output, and a grandchild still writing doesn't hold the end back.
