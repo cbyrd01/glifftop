@@ -90,6 +90,22 @@ import Testing
         #expect(queue.takeAll() == [.keymap("k"), release])
     }
 
+    /// The judge sees each input once, in order (clipboard commands never), so it can judge each
+    /// after the ones before it.
+    @Test func eachInputIsJudgedOnceInOrder() {
+        let queue = InputQueue(clock: clock)
+        queue.hold(for: .milliseconds(30))
+        queue.append(key)
+        queue.append(.clipboard(.revoke(sendEmpty: false)))
+        queue.append(release)
+        var seen: [InputMessage] = []
+        queue.keepInputs {
+            seen.append($0)
+            return true
+        }
+        #expect(seen == [key, release])
+    }
+
     @Test func takeAllIgnoresAHold() {
         let queue = InputQueue(clock: clock)
         queue.hold(for: .milliseconds(30))

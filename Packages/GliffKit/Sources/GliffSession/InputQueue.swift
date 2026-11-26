@@ -95,10 +95,18 @@ final class InputQueue: Sendable {
         continuation.finish()
     }
 
-    /// Keeps only the queued input `keep` admits, held or not, in place; clipboard commands stay.
+    /// Keeps only the queued input `keep` admits, held or not, in its order; clipboard commands
+    /// stay.
+    /// `keep` sees each input once, in order, so it may judge each after the ones before it.
     func keepInputs(_ keep: (InputMessage) -> Bool) {
         state.withLock { state in
-            state.pending?.removeAll { if case .input(let input) = $0 { !keep(input) } else { false } }
+            guard let pending = state.pending else { return }
+            var kept: [Queued] = []
+            for item in pending {
+                if case .input(let input) = item, !keep(input) { continue }
+                kept.append(item)
+            }
+            state.pending = kept
         }
     }
 

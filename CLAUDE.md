@@ -16,6 +16,9 @@ desktop for Hyprland/Omarchy, written in Swift. Not affiliated with Gliff.
     sheets;
   - the picture (H.264 through VideoToolbox, Dual420 recombined in Metal);
   - keyboard and pointer capture, and the remote cursor shape;
+  - two input modes: Integrated (⌘ shortcuts over the toolbar are the Mac's) and Capture (the
+    pointer kept in the picture);
+  - ⌘Q held to quit while a session is live;
   - choosing the screen (a monitor, the focused one, or a virtual screen that follows the window);
   - the shared clipboard: text, HTML and images, both ways, off until turned on;
   - saved machines with their options, and reconnecting by itself after a lost link;
@@ -214,7 +217,7 @@ This file wins over any skill, including a skill's "supersedes prior training" c
     - Then it offers its own clipboard and waits for Bye.
 - **Live check** (needs a real host; a headless session): run
   `GLIFFTOP_LIVE_HOST=<ssh host> GLIFFTOP_LIVE_SECONDS=60 swift test --no-parallel --filter
-  'LiveSessionTests|LiveResolutionTests|LiveScreenListTests|LiveClipboardTests|LiveHostConnectionTests|LiveFocusTests'
+  'LiveSessionTests|LiveResolutionTests|LiveScreenListTests|LiveClipboardTests|LiveHostConnectionTests|LiveFocusTests|LiveCaptureTests'
   --attachments-path DIR` in `Packages/GliffKit`.
   - It streams the screen, resizes a virtual screen (which the server removes at the end),
     asks for one at Standard (and at Automatic with `--video cpu`) and lists the monitors.
@@ -226,6 +229,11 @@ This file wins over any skill, including a skill's "supersedes prior training" c
   - It opens two virtual screens on one master, with a terminal on each (closed by address at
     the end): activation moves the host's focus to the screen in front, the host's pointer
     matches `hyprctl cursorpos`, and Super held on one screen types no digit on the other.
+  - Capture's checks: the server's rounding and clamp of a motion match `VirtualPointer`'s, a
+    workspace change's warp is followed, a ⌘-scroll holds Super, and 50 Super taps on one
+    screen, each followed at once by a digit on the other, never change the other's
+    workspace. Whether a key hides the host's pointer is recorded, not checked. They need the
+    host's Super+digit to keep to the monitor in front, as omarchy's do, and stop otherwise.
   - It writes numbers-only `live-*.txt` files. It is off in the gate.
 - **Loopback sign-in check** (no host needed): `GLIFFTOP_LIVE_SSHD=1 swift test --no-parallel
   --filter 'LiveSignInTests|LiveForwardTests'` in `Packages/GliffKit`.

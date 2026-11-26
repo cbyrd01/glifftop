@@ -46,6 +46,8 @@ the feature seam.
   until then. A release that waits counts from when it goes. Sessions are told apart by an
   `InputBarrier.Sender` each, never reused. The queue keeps one timer per hold, sleeping on
   to the hold's latest end. `disconnect()` sends a held queue anyway, before Bye.
+  `InputBarrier`, `InputQueue` and `ReconnectMemory` time themselves with `Clock.stopwatch()`
+  (`Stopwatch.swift`).
   - The barrier is app-wide: a tab to another host can wait 30 ms too, which no one sees.
   - It counts from when the release is queued, so a release that waits longer in its own
     session (a stalled or backed-up link) isn't covered; a release the gate drops, or one
