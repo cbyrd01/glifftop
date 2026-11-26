@@ -40,7 +40,13 @@ fn main() -> ExitCode {
                     return usage();
                 }
             };
-            match serve::run(&options, io::stdin().lock(), BufWriter::new(io::stdout().lock())) {
+            let output = BufWriter::new(io::stdout().lock());
+            let served = if options.coalesce_pongs > 0 {
+                serve::run_fed(&options, serve::feed(io::stdin()), output)
+            } else {
+                serve::run(&options, io::stdin().lock(), output)
+            };
+            match served {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(error) => {
                     eprintln!("fake-server: {error}");

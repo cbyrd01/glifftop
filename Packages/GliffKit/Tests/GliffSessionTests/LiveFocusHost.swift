@@ -1,16 +1,19 @@
 #if os(macOS)
     import Foundation
-    import GliffInput
-    import GliffSession
-    import GliffTransport
-    import GliffVideo
-    import Synchronization
     import Testing
 
     /// The host side of `LiveFocusTests`: `hyprctl` over the Mac's own ssh (`BatchMode`), read
     /// as JSON. Only numbers and ids are kept.
     enum LiveHyprland {
-        static func run(_ script: String) throws -> String {
+        enum Failure: Error {
+            /// `hyprctl` (or ssh) exited with this status.
+            case status(Int32)
+            /// `hyprctl dispatch` answered something other than "ok" (its output isn't kept).
+            case notOK
+        }
+
+        /// `script` on the host, its output; with `checked`, a nonzero exit throws.
+        static func run(_ script: String, checked: Bool = false) throws -> String {
             let process = Process()
             process.executableURL = URL(filePath: "/usr/bin/ssh")
             process.arguments = [
@@ -23,6 +26,7 @@
             try process.run()
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
+            if checked, process.terminationStatus != 0 { throw Failure.status(process.terminationStatus) }
             return String(decoding: data, as: UTF8.self)
         }
 
@@ -35,6 +39,9 @@
             let name: String
             let x, y: Double
             let workspace: Int
+
+            /// The same monitor: by id and name, as Hyprland reuses ids.
+            func isSame(as other: Monitor) -> Bool { id == other.id && name == other.name }
         }
 
         static func monitors() throws -> [Monitor] {
@@ -53,6 +60,11 @@
             (try json("activewindow") as? [String: Any])?["monitor"] as? Int
         }
 
+        /// The address of the window with keyboard focus; nil without one.
+        static func activeWindow() throws -> String? {
+            (try json("activewindow") as? [String: Any])?["address"] as? String
+        }
+
         /// The monitor with Hyprland's focus.
         static func focusedMonitor() throws -> Int? {
             let list = try #require(try json("monitors") as? [[String: Any]])
@@ -65,7 +77,7 @@
             let clients = try #require(try json("clients") as? [[String: Any]])
             return clients.compactMap { client in
                 guard monitor == nil || client["monitor"] as? Int == monitor,
-                    let address = client["address"] as? String, address.wholeMatch(of: /0x[0-9a-f]+/) != nil
+                    let address = client["address"] as? String, isAddress(address)
                 else { return nil }
                 return address
             }
@@ -73,98 +85,101 @@
 
         static func windowCount(on monitor: Int) throws -> Int { try windows(on: monitor).count }
 
+        /// A window address as `hyprctl` gives it: `0x` and lowercase hex digits.
+        static func isAddress(_ text: String) -> Bool { text.wholeMatch(of: /0x[0-9a-f]+/) != nil }
+
+        /// Hyprland's Lua dispatcher closing the window at `address`; nil unless `address` is
+        /// `0x` and lowercase hex digits, as `hyprctl` gives them.
+        static func closeCommand(address: String) -> String? {
+            guard isAddress(address) else { return nil }
+            return dispatchCommand(#"hl.dsp.window.close({ window = "address:"# + address + #"" })"#)
+        }
+
+        /// `hyprctl dispatch` of the Lua dispatcher `lua` (which holds no single quote).
+        static func dispatchCommand(_ lua: String) -> String { "hyprctl dispatch '" + lua + "'" }
+
+        /// Whether `hyprctl dispatch` answered that it ran the dispatcher.
+        static func answeredOK(_ output: String) -> Bool {
+            output.trimmingCharacters(in: .whitespacesAndNewlines) == "ok"
+        }
+
+        /// Runs each address's `closeCommand` through `run`, every one even after a failure;
+        /// the failures. `hyprctl dispatch` answers "ok" when it ran the dispatcher, and exits
+        /// nonzero on a Lua error; any other answer counts as a failure too.
+        static func close(_ addresses: [String], with run: (String) throws -> String) -> [any Error] {
+            addresses.compactMap(closeCommand).compactMap { command in
+                do {
+                    return answeredOK(try run(command)) ? nil : Failure.notOK
+                } catch {
+                    return error
+                }
+            }
+        }
+
         /// Closes the windows the test opened, by address, those still open: never another.
-        static func closeWindows(_ addresses: Set<String>) throws {
-            for address in try windows() where addresses.contains(address) {
-                _ = try run("hyprctl dispatch closewindow address:\(address)")
+        /// Then waits up to 2 s for them to go, and expects none left.
+        static func closeWindows(_ addresses: Set<String>) async throws {
+            let open = try windows().filter(addresses.contains)
+            for failure in close(open, with: { try run($0, checked: true) }) {
+                Issue.record(failure, "closing a window the test opened")
             }
-        }
-
-        static func cursor() throws -> (x: Double, y: Double) {
-            let position = try #require(try json("cursorpos") as? [String: Any])
-            return (try #require(position["x"] as? Double), try #require(position["y"] as? Double))
-        }
-    }
-
-    /// One headless session over the shared connections, with the app's own input rules
-    /// (`InputController`) in front of it, as one window's capture.
-    final class LiveFocusScreen: Sendable {
-        let session: Session
-        let pointer = RemotePointerSlot()
-        private let info = Mutex<StreamInfo?>(nil)
-        private let input = Mutex(InputController(keymap: ""))
-        private let runner = Mutex<Task<Void, Never>?>(nil)
-
-        init(connections: HostConnections, target: SSHTarget) {
-            let command = SSHCommand(target: target, serverArguments: ScreenChoice.virtual.serverArguments)
-            session = Session(
-                transport: ChannelTransport(
-                    connections: connections, target: target, command: command.remoteCommand),
-                configuration: SessionConfiguration(
-                    maxWidth: 1280, maxHeight: 720, keymap: XKBKeymap.text(for: XKBLayout(layout: "us"))),
-                decoder: NullFrameDecoder(), pointer: pointer)
-            let session = session
-            runner.withLock {
-                $0 = Task { [self] in
-                    async let run: Void = session.run()
-                    for await status in session.status {
-                        if case .streaming(let streaming) = status { self.info.withLock { $0 = streaming } }
-                    }
-                    await run
-                }
-            }
-        }
-
-        /// The stream, once streaming; throws after 60 s without.
-        func streaming() async throws -> StreamInfo {
-            for _ in 0..<600 {
-                if let streaming = info.withLock({ $0 }) { return streaming }
+            var left = addresses.intersection(try windows())
+            for _ in 0..<20 where !left.isEmpty {
                 try await Task.sleep(for: .milliseconds(100))
+                left = addresses.intersection(try windows())
             }
-            throw CancellationError()
+            #expect(left.isEmpty, "\(left.count) windows the test opened are still open")
         }
 
-        var geometry: PictureGeometry? { info.withLock { $0 }?.pointerGeometry }
-
-        /// The window's capture changes; what the rules say goes to the host.
-        func capture(_ event: CaptureEvent) { send(input.withLock { $0.capture(event) }) }
-
-        /// The window comes to the front: activation on the rising edge, as the app does.
-        func activate() throws {
-            let geometry = try #require(geometry)
-            let target = try #require(
-                FocusTarget.target(
-                    macPointer: nil, cursor: pointer.latest.map { ($0.x, $0.y) }, geometry: geometry))
-            // As the app: the nudge before what capture turning on sends.
-            let captured = input.withLock { controller in
-                [CaptureEvent.appActive(true), .picture(true), .windowKey(true)].map {
-                    controller.capture($0)
-                }
-            }
-            send(input.withLock { $0.activate(at: target) })
-            captured.forEach(send)
+        /// A terminal opened on `workspace`, leaving the focus where it is, that shows the keys
+        /// typed into it in its title: "keys", their count from 0, and the keys. The script goes as
+        /// base64, so no quoting reaches the host's shells. It runs in Ghostty, which the host
+        /// must have.
+        static func openCounter(on workspace: Int) throws {
+            try #require(
+                !(try run("command -v ghostty")).isEmpty, "the key counter needs ghostty on the host")
+            let script =
+                #"n=0; t=; printf '\033]2;keys %d\007' $n; "#
+                + #"while IFS= read -rsn1 c; do n=$((n+1)); t="$t$c"; printf '\033]2;keys %d %s\007' $n "$t"; done"#
+            let encoded = Data(script.utf8).base64EncodedString()
+            let command = #"ghostty -e bash -c "$(echo "# + encoded + #" | base64 -d)""#
+            let lua =
+                "hl.dsp.exec_cmd([[" + command + #"]], { workspace = ""# + String(workspace) + #" silent" })"#
+            guard answeredOK(try run(dispatchCommand(lua), checked: true)) else { throw Failure.notOK }
         }
 
-        func key(_ code: UInt16, _ kind: MacKeyEvent.Kind, flags: MacModifierFlags = []) {
-            send(input.withLock { $0.key(MacKeyEvent(keyCode: code, kind: kind, flags: flags.rawValue)) })
+        /// The keys a counter terminal (`openCounter`) at `address` has counted; nil unless its
+        /// title is a counter's.
+        static func counted(at address: String) throws -> Int? {
+            try counter(at: address)?.count
         }
 
-        /// Super with `code`, pressed and released, through the rules.
-        func chord(_ code: UInt16) {
-            let held: MacModifierFlags = [.command, .leftCommand]
-            key(55, .flagsChanged, flags: held)
-            key(code, .down(isRepeat: false), flags: held)
-            key(code, .up, flags: held)
-            key(55, .flagsChanged)
+        /// The keys a counter terminal at `address` got, in order; nil unless its title is a
+        /// counter's.
+        static func typed(at address: String) throws -> String? {
+            try counter(at: address)?.keys
         }
 
-        private func send(_ result: InputResult) {
-            for message in result.messages { session.send(message) }
+        private static func counter(at address: String) throws -> (count: Int, keys: String)? {
+            let clients = try #require(try json("clients") as? [[String: Any]])
+            let title = clients.first { $0["address"] as? String == address }?["title"] as? String
+            guard let title, let match = title.wholeMatch(of: /keys (\d+)(?: (.*))?/),
+                let count = Int(match.1)
+            else { return nil }
+            return (count, String(match.2 ?? ""))
         }
 
-        func end() async {
-            await session.disconnect()
-            await runner.withLock { $0 }?.value
+        /// The active workspace of `monitor`, if it is still there.
+        static func activeWorkspace(on monitor: Monitor) throws -> Int? {
+            try monitors().first { $0.isSame(as: monitor) }?.workspace
+        }
+
+        /// The host's pointer on `monitor`, logical.
+        static func cursor(on monitor: Monitor) throws -> (x: Double, y: Double) {
+            let position = try #require(try json("cursorpos") as? [String: Any])
+            let x = try #require(position["x"] as? Double)
+            let y = try #require(position["y"] as? Double)
+            return (x - monitor.x, y - monitor.y)
         }
     }
 #endif

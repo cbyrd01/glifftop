@@ -40,7 +40,7 @@ final class AttentionView: NSView {
 
     /// The window as the Dock holds it: its tab group's selected window, which a minimized
     /// group's tabs share.
-    private var shownWindow: NSWindow? { window.map { $0.tabGroup?.selectedWindow ?? $0 } }
+    private var shownWindow: NSWindow? { window?.shownTab }
 
     private var isMinimized: Bool {
         window?.isMiniaturized == true || shownWindow?.isMiniaturized == true

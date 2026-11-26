@@ -1,14 +1,14 @@
 //! The serve scenarios, run against scripted clients over in-memory streams.
 
 use super::*;
-use crate::wire::Frame;
+use crate::wire::{read_frame, Frame};
 use std::io::Cursor;
 
 pub(super) fn try_options(args: &[&str]) -> Result<Options, String> {
     parse(&args.iter().map(|a| a.to_string()).collect::<Vec<_>>())
 }
 
-fn options(args: &[&str]) -> Options {
+pub(super) fn options(args: &[&str]) -> Options {
     try_options(args).unwrap()
 }
 
@@ -39,12 +39,12 @@ pub(super) fn ack(frame_id: u64) -> ClientMsg {
 }
 
 /// What the server wrote, as frames.
-fn sent(bytes: Vec<u8>) -> Vec<Frame> {
+pub(super) fn sent(bytes: Vec<u8>) -> Vec<Frame> {
     let mut input = Cursor::new(bytes);
     std::iter::from_fn(|| read_frame(&mut input).unwrap()).collect()
 }
 
-fn decoded(frames: &[Frame]) -> Vec<ServerMsg> {
+pub(super) fn decoded(frames: &[Frame]) -> Vec<ServerMsg> {
     frames.iter().filter_map(|f| minicbor::decode(&f.body).ok()).collect()
 }
 
@@ -348,7 +348,7 @@ fn keymap(text: &str) -> ClientMsg {
 }
 
 /// The input scenario against a client that acks both frames, then sends `messages`.
-fn input(args: &[&str], messages: &[ClientMsg]) -> Result<(), String> {
+pub(super) fn input(args: &[&str], messages: &[ClientMsg]) -> Result<(), String> {
     let script = [&[hello(&[]), ack(1), ack(2)], messages].concat();
     run(&options(args), client(&script), Vec::new())
 }

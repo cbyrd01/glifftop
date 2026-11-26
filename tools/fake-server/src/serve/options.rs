@@ -5,7 +5,7 @@ use std::path::Path;
 
 pub const USAGE: &str = "glifftop-fake-server serve <scenario> [--chroma single|dual] [--frames N] \
      [--feature NAME]... [--expect-bye] [--mid-frame]\n  \
-     stream only: [--streams DIR] [--size WxH]\n  input only: [--keymap-first] [--expect-keys N] [--expect-pointer N]\n  \
+     stream only: [--streams DIR] [--size WxH]\n  input only: [--keymap-first] [--expect-keys N] [--expect-pointer N] [--expect-nudge] [--pong-delay MS] [--coalesce-pongs MS]\n  \
      cursor only: [--valid-only]\n  resize only: [--headless] [--expect-resizes N]\n  \
      clipboard-offer only: [--hostile]\n  \
      scenarios: handshake ping-first stream config-change error <code> hello-version drop \
@@ -65,6 +65,12 @@ pub struct Options {
     /// `input`: two motions 1 apart on x, at the same y, must come before any key, button or
     /// scroll (`--expect-nudge`).
     pub expect_nudge: bool,
+    /// `input`: each Pong waits this many milliseconds, and nothing is read meanwhile
+    /// (`--pong-delay`): a server busy before it answers.
+    pub pong_delay: u64,
+    /// `input`: each Pong waits this many milliseconds from when it is queued, input still
+    /// read, and a newer Pong replaces one waiting (`--coalesce-pongs`), as upstream's writer.
+    pub coalesce_pongs: u64,
     /// `cursor`: only the valid shape (`--valid-only`).
     pub valid_only: bool,
     /// `resize`: the session is a virtual screen (`--headless`).
@@ -156,6 +162,8 @@ pub fn parse(args: &[String]) -> Result<Options, String> {
         expect_keys: 0,
         expect_pointer: 0,
         expect_nudge: false,
+        pong_delay: 0,
+        coalesce_pongs: 0,
         valid_only: false,
         headless: false,
         expect_resizes: 0,
@@ -204,6 +212,16 @@ pub fn parse(args: &[String]) -> Result<Options, String> {
                 options.expect_nudge = true;
                 input_flags = true;
             }
+            "--pong-delay" => {
+                input_flags = true;
+                let ms = value()?;
+                options.pong_delay = ms.parse().map_err(|_| format!("bad pong delay {ms}"))?;
+            }
+            "--coalesce-pongs" => {
+                input_flags = true;
+                let ms = value()?;
+                options.coalesce_pongs = ms.parse().map_err(|_| format!("bad pong wait {ms}"))?;
+            }
             "--valid-only" => options.valid_only = true,
             "--hostile" => options.hostile = true,
             "--headless" => options.headless = true,
@@ -219,8 +237,12 @@ pub fn parse(args: &[String]) -> Result<Options, String> {
     }
     if input_flags && options.scenario != Scenario::Input {
         return Err(
-            "--keymap-first, --expect-keys, --expect-pointer and --expect-nudge work with the input scenario only".into()
+            "--keymap-first, --expect-keys, --expect-pointer, --expect-nudge, --pong-delay and --coalesce-pongs work with the input scenario only"
+                .into()
         );
+    }
+    if options.pong_delay > 0 && options.coalesce_pongs > 0 {
+        return Err("--pong-delay and --coalesce-pongs don't go together".into());
     }
     if options.valid_only && options.scenario != Scenario::Cursor {
         return Err("--valid-only works with the cursor scenario only".into());

@@ -74,9 +74,14 @@ struct Liveness {
         return true
     }
 
-    /// A Pong to Ping `t` arrived.
+    /// Whether a probe waits for its answer.
+    var isProbing: Bool { probing != nil }
+
+    /// A Pong to Ping `t` arrived. One to a Ping sent after the probe's answers it too: each
+    /// Ping's `t` is later than the last (`SessionCore.pingNow`), and upstream's writer drops a
+    /// Pong still queued when a newer one is.
     mutating func answered(ping t: UInt64) {
-        if probing?.ping == t { probing = nil }
+        if let probing, t >= probing.ping { self.probing = nil }
     }
 
     /// True when a probe has gone unanswered for `probeLimit` (once per probe).

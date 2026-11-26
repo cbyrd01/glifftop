@@ -76,4 +76,9 @@ import Testing
         #expect(action(0x35, .down(isRepeat: false)) == .press(1))
         #expect(action(0x35, .up, [.shift]) == .release(1))
     }
+
+    /// Control, Shift, Alt and Super, left and right.
+    @Test func modifierCodesAreTheEightModifiers() {
+        #expect(MacKeyTranslator.modifierCodes == [29, 97, 42, 54, 56, 100, 125, 126])
+    }
 }

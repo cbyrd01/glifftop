@@ -18,6 +18,9 @@ The name combines *gliff*, the Scots word for a glimpse, with *desktop* and *cli
   the window: a new host's key to allow or deny, a password, or a key's passphrase.
 - Sharp 4:4:4 colour: H.264 decoded with VideoToolbox and recombined on the GPU.
 - Keyboard and pointer capture with your own keyboard layout, and the remote cursor shape.
+- Two input modes: Integrated (⌘ shortcuts over the toolbar are the Mac's) and Capture (the
+  pointer kept in the picture).
+- ⌘Q held to quit while a session is live.
 - Choosing the screen: one of the host's monitors, the focused one, or a virtual screen that
   follows the window's size.
 - A shared clipboard (text, HTML and images, both ways), off until you turn it on.
@@ -55,8 +58,10 @@ encode).
    options.
 
    <img src="docs/media/screen-choice.png" width="480" alt="The Glifftop window: the host omarchy, Options open with the Screen menu listing Focused Monitor, Virtual Screen and two monitors, and omarchy under Machines">
-2. While the window is in front, the keyboard and pointer go to the remote computer;
-   **Input ▸ Release Input** (⇧Esc) gives them back to the Mac.
+2. While the window is in front, the keyboard and pointer go to the remote computer. With
+   the pointer over the toolbar, tab bar or menu bar, ⌘ shortcuts are the Mac's (⌘T, ⌘W,
+   ⌘Q); everything else still goes to the remote. **Input ▸ Capture** keeps the pointer in
+   the picture too. **Input ▸ Release Input** (⇧Esc) gives everything back to the Mac.
 3. **View ▸ Actual Size** (⌘0) shows the remote 1:1, turning Scale to Fit off; **View ▸ Scale
    to Fit** (⌥⌘0) scales a smaller screen up.
 4. **Settings ▸ Clipboard**, or the clipboard button in the toolbar, shares the clipboard,
@@ -78,7 +83,8 @@ encode).
    - Glifftop doesn't fight focus changes made on the host: your own shortcut to another
      monitor, an app taking focus, or someone at the host.
    - Hyprland combines the modifiers of every keyboard, so two tabs to one host share their
-     held keys; switching tabs lets go of the old tab's keys first.
+     held keys; switching tabs lets go of the old tab's keys first, and the new tab's first
+     input waits until the host has them, one round trip when the host is idle.
 
 ## Build
 

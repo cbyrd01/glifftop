@@ -13,6 +13,7 @@ struct GlifftopApp: App {
                         await OpenSessions.shared.shutdownAll()
                         await AppConnections.closeAll()
                     }
+                    appDelegate.guardsQuit = { OpenSessions.shared.models.contains { $0.canDisconnect } }
                 }
         } defaultValue: {
             TabRequest()

@@ -56,7 +56,9 @@ a host already open elsewhere starts on a virtual screen, which its machine neve
 the toolbar, never under it; `InterruptionView`, a dimmed picture under a glass panel, while
 the server is quiet, with Disconnect and Reconnect Now; `ReconnectingView`, the last picture
 dimmed under a glass panel while a lost session is tried again: why it ended, the countdown
-and the try, Reconnect Now and Disconnect; the "Shift+Esc releases input" hint for a few seconds after capture; and
+and the try, Reconnect Now and Disconnect; the input hint (`InputHintView`, by mode: in
+Integrated "⌘ shortcuts work over the toolbar · Shift+Esc releases input" after capture, in
+Capture "Shift+Esc frees the pointer and keyboard" after confinement) for a few seconds; and
 under the picture, with View ▸ Show Status Bar, `StatusBar`: the state, fps, Mbit/s, round
 trip, chroma · encoder and the clipboard read, on the bar material, its height counted when
 a mirror's window is fitted), the window's title (the machine's name, else the host; numbered from a machine's second tab
@@ -79,14 +81,17 @@ output, the listed monitors labelled as the form labels them (at most 60 charact
 Refresh Screen List, while streaming, its error shown under it; the same screen again only
 after the session ended; everything the menu reads changes only with its value, never with
 the stats or a new StreamConfig (`hasPicture`, not `picture`), so Enter Full Screen isn't
-lost), the Input menu (Release Input, ⇧⎋), Settings (`SettingsView`: the options a
+lost), the Input menu (the key window's mode, Integrated or Capture, as radio items, then
+Release Input, ⇧⎋), Settings (`SettingsView`: the options a
 new host or machine starts from (`AppSettings.defaultOptions`: the screen, the virtual
 screen's text size (`TextSize`) and resolution, Scale to Fit, Reconnect automatically) and
 the clipboard (`ClipboardSharing`: Not shared by default, Shared, or Shared including passwords; a
 step up asks first; at once for an open session following Settings. A machine may have its
 own, which the options form and the toolbar's button set; Settings' doesn't override it, and
-every window to the machine follows it), in `UserDefaults` through
-`AppSettings`), the sign-in's questions (`SignInPrompter`, one per window, its
+every window to the machine follows it), and the Input mode each new window starts in
+(`AppSettings.inputMode`, stored and named through `CaptureMode+Labels`; the window keeps its
+own through reconnects, and the Input menu changes only that window's), in `UserDefaults`
+through `AppSettings`), the sign-in's questions (`SignInPrompter`, one per window, its
 `SignInQueue` the asker for the window's sessions, reconnects and Get Screens, the machine
 sheet's included; one question at a time as a sheet, on the machine sheet while that shows,
 shown while Glifftop is active and the window isn't minimized, and kept shown after (AppKit
@@ -108,8 +113,8 @@ session's `ProtocolObserver`: types and sizes only, never a body), Record 5 Seco
 and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes).
 
 - **Owns:** `MachineStore` (the saved machines in `UserDefaults`, key `machines`, as
-  GliffMachines' JSON); `SessionModel` (one window's session, its machine (the destination's
-  when it starts; recorded, with the window's options and the date, when it first streams, so
+  GliffMachines' JSON); `SessionModel` (one window's session, made and given the window's
+  input in `SessionModel+Start.swift`, and its machine (the destination's when it starts; recorded, with the window's options and the date, when it first streams, so
   a host that never streams isn't saved; View-menu changes of screen, text size, resolution
   and Scale to Fit kept on it, `SessionModel+Machines.swift`), folded into a `SessionSnapshot`; the
   session's `PictureSlot` and the app's one `PictureRenderer`, the picture not shown while the
@@ -130,7 +135,8 @@ and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes
   an end the person didn't choose, with Try Again, Edit Machine… and Close: Disconnect and
   Cancel go straight back to the machines), `AppConnections` (the app's one `HostConnections`:
   each session and Get Screens is a channel on its host's one signed-in ssh, which asks its
-  questions through the bundle's askpass helper), `ScreenList`
+  questions through the bundle's askpass helper; and its one `InputBarrier`, handed to every
+  session, so another tab's input waits until a modifier release is answered by its server), `ScreenList`
   (the host's monitors, listed through a lister closure, by default on the host's shared
   connection, and never saved:
   one listing at a time, stopped (its error dismissed) when a session starts; a refresh keeps the list until the
@@ -156,6 +162,16 @@ AppKit adapters for what SwiftUI can't do:
 - quitting that waits for the sessions' Bye (`AppDelegate`, which knows only a `beforeQuit`
   closure; `GlifftopApp` hands it `OpenSessions.shutdownAll`, then `AppConnections.closeAll`),
   and closing the last window quits;
+- the ⌘Q guard: while a session is live in some window (connecting, streaming, interrupted or
+  reconnecting: `guardsQuit`, from `OpenSessions`), a quit whose current event is a key-down
+  with ⌘ (Quit's key equivalent, whatever the layout) is held back by `QuitGuard`, which
+  drives `QuitHold` on the events' own times: "Hold ⌘Q to Quit" shows at once in
+  `QuitHoldPanel` (borderless, non-activating, click-through, floating, on the key window's
+  screen, glass on its own content, announced to VoiceOver); ⌘ and the key held 1 s (the
+  observing monitor's key-ups end it; at the deadline `CGEventSource.keyState` and the
+  modifier flags confirm it) or a fresh press while it shows quits, from the run loop; let go
+  early, it stays 1.5 s, then fades. Quit from a menu, or by an Apple event (the Dock, logout,
+  restart, a script), isn't guarded;
 - native tabs (`WindowTabbing`): a SwiftUI window is already ordered in when its content
   reaches it, so a new tab joins its group with `addTabbedWindow`, after the group's last tab,
   and a window opened alone that macOS tabbed anyway leaves its group, as does a new window
@@ -174,7 +190,7 @@ AppKit adapters for what SwiftUI can't do:
   is visible; wrapped for SwiftUI by `VideoView`. Once the window has been fitted for the
   session it reports its drawable size and backing scale (`onTarget`) on every change, from
   the display link and as a live resize ends, never from the machines window. Its cursor handling is in
-  `VideoNSView+Cursor.swift`;
+  `VideoNSView+Cursor.swift`, and where points fall on the picture in `VideoNSView+Mapping.swift`;
 - `WakeObserver`: the Mac waking (`NSWorkspace.didWakeNotification`) and whether the network
   path is usable (`NWPathMonitor`), for the session's probe and its reconnect;
 - `FullScreenTracker`: the window's full-screen state for `RootView`, which keeps its content
@@ -208,15 +224,63 @@ AppKit adapters for what SwiftUI can't do:
   feeds GliffInput's `InputController` the window, app, picture, link, sleep and lock
   changes, swallows the window's key events while captured (a local monitor, only while there
   is a picture), takes the pointer events `VideoNSView` hands it (`onPointer`), sends what it
-  says through `Session.send`, and shows the Shift+Esc hint for 3 s. Capture turning on (the
-  window or tab coming to the front, the first picture, recapture) is an activation, as are a
+  says through `Session.send`, and shows the mode's hint for 3 s (its app, workspace and window
+  observers in `CaptureController+Observers.swift`). It holds the mode (Integrated or
+  Capture), applied on change and to each session attached; any menu of the app open
+  (`MenuTracker`) holds capture off, and Input ▸ Release Input stays enabled through it. In Integrated, a key with ⌘ over the chrome
+  (`ChromeProbe`) is the Mac's. Capture turning on (the
+  window or tab coming to the front, the first picture, recapture) is an activation, but a menu
+  closing is one only if capture would have risen while it was open. So are a
   wake, an unlock and a user switch back while captured: before anything else, two motions
   onto `SessionModel.activationTarget` (`VideoNSView`'s Mac pointer over the uncovered picture, else the
   session's `RemotePointerSlot`, else the centre: `FocusTarget`), so the host's focus follows
-  to the tab's screen. `CaptureTracker` tells it
+  to the tab's screen. They go through `Session.activate`, so a key typed at once after a
+  switch waits for the host's focus. `CaptureTracker` tells it
   its window and whether the session's own picture shows (not a reconnect's last one); `InputSource` reads the selected layout (HIToolbox's
   TIS) as the keymap text and whether the keyboard is ISO; `MacKeyEvent+NSEvent` and
   `PointerEvent+NSEvent` turn an `NSEvent` into values.
+- Which window is on top at a point (`NSWindow.shownNumber`): the window server's answer, read
+  through tab groups (`NSWindow.shownTab`, a group's selected tab). At a tab switch the server
+  still names the tab just left for a frame or so; the tab now selected stands for it, so the
+  activation finds the Mac pointer over the new tab's picture at once. The Mac pointer's place
+  over the picture, `ChromeProbe` and confinement's start all ask it.
+- `ChromeProbe`: where a key event happened, for Integrated's ⌘ chords. It reads the event's
+  location (`ScreenCoordinates` flips Quartz's global coordinates into AppKit's), the window
+  under it, the video view's frame on screen and the menu bar's strip, and lets GliffInput's
+  `PointerPlace.classify` decide: the chrome is the session window's title bar, toolbar, tab
+  bar and status bar, its popovers (child windows), and the menu bar;
+- Capture mode's confined pointer (`CaptureController+Confinement.swift`): once GliffInput says
+  it is confined (captured and the pointer has entered the picture), `PointerConfinement`
+  warps the hidden Mac cursor to the video view's centre, cuts it off from the mouse
+  (`CGAssociateMouseAndMouseCursorPosition`) and takes every mouse event of the app through a
+  local monitor. Each motion's deltas become a remote delta at the absolute mapping's scale
+  (`VideoNSView.remoteDelta`) and move the virtual pointer; buttons and scrolls land where it
+  is. The start warp's displacement is taken out of the first motion within 0.25 s that
+  carries it (`StartWarp`). It doesn't start where the centre is off every display or another
+  window covers it. When it ends, the Mac pointer comes back over the virtual pointer's place
+  on the picture, if the window is on screen on the active Space. While confined, each
+  display-link tick follows the picture's size (`resizeConfined`) and each new `CursorPos` in
+  the session's `RemotePointerSlot` (`InputController.followHost`: the host's own moves are
+  adopted, echoes ignored). `ConfinedCursorLayer`, a layer over the picture, draws the pointer where the
+  virtual one is, after each motion and each tick, with the captured look (`RemoteCursor`'s
+  sprite): nothing while the host hides its pointer, or with no shape to show over a video that
+  carries it. Confinement starts where an activation puts the remote pointer, shown or hidden
+  as the host's is, and each tick gives every `CursorPos` since the last (a nil one is a new
+  picture) and the picture drawn to `InputController.followHost`, both read through the
+  session's `HostPointerFollower`. Where the pointer
+  is comes from the video view (`onHover`: over the picture drawn, not its bars, at each
+  motion, the tracking area's enter and exit, a click and a scroll; ignored while confined)
+  and, at the window's key edge and the app's active edge, from the pointer's place before the
+  edge; each is reported when it changes, or when anything else was applied since.
+  Suspensions report it off the picture: another app activating (no holding until this one is
+  active and in front again), the app about to resign (none until it resigns or is active
+  again), another Space, the window moving or changing size or screen, full screen's
+  transitions (no holding until each ends), a sheet, and a check on each display-link tick
+  (`onTick`) that the app is active, the window key, on screen and on the active Space, with
+  no sheet or modal window. While confined the picture's cursor is hidden;
+- `MenuTracker`: whether any of the app's menus is open (the menu bar's, a toolbar
+  pull-down's, a context menu's), counting `NSMenu`'s tracking begins against its ends once
+  for the app, with a debug log line of the count;
 - the pointer: `VideoNSView` takes the mouse buttons, drags and scrolling over the picture,
   and motion from a tracking area while the window is key, only where this window is frontmost
   and its hit test finds the picture (not under an overlay or another window); a drag that

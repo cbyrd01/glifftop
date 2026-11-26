@@ -3,97 +3,42 @@
     import GliffInput
     import GliffSession
     import GliffTransport
+    import Synchronization
     import Testing
 
     /// Input follows the window on top, against a real Hyprland host: two headless sessions (A
     /// and B, two virtual screens) over one ssh master, as two tabs to one machine are. Each
-    /// opens a terminal on its screen (Super+Return), closed by address at the end. Off
-    /// unless `GLIFFTOP_LIVE_HOST` names an ssh destination; it reports numbers and window
-    /// counts only, as attachments.
+    /// opens a terminal on its screen (Super+Return, or a key counter), closed by address at the
+    /// end. Off unless `GLIFFTOP_LIVE_HOST` names an ssh destination; it reports numbers and
+    /// window counts only, as attachments.
     @Suite(
         .serialized, .timeLimit(.minutes(5)),
         .enabled(if: LiveHost.target != nil, "set GLIFFTOP_LIVE_HOST to run against a real server"))
     struct LiveFocusTests {
-        static let returnKey: UInt16 = 36
-        static let three: UInt16 = 20
-
         struct Pair {
             let a, b: LiveFocusScreen
             let monitorA, monitorB: LiveHyprland.Monitor
         }
 
-        /// Starts A then B, finds each one's new monitor, opens a terminal on each (only with the
-        /// host's focus on that screen), runs `body`, then closes what it opened, on every exit.
+        /// Two screens with a terminal each (`LiveScreens.with`), sharing a barrier as the app's
+        /// tabs do.
         func withTwoScreens(_ body: (Pair) async throws -> Void) async throws {
-            let target = try SSHTarget(try #require(LiveHost.target))
-            let connections = HostConnections(open: SystemSSH.opener())
-            var screens: [(LiveFocusScreen, LiveHyprland.Monitor?)] = []
-            var opened: Set<String> = []
-            do {
-                let before = Set(try LiveHyprland.monitors().map(\.name))
-                for _ in 0..<2 {
-                    let screen = LiveFocusScreen(connections: connections, target: target)
-                    screens.append((screen, nil))
-                    _ = try await screen.streaming()
-                    let taken = Set(screens.compactMap(\.1?.name))
-                    let monitor: LiveHyprland.Monitor = try #require(
-                        try LiveHyprland.monitors().first {
-                            !before.contains($0.name) && !taken.contains($0.name)
-                        })
-                    screens[screens.count - 1].1 = monitor
-                }
-                for (screen, monitor) in screens {
-                    try screen.activate()
-                    try await nap(0.5)
-                    try #require(
-                        try LiveHyprland.focusedMonitor() == monitor?.id, "focus never reached the screen")
-                    let existing = Set(try LiveHyprland.windows())
-                    screen.chord(Self.returnKey)
-                    try await nap(2)
-                    screen.capture(.windowKey(false))
-                    opened.formUnion(
-                        Set(try LiveHyprland.windows(on: try #require(monitor).id)).subtracting(existing))
-                }
+            try await LiveScreens.with(2, barrier: InputBarrier(clock: ContinuousClock())) { screens in
                 try await body(
                     Pair(
-                        a: screens[0].0, b: screens[1].0, monitorA: try #require(screens[0].1),
-                        monitorB: try #require(screens[1].1)))
-            } catch {
-                await close(screens, opened, connections)
-                throw error
+                        a: screens[0].screen, b: screens[1].screen, monitorA: screens[0].monitor,
+                        monitorB: screens[1].monitor))
             }
-            await close(screens, opened, connections)
         }
-
-        private func close(
-            _ screens: [(LiveFocusScreen, LiveHyprland.Monitor?)], _ opened: Set<String>,
-            _ connections: HostConnections
-        ) async {
-            for (screen, _) in screens { screen.capture(.windowKey(false)) }
-            // A terminal mapped late is still on the test's own screen: its monitor, rechecked
-            // by name too, since Hyprland reuses ids.
-            var closing = opened
-            let current = (try? LiveHyprland.monitors()) ?? []
-            for case (_, let monitor?) in screens
-            where current.contains(where: { $0.id == monitor.id && $0.name == monitor.name }) {
-                closing.formUnion((try? LiveHyprland.windows(on: monitor.id)) ?? [])
-            }
-            try? LiveHyprland.closeWindows(closing)
-            try? await nap(1)
-            for (screen, _) in screens { await screen.end() }
-            await connections.closeAll()
-        }
-
-        private func nap(_ seconds: Double) async throws { try await Task.sleep(for: .seconds(seconds)) }
 
         @Test func activationMovesTheHostsFocus() async throws {
             try await withTwoScreens { pair in
                 try pair.a.activate()
-                try await nap(0.5)
+                try await LiveScreens.nap(0.5)
                 let onA = try LiveHyprland.activeWindowMonitor()
                 pair.a.capture(.windowKey(false))
                 try pair.b.activate()
-                try await nap(0.5)
+                try await LiveScreens.nap(0.5)
                 let onB = try LiveHyprland.activeWindowMonitor()
                 pair.b.capture(.windowKey(false))
                 Attachment.record(
@@ -109,17 +54,17 @@
         @Test func cursorPositionMatchesHyprland() async throws {
             try await withTwoScreens { pair in
                 try pair.a.activate()
-                try await nap(1)
+                try await LiveScreens.nap(1)
                 let latest = try #require(pair.a.pointer.latest)
                 let geometry = try #require(pair.a.geometry)
                 let logical = try #require(
                     FocusTarget.logical(bufferX: latest.x, bufferY: latest.y, geometry: geometry))
-                let host = try LiveHyprland.cursor()
-                let dx = abs(logical.x - (host.x - pair.monitorA.x))
-                let dy = abs(logical.y - (host.y - pair.monitorA.y))
+                let host = try LiveHyprland.cursor(on: pair.monitorA)
+                let dx = abs(logical.x - host.x)
+                let dy = abs(logical.y - host.y)
                 pair.a.capture(.windowKey(false))
                 try pair.b.activate()
-                try await nap(1)
+                try await LiveScreens.nap(1)
                 let hidden = pair.a.pointer.latest?.visible == false
                 pair.b.capture(.windowKey(false))
                 Attachment.record(
@@ -132,21 +77,145 @@
 
         @Test func aSwitchWhileSuperIsHeldTypesNoDigit() async throws {
             try await withTwoScreens { pair in
-                let workspace = { try LiveHyprland.monitors().first { $0.id == pair.monitorB.id }?.workspace }
+                let workspace = { try LiveHyprland.activeWorkspace(on: pair.monitorB) }
                 let before = try workspace()
                 try pair.a.activate()
-                pair.a.key(55, .flagsChanged, flags: [.command, .leftCommand])
-                try await nap(0.3)
+                pair.a.key(LiveScreens.superKey, .flagsChanged, flags: LiveScreens.superHeld)
+                try await LiveScreens.nap(0.3)
                 // A resigns key with Super held: its release goes out before B is activated.
                 pair.a.capture(.windowKey(false))
                 try pair.b.activate()
-                pair.b.key(Self.three, .down(isRepeat: false))
-                pair.b.key(Self.three, .up)
-                try await nap(0.8)
+                pair.b.key(LiveScreens.three, .down(isRepeat: false))
+                pair.b.key(LiveScreens.three, .up)
+                try await LiveScreens.nap(0.8)
                 let after = try workspace()
                 pair.b.capture(.windowKey(false))
                 Attachment.record("B workspace unchanged \(before == after)", named: "live-focus-super.txt")
                 #expect(before == after)
+            }
+        }
+
+        /// The host's side of a tab switch by keys, as a tab chord's keys come: ⇧⌘ held on the
+        /// screen in front, its window resigning, the other activated at the Mac pointer's place
+        /// over its terminal, then that screen's ⇧ and ⌘ let go and a U typed at once; five
+        /// times each way. Then, after 1.5 s idle, five round trips at once, E typed into A and U
+        /// into B: each switch's barrier wait and activation pause must keep the other session's
+        /// queued input in front of it. Each terminal shows the keys it got: every key lands,
+        /// in order, and only in the screen in front. Each host pointer starts over its screen's
+        /// bar, where an activation at the host's own place leaves the focus behind. (Finding the
+        /// Mac pointer at a switch is the app's: a hand check.)
+        @Test func aSwitchByKeysTypesEveryKeyIntoTheScreenInFront() async throws {
+            let barrier = InputBarrier(clock: ContinuousClock())
+            try await LiveScreens.with(2, barrier: barrier, terminals: false) { screens in
+                let (a, b) = (screens[0].screen, screens[1].screen)
+                let counterA = try await LiveScreens.openCounter(screens[0])
+                let counterB = try await LiveScreens.openCounter(screens[1])
+                let size = try #require(a.geometry?.logicalSize)
+                let overTerminal = (x: size.width / 2, y: size.height / 2)
+                for screen in [a, b] {
+                    try screen.activate(macPointer: (12, 7))
+                    try await LiveScreens.nap(0.3)
+                    screen.capture(.windowKey(false))
+                }
+                try b.activate(macPointer: overTerminal)
+                try await LiveScreens.nap(0.3)
+                var focused = 0
+                let chord = LiveScreens.superHeld.union(LiveScreens.shiftHeld)
+                func switchKeys(from: LiveFocusScreen, to: LiveFocusScreen, typing key: UInt16) throws {
+                    from.key(LiveScreens.superKey, .flagsChanged, flags: LiveScreens.superHeld)
+                    from.key(LiveScreens.shiftKey, .flagsChanged, flags: chord)
+                    from.capture(.windowKey(false))
+                    try to.activate(macPointer: overTerminal)
+                    to.key(LiveScreens.shiftKey, .flagsChanged, flags: LiveScreens.superHeld)
+                    to.key(LiveScreens.superKey, .flagsChanged)
+                    to.key(key, .down(isRepeat: false))
+                    to.key(key, .up)
+                }
+                for round in 0..<10 {
+                    let (from, to) = round.isMultiple(of: 2) ? (b, a) : (a, b)
+                    try switchKeys(from: from, to: to, typing: LiveScreens.uKey)
+                    try await LiveScreens.nap(0.4)
+                    let active = try LiveHyprland.activeWindow()
+                    if let active, to.opened.withLock({ $0.contains(active) }) { focused += 1 }
+                }
+                try await LiveScreens.nap(1.5)
+                let burst = ContinuousClock.now
+                for _ in 0..<5 {
+                    try switchKeys(from: b, to: a, typing: LiveScreens.eKey)
+                    try switchKeys(from: a, to: b, typing: LiveScreens.uKey)
+                }
+                try await LiveScreens.nap(2)
+                let inA = try LiveHyprland.typed(at: counterA)
+                let inB = try LiveHyprland.typed(at: counterB)
+                let holds = LiveScreens.switchHolds(after: burst, a.written, b.written)
+                Attachment.record(
+                    "focus on the screen in front \(focused) of 10; A got \(inA ?? "none"), B got \(inB ?? "none"); "
+                        + "burst written in \(holds.total) ms, longest switch \(holds.longest) ms",
+                    named: "live-focus-switch.txt")
+                #expect(focused == 10)
+                #expect(inA == "uuuuueeeee")
+                #expect(inB == "uuuuuuuuuu")
+            }
+        }
+
+        /// Tab switches by keys as fast as the poster sends them (every event about 1 ms apart),
+        /// on screens the size of a full-screen window on a Retina Mac: a focus change redraws
+        /// both, and each server, encoding the larger frames, reads its input later. Three bursts
+        /// of five round trips, after 2, 0.5 and 1 s idle, U typed into B and E into A: the
+        /// barrier must hold each switch until the other session's release is answered.
+        @Test(arguments: 0..<3) func pacedSwitchesOnLargeScreensTypeEveryKeyInFront(_ run: Int) async throws {
+            let barrier = InputBarrier(clock: ContinuousClock())
+            try await LiveScreens.with(2, barrier: barrier, terminals: false, largest: (3840, 2160)) {
+                screens in
+                let (a, b) = (screens[0].screen, screens[1].screen)
+                for screen in [a, b] {
+                    screen.session.setViewTarget(
+                        ViewTarget(width: 3024, height: 1690, backingScale: 2, textFactor: 1))
+                }
+                try await LiveScreens.nap(3)
+                let counterA = try await LiveScreens.openCounter(screens[0])
+                let counterB = try await LiveScreens.openCounter(screens[1])
+                let size = try #require(a.geometry?.logicalSize)
+                let centre = (x: size.width / 2, y: size.height / 2)
+                for screen in [b, a] {
+                    try screen.activate(macPointer: centre)
+                    try await LiveScreens.nap(0.3)
+                    if screen === b { screen.capture(.windowKey(false)) }
+                }
+                let chord = LiveScreens.superHeld.union(LiveScreens.shiftHeld)
+                func gap() async throws { try await Task.sleep(for: .milliseconds(1)) }
+                func switchKeys(from: LiveFocusScreen, to: LiveFocusScreen, typing key: UInt16) async throws {
+                    from.key(LiveScreens.superKey, .flagsChanged, flags: LiveScreens.superHeld)
+                    try await gap()
+                    from.key(LiveScreens.shiftKey, .flagsChanged, flags: chord)
+                    try await gap()
+                    from.capture(.windowKey(false))
+                    try to.activate(macPointer: centre)
+                    try await gap()
+                    to.key(LiveScreens.shiftKey, .flagsChanged, flags: LiveScreens.superHeld)
+                    try await gap()
+                    to.key(LiveScreens.superKey, .flagsChanged)
+                    try await gap()
+                    to.key(key, .down(isRepeat: false))
+                    try await gap()
+                    to.key(key, .up)
+                    try await gap()
+                }
+                for idle in [2.0, 0.5, 1.0] {
+                    try await LiveScreens.nap(idle)
+                    for _ in 0..<5 {
+                        try await switchKeys(from: a, to: b, typing: LiveScreens.uKey)
+                        try await switchKeys(from: b, to: a, typing: LiveScreens.eKey)
+                    }
+                }
+                try await LiveScreens.nap(4)
+                let inA = try LiveHyprland.typed(at: counterA)
+                let inB = try LiveHyprland.typed(at: counterB)
+                Attachment.record(
+                    "screen \(size); A got \(inA ?? "none"), B got \(inB ?? "none")",
+                    named: "live-focus-paced-\(run).txt")
+                #expect(inA == String(repeating: "e", count: 15))
+                #expect(inB == String(repeating: "u", count: 15))
             }
         }
 
