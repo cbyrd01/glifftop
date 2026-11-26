@@ -27,12 +27,7 @@ public final class ReconnectMemory: Sendable {
     /// By default on a clock that runs through sleep: a session lost after a night's sleep
     /// streamed all night.
     public init(clock: any Clock<Duration> = ContinuousClock()) {
-        elapsed = Self.stopwatch(clock)
-    }
-
-    private static func stopwatch<C: Clock<Duration>>(_ clock: C) -> @Sendable () -> Duration {
-        let start = clock.now
-        return { start.duration(to: clock.now) }
+        elapsed = clock.stopwatch()
     }
 
     /// A connection the person made: the next reconnect counts afresh, and a run under way

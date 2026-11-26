@@ -60,6 +60,10 @@ public enum MacKeyTranslator {
         }.compactMap(MacKeyCode.evdev).sorted()
     }
 
+    /// The evdev codes of the modifier keys: Control, Shift, Option (Alt) and Command (Super),
+    /// left and right.
+    public static let modifierCodes = Set(modifiers.keys.compactMap(MacKeyCode.evdev))
+
     /// The evdev codes of the modifiers `flags` says are up. With only a shared bit set, neither
     /// side is known to be up.
     public static func modifiersUp(_ flags: UInt) -> Set<UInt32> {

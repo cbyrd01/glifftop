@@ -19,7 +19,8 @@ extension SessionModel {
                 asker: signIn.queue),
             configuration: SessionConfiguration(maxWidth: pixels.width, maxHeight: pixels.height),
             decoder: decoder, cursor: cursor, pointer: remotePointer,
-            clipboard: ClipboardSetup(source: PasteboardSource()), observer: protocolObserver)
+            clipboard: ClipboardSetup(source: PasteboardSource()), observer: protocolObserver,
+            barrier: AppConnections.inputBarrier)
     }
 
     /// The window's keys, pointer and clipboard to `session`, whose host is `host`.

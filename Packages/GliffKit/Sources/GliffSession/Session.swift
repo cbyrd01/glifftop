@@ -34,7 +34,11 @@ public actor Session {
     private var reader: Task<Void, Never>?
     var writer: SessionWriter?
     private var ticks: Task<Void, Never>?
-    let inputs = InputQueue()
+    let inputs: InputQueue
+    /// The app's barrier between sessions' input, if it keeps one.
+    private nonisolated let barrier: InputBarrier?
+    /// This session, to the barrier.
+    private nonisolated let inputSender = InputBarrier.Sender()
     private var inputGate = InputGate()
     /// Sends what `inputs` holds each time it wakes, from the handshake on.
     private var inputDrain: Task<Void, Never>?
@@ -80,7 +84,7 @@ public actor Session {
         transport: any Transport, configuration: SessionConfiguration, decoder: any FrameDecoder,
         features: [any SessionFeature] = [], cursor: CursorSlot = CursorSlot(),
         pointer: RemotePointerSlot = RemotePointerSlot(), clipboard: ClipboardSetup? = nil,
-        observer: (any ProtocolObserver)? = nil
+        observer: (any ProtocolObserver)? = nil, barrier: InputBarrier? = nil
     ) {
         precondition(Set(features.map(\.name)).count == features.count, "two features have the same name")
         let claimed = features.flatMap(\.serverVariants)
@@ -93,6 +97,8 @@ public actor Session {
         core = SessionCore(configuration: configuration, features: self.features.mapValues(\.serverVariants))
         (status, continuation) = AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(256))
         self.clipboard = Self.makeClipboard(clipboard, wire: clipboardWire)
+        self.barrier = barrier
+        inputs = InputQueue(clock: barrier?.clock ?? ContinuousClock())
     }
 
     /// Runs the session to its end. Returns after `.ended` has been yielded. Cancelling it
@@ -132,7 +138,9 @@ public actor Session {
     /// Queues input for the server, in order, from any thread. A key or button press, motion
     /// and scrolling go only while streaming and not interrupted; a release or a scroll's stop
     /// only if what it ends went (`InputGate`); a keymap always. Nothing is kept once the session has ended.
+    /// Within `barrier`'s wait after another session's modifier release, everything queued waits.
     public nonisolated func send(_ input: InputMessage) {
+        if let wait = barrier?.wait(before: input, from: inputSender) { inputs.hold(for: wait) }
         inputs.append(input)
     }
 

@@ -78,7 +78,8 @@ encode).
    - Glifftop doesn't fight focus changes made on the host: your own shortcut to another
      monitor, an app taking focus, or someone at the host.
    - Hyprland combines the modifiers of every keyboard, so two tabs to one host share their
-     held keys; switching tabs lets go of the old tab's keys first.
+     held keys; switching tabs lets go of the old tab's keys first, and the new tab's first
+     input waits 30 ms for that to land.
 
 ## Build
 

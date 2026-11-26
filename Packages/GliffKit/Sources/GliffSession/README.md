@@ -35,6 +35,19 @@ the feature seam.
   Anything queued before the handshake is judged then (a press is dropped). `disconnect()`
   sends the queue before Bye; after the end nothing is kept. While the transport is still
   connecting, `disconnect()` cancels that connect instead (`TransportError.cancelled`).
+- **The barrier between sessions:** a session's input is in order within that session only;
+  each session reaches the host by its own channel and `gliff-server`, and Hyprland can read
+  one session's next key before another's modifier release. `InputBarrier` (one for the app,
+  handed to each `Session`) keeps the last modifier key release (the eight evdev codes of
+  `MacKeyTranslator.modifierCodes`): for `InputBarrier.gap` (30 ms) after it goes, another
+  session's input waits, the queue held (`InputQueue.hold(for:)`) with everything in order
+  until then. A release that waits counts from when it goes. Sessions are told apart by an
+  `InputBarrier.Sender` each, never reused. The queue keeps one timer per hold, sleeping on
+  to the hold's latest end. `disconnect()` sends a held queue anyway, before Bye.
+  - The barrier is app-wide: a tab to another host can wait 30 ms too, which no one sees.
+  - It counts from when the release is queued, so a release that waits longer in its own
+    session (a stalled or backed-up link) isn't covered; a release the gate drops, or one
+    sent after the end, still sets it.
 - **Resize:** `Session.setViewTarget(_:)` takes the window's size in pixels, its backing
   scale, text factor (`TextSize`) and resolution (`VirtualResolution`), as a `ViewTarget`,
   from any thread, latest wins; `Session.setLiveResize(_:)` the window's live resize, its
