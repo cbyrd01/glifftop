@@ -51,7 +51,7 @@ final class MonitorHandoverCoordinator {
     }
 
     /// Each live mirror's picture is watched while its window isn't key (on a capture's group,
-    /// video view or key change). A watch whose view or
+    /// video view or key change, and its video view joining or leaving a window). A watch whose view or
     /// capture went, or whose view's address a new view took, is replaced.
     func updateWatchers() {
         var wanted: [ObjectIdentifier: (capture: CaptureController, view: VideoNSView)] = [:]

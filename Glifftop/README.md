@@ -270,7 +270,8 @@ AppKit adapters for what SwiftUI can't do:
   (app-wide) watches the picture of each live mirror whose window isn't key through a
   `PictureHoverWatcher`, the owner of a second tracking area on its video view (motion and
   exit while the app is active). Each capture tells it of its key changes, group and video
-  view. At each motion, while the key window can leave, it gathers the
+  view, and each video view of joining or leaving a window, so a window that is never key
+  watches from its first picture. At each motion, while the key window can leave, it gathers the
   key window's and the other window's facts (`CaptureController+Handover.swift`: the group the
   app sets from `SessionModel.sessionPhaseChanged`, the destination while the session streams a
   monitor; the mode; the picture live; released; captured; a sheet) and the pointer's (the app

@@ -248,6 +248,9 @@ final class VideoNSView: NSView {
         super.viewDidMoveToWindow()
         displayLink?.invalidate()
         displayLink = nil
+        // The handover's watchers follow the view into and out of a window: a window that is
+        // never key watches its picture from the start. No observable state changes.
+        MonitorHandoverCoordinator.shared.updateWatchers()
         guard let window else { return }
         // A view moved into a window under a resting pointer shows its cursor without motion.
         cursorPending = true
