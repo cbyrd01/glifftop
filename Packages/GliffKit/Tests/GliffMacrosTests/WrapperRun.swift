@@ -29,9 +29,8 @@
         }
 
         var output: String { String(decoding: state.withLock { $0.output }, as: UTF8.self) }
-        var startLine: String { "#\(token.hex) start\n" }
-        /// What starts a trailer: the newline the wrapper adds, `#TOKEN` and a space.
-        var trailerMarker: String { "\n#\(token.hex) " }
+        var startLine: String { String(decoding: token.startLine, as: UTF8.self) }
+        var trailerMarker: String { String(decoding: token.trailerMarker, as: UTF8.self) }
 
         /// What the script printed: the output after the start line and before the trailer's
         /// added newline, once both have arrived.

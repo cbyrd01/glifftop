@@ -19,14 +19,19 @@ public enum MacroWrapper {
         "glifftop_text", "glifftop_token", "glifftop_limit", "glifftop_pid", "glifftop_status",
     ]
 
+    /// The status when the host has no `head`.
+    static let noHeadStatus: Int32 = 126
+    /// The status when the text didn't arrive whole.
+    static let notReceivedStatus: Int32 = 125
+
     /// One line with no single quote, no newline and no backslash before a backslash or a
     /// quote, so csh, tcsh, fish, bash and zsh login shells all pass it to `sh` unchanged.
     /// Each part but the last ends with its own `;` or `&`.
     public static let script = [
         "exec 2>&1;",
-        "command -v head >/dev/null || exit 126;",
+        "command -v head >/dev/null || exit \(noHeadStatus);",
         "glifftop_text=$(head -c \"$1\");",
-        "case $glifftop_text in *\"#$3\") ;; *) exit 125;; esac;",
+        "case $glifftop_text in *\"#$3\") ;; *) exit \(notReceivedStatus);; esac;",
         "glifftop_token=$3; glifftop_limit=$2; set --;",
         "exec 3<&0 </dev/null;",
         "printf \"#%s start\\n\" \"$glifftop_token\";",

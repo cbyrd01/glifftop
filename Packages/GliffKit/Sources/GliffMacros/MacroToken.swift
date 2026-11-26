@@ -19,6 +19,12 @@ public struct MacroToken: Sendable, Equatable {
 
     private static let digits = "0123456789abcdef"
 
+    /// The line the wrapper prints before the script runs.
+    var startLine: [UInt8] { Array("#\(hex) start\n".utf8) }
+    /// What begins a trailer: the newline the wrapper adds, `#TOKEN` and a space. The words,
+    /// `exit N` or `timeout`, and a newline follow.
+    var trailerMarker: [UInt8] { Array("\n#\(hex) ".utf8) }
+
     /// 128 bits from `SystemRandomNumberGenerator`.
     public static func random() -> MacroToken {
         var generator = SystemRandomNumberGenerator()

@@ -23,6 +23,16 @@ connection, before the session, once the screen exists, on demand and at Disconn
   trailer, and ends the run's process group after the trailer, at the limit, or when the
   channel's stdin closes. The Mac keeps stdin open while the script runs, reads to the first
   trailer, then closes the channel.
+- `MacroOutput`: reads a run's bytes: output before the start line (a login banner) is kept,
+  the first trailer ends the run, the newline the wrapper adds before it is dropped, a line
+  with another token is output. It keeps 64 KiB and counts the rest, and stops at 4 MiB.
+- `MacroResult`: how a run ended, in fixed words that carry nothing from the host, its output
+  or ssh (`NotStartedKind` says why a run never started); `MacroRun` adds the duration, the
+  kept output, the bytes past the cap and, when the channel didn't open, its error.
+- `MacroRunner`: one run on a one-shot `ChannelTransport` with `logsStderr: false`
+  (`MacroAccess`: `fresh`, `asker`, `opening`): it writes the text once and reads to the first
+  trailer, the channel's end, the limit plus 5 s, 4 MiB or a cancel (`.stopped`), then closes
+  the channel without waiting for the host's grace.
 - `MacroToken`: a run's 32 hex digits from `SystemRandomNumberGenerator`; it never prints
   itself.
 - **Trust:** only the person's own scripts run, each approved once with its full text in front
