@@ -1,4 +1,5 @@
 import Foundation
+import GliffMachines
 import GliffSession
 import GliffTransport
 import GliffVideo
@@ -23,7 +24,8 @@ final class ReconnectRun {
 /// Trying a lost session again, with backoff (`Reconnector`): a session that streamed and ended
 /// with a reason a retry may fix, its machine's Reconnect automatically on. Each try is a new
 /// session to the same destination and options, in the same window, its size and full screen
-/// kept, the last picture dimmed under `ReconnectingView` meanwhile. A session that drops within
+/// kept, the last picture dimmed under `ReconnectingView` meanwhile; a Focused Monitor mirror's
+/// asks for the monitor it last showed while the host has it (`ReconnectScreen`). A session that drops within
 /// `ReconnectMemory.steadyTime` of coming back goes on from its count. Disconnect, closing the
 /// window, quitting or another connection cancels it. A wake probes the link and cuts the
 /// countdown short; the network's state stops and restarts it.
@@ -74,10 +76,24 @@ extension SessionModel {
     var canTryAgain: Bool { phase == .ended && destination != nil }
 
     /// Try Again on the ended screen: a new session to the same destination, with the window's
-    /// options (the screen the sheet saved since, if any).
+    /// options (the screen the sheet saved since, if any; else the window's own, asked for as a
+    /// reconnect's try asks).
     func tryAgain() {
         guard let destination else { return }
-        start(destination, screen: sheetScreen ?? screenChoice)
+        start(destination, screen: sheetScreen ?? screenChoice, restoring: sheetScreen == nil)
+    }
+
+    /// The monitor the window shows, or is about to: a reconnecting Focused Monitor mirror's, the
+    /// one its try asks for (`ReconnectScreen`). Show All Monitors' planning and placement read it.
+    var shownMonitor: String? { reconnectScreen.monitor(shownBy: screenChoice, output: outputName) }
+
+    /// A session that asked for the monitor a Focused Monitor mirror last showed ended with it
+    /// missing (`ReconnectScreen`): the same try, or Try Again, asks for the focused monitor at
+    /// once, its end never shown nor counted as a reconnect's try.
+    func restartsFocused(after end: SessionEnd, on destination: SSHTarget, reconnecting: Bool) -> Bool {
+        guard !quitting, reconnectScreen.forgetsMissing(end) else { return false }
+        start(destination, screen: screenChoice, reconnecting: reconnecting, restoring: true)
+        return true
     }
 
     /// Another window's session to this destination streams again after this one's reconnect
@@ -91,9 +107,12 @@ extension SessionModel {
     /// The session's phase changed: a try's session streamed or ended, or a session that may
     /// be tried again ended.
     func sessionPhaseChanged() {
+        // A monitor's mirror while streaming: the pointer hands over between the destination's.
+        capture.handoverGroup = phase == .streaming && !isVirtual ? destination?.value : nil
         switch phase {
         case .streaming:
             gaveUp = false
+            reconnectScreen.streamed(screenChoice, output: outputName)
             resumeAttempt(.streaming)
             if let destination { OpenSessions.shared.reached(destination, by: self) }
         case .ended:

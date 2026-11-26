@@ -30,6 +30,10 @@ enum AppSettings {
     static let inputModeKey = "inputMode"
     /// "Forward new ports automatically" (`AppPorts.automatic`), app-wide; off by default.
     static let forwardNewPortsKey = "forwardNewPortsAutomatically"
+    /// Show All Monitors ▸ Show as Windows puts the windows on the Mac's displays in the host's
+    /// order (`MonitorPlacement`); off by default. An app setting: it depends on this Mac's
+    /// displays.
+    static let placeMonitorWindowsKey = "placeMonitorWindows"
 
     /// Settings' input mode, which each new window starts in.
     static var inputMode: CaptureMode {
@@ -46,6 +50,7 @@ enum AppSettings {
             scaleToFit: defaults.bool(forKey: scaleToFitKey),
             reconnects: defaults.object(forKey: reconnectsKey) as? Bool ?? true)
     }
+    static var placesMonitorWindows: Bool { UserDefaults.standard.bool(forKey: placeMonitorWindowsKey) }
     /// Settings' Share the clipboard, which a machine with no setting of its own follows.
     static var clipboardSharing: ClipboardSharing {
         let defaults = UserDefaults.standard
@@ -56,7 +61,7 @@ enum AppSettings {
 }
 
 /// Settings ▸ General: the options each new host or machine starts from, the clipboard, and
-/// the input mode and forwarding new ports.
+/// the input mode, forwarding new ports, and where Show as Windows puts its windows.
 struct SettingsView: View {
     @AppStorage(AppSettings.connectScreenKey) private var connectScreen = "focused"
     @AppStorage(AppSettings.virtualTextSizeKey) private var virtualTextSize = TextSize.mac.factor
@@ -64,6 +69,7 @@ struct SettingsView: View {
     @AppStorage(AppSettings.resolutionKey) private var resolution = VirtualResolution.automatic
     @AppStorage(AppSettings.reconnectsKey) private var reconnects = true
     @AppStorage(AppSettings.inputModeKey) private var inputMode = CaptureMode.integrated.stored
+    @AppStorage(AppSettings.placeMonitorWindowsKey) private var placeMonitorWindows = false
     @StoredClipboardSharing private var clipboardSharing
     @State private var askingClipboard: ClipboardQuestion?
 
@@ -99,6 +105,12 @@ struct SettingsView: View {
             .font(.callout)
             .foregroundStyle(.secondary)
             PortsSettingsSection()
+            Toggle("Place monitor windows in the host's order", isOn: $placeMonitorWindows)
+            Text(
+                "Show All Monitors ▸ Show as Windows puts the host's leftmost monitor on the Mac's leftmost display, and so on. Extra windows go on the last display."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
         }
         .formStyle(.grouped)
         .clipboardSharingConfirmation($askingClipboard) {

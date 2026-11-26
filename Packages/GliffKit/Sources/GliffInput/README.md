@@ -24,7 +24,8 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   either `CaptureMode`: `.integrated` ("Integrated", the default) or `.confined` ("Capture").
   Both capture while the window is key, the app active, the picture showing, the link live
   and no overlay (an open menu, or the Ports popover over the window) holds it off, unless
-  Shift+Esc released it (until the picture is clicked; a new picture starts captured).
+  Shift+Esc released it (until the picture is clicked; a new picture starts captured), which
+  `isReleased` says. A `quiet` rise (a window the app made key again itself) is no activation.
   `isReleasable`: captured, or held off only by an overlay (any menu, Release Input's own
   among them, or the popover). In `.confined`, the pointer is confined once it enters the
   picture (`.pointerOnPicture(true)`, or the click that takes input back when the last report
@@ -105,6 +106,18 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   none before there is a picture.
   `InputController.activate(at:)` sends it while captured as two motions a pixel apart, so the
   host's focus follows.
+- **`MonitorHandover`, `HandoverFacts`, `HandoverPointer`:** when the pointer resting on
+  another window's picture brings that window in front. Each window's facts are gathered the
+  same way: the key window must be a mirror captured in Integrated, its picture live, not
+  released (`canLeave`, checked first); the other a live Integrated mirror of the same
+  destination, not released, no sheet. The pointer's: the app active, no button held, over the
+  other's picture (not its bars), that window frontmost there. Counted 100 ms from the first
+  such motion (only a motion starts it; a new window restarts it), it answers `handOver` once
+  per entry; an exit, a button, a key change (`keyChanged(to:)`: the key window is never its
+  own target) or a failed condition at a motion or a tick cancels it; a motion over another
+  window covered at the pointer (mirrors overlap) changes nothing. Times are `Duration`s since an origin the caller picks.
+- **`HandoverEntry`:** where a handover's pointer entered the other window's picture, that
+  window's next activation target in place of the Mac pointer: used once, and gone after 500 ms.
 - **`TabChord`:** ⌘⇧[ and ⌘⇧] (no ⌃ or ⌥), the previous and next Glifftop tab, once per
   press. `TabChordKeys` follows them as they come: the chord's own repeats and key-up are
   swallowed with it; a bracket pressed before ⌘⇧ passes, its release too; a new press of the

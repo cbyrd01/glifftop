@@ -26,17 +26,79 @@ import Testing
     @Test func sameMachineTabsAreNumbered() {
         let (a, b) = (UUID(), UUID())
         let titles = TabPlanning.titles([
-            (machineID: a, name: "omarchy"), (machineID: b, name: "box"), (machineID: a, name: "omarchy"),
-            (machineID: a, name: "omarchy"),
+            TitledTab(machineID: a, name: "omarchy", screen: .virtual), TitledTab(machineID: b, name: "box"),
+            TitledTab(machineID: a, name: "omarchy", screen: .virtual),
+            TitledTab(machineID: a, name: "omarchy", screen: .virtual),
         ])
         #expect(titles == ["omarchy", "box", "omarchy 2", "omarchy 3"])
     }
 
     /// A tab still on the machine list has no machine: its name, never a number.
     @Test func noMachineIsNotNumbered() {
-        let titles = TabPlanning.titles([
-            (machineID: nil, name: "Glifftop"), (machineID: nil, name: "Glifftop"),
-        ])
+        let titles = TabPlanning.titles([TitledTab(name: "Glifftop"), TitledTab(name: "Glifftop")])
         #expect(titles == ["Glifftop", "Glifftop"])
+    }
+
+    /// A mirror is titled by its monitor: a named one from its start, a Focused Monitor one
+    /// once the server names its output.
+    @Test func aMonitorsTitleIsNeverNumbered() {
+        let a = UUID()
+        let titles = TabPlanning.titles([
+            TitledTab(machineID: a, name: "omarchy", screen: .named("DP-3")),
+            TitledTab(machineID: a, name: "omarchy", screen: .focused, output: "DP-2"),
+        ])
+        #expect(titles == ["omarchy · DP-3", "omarchy · DP-2"])
+    }
+
+    /// A mirror whose monitor is known isn't counted among the machine's tabs; a Focused
+    /// Monitor mirror whose output isn't named yet is, so no two tabs read the same.
+    @Test func numberingCountsOnlyTabsWithoutAMonitor() {
+        let a = UUID()
+        let titles = TabPlanning.titles([
+            TitledTab(machineID: a, name: "omarchy", screen: .focused),
+            TitledTab(machineID: a, name: "omarchy", screen: .named("DP-3")),
+            TitledTab(machineID: a, name: "omarchy", screen: .virtual),
+            TitledTab(machineID: a, name: "omarchy", screen: .virtual),
+        ])
+        #expect(titles == ["omarchy", "omarchy · DP-3", "omarchy 2", "omarchy 3"])
+    }
+
+    /// A saved machine and an unsaved host of the same name, on one monitor: the second is
+    /// numbered, as the two would read the same.
+    @Test func mirrorsThatReadTheSameAreNumbered() {
+        let titles = TabPlanning.titles([
+            TitledTab(machineID: UUID(), name: "omarchy", screen: .named("DP-3")),
+            TitledTab(name: "omarchy", screen: .named("DP-3")),
+        ])
+        #expect(titles == ["omarchy · DP-3", "omarchy · DP-3 2"])
+    }
+
+    /// An unsaved host is numbered apart from every saved machine, whatever it is called.
+    @Test func anUnsavedHostIsNumberedApartFromMachines() {
+        let a = UUID()
+        let titles = TabPlanning.titles([
+            TitledTab(machineID: a, name: "omarchy", screen: .named("DP-3")),
+            TitledTab(name: a.uuidString, screen: .named("DP-3")),
+        ])
+        #expect(titles == ["omarchy · DP-3", "\(a.uuidString) · DP-3"])
+    }
+
+    /// Two mirrors of one monitor (chosen by hand): the second is numbered.
+    @Test func aRepeatedMonitorIsNumbered() {
+        let a = UUID()
+        let titles = TabPlanning.titles([
+            TitledTab(machineID: a, name: "omarchy", screen: .named("DP-3")),
+            TitledTab(machineID: a, name: "omarchy", screen: .focused, output: "DP-3"),
+            TitledTab(name: "box", screen: .named("DP-3")),
+        ])
+        #expect(titles == ["omarchy · DP-3", "omarchy · DP-3 2", "box · DP-3"])
+    }
+
+    @Test func aWindowsTitleNamesItsMonitor() {
+        #expect(TabPlanning.title(of: TitledTab(name: "omarchy", screen: .named("DP-3"))) == "omarchy · DP-3")
+        #expect(TabPlanning.title(of: TitledTab(name: "omarchy", screen: .virtual)) == "omarchy")
+        #expect(
+            TabPlanning.title(of: TitledTab(name: "omarchy", screen: .focused, output: "gliff-7"))
+                == "omarchy")
     }
 }

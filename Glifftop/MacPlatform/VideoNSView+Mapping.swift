@@ -21,7 +21,7 @@ extension VideoNSView {
     /// and whether it is inside the picture drawn: the point in drawable pixels from the
     /// top-left, mapped through the fit the renderer draws with (`VideoFit.viewport` of the
     /// picture's view box in this drawable).
-    fileprivate func remotePosition(ofWindowPoint windowPoint: NSPoint) -> (
+    func remotePosition(ofWindowPoint windowPoint: NSPoint) -> (
         position: (x: Double, y: Double), inside: Bool
     )? {
         guard let layout = layout() else { return nil }

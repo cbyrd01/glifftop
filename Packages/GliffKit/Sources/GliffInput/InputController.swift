@@ -85,6 +85,7 @@ public struct InputController: Sendable {
     public var mode: CaptureMode { capture.mode }
     /// `InputCapture.isReleasable`.
     public var isReleasable: Bool { capture.isReleasable }
+    public var isReleased: Bool { capture.isReleased }
     public var isConfined: Bool { capture.isConfined }
 
     /// A key event, with the pointer on the picture.
@@ -252,8 +253,8 @@ public struct InputController: Sendable {
         return [.pointerMotion(x: x, y: y)]
     }
 
-    public mutating func capture(_ event: CaptureEvent) -> InputResult {
-        let change = capture.apply(event)
+    public mutating func capture(_ event: CaptureEvent, quiet: Bool = false) -> InputResult {
+        let change = capture.apply(event, quiet: quiet)
         let wasConfined = virtual != nil
         if !capture.isConfined { unconfine() }
         if event == .pointerOnPicture(false) { recentMotions = [] }

@@ -15,11 +15,22 @@ import Observation
     /// so it compares equal to a session's `SSHTarget.value`.
     @ObservationIgnored private(set) var host: String?
     @ObservationIgnored private var listing: Task<Void, Never>?
+    /// The running listing's caller, told once how it ended.
+    @ObservationIgnored private var answer: ((Answer) -> Void)?
     /// The window that answers a listing's sign-in questions.
     @ObservationIgnored var asker: (any SignInAsker)?
     /// Lists a host's monitors on the app's shared connection to it (a closure, so another way
     /// of listing can replace it).
     @ObservationIgnored private let lister: Lister
+
+    /// How a listing ended, for a caller that waits on it (Show All Monitors).
+    enum Answer {
+        case listed([RemoteScreen])
+        /// The reason to show.
+        case failed(String)
+        /// Stopped or replaced: nothing to show.
+        case cancelled
+    }
 
     typealias Lister =
         @Sendable (SSHTarget, (any SignInAsker)?) async throws(ScreenListError) -> [RemoteScreen]
@@ -30,8 +41,9 @@ import Observation
 
     /// Lists `host`'s monitors, replacing a listing still running. A list for the same host
     /// stays while the new one runs, so a refresh keeps what is chosen from it; a listing that
-    /// fails leaves no list, as a stale one could offer a monitor that's gone.
-    func list(host typed: String) {
+    /// fails leaves no list, as a stale one could offer a monitor that's gone. `then` hears how
+    /// it ended, always once, `.cancelled` when it is stopped or replaced.
+    func list(host typed: String, then answer: ((Answer) -> Void)? = nil) {
         let host = Self.key(typed)
         forget(unless: host)
         stop()
@@ -42,8 +54,10 @@ import Observation
             target = try SSHTarget(host)
         } catch {
             self.error = error.message
+            answer?(.failed(error.message))
             return
         }
+        self.answer = answer
         isListing = true
         let (lister, asker) = (lister, asker)
         listing = Task {
@@ -60,11 +74,20 @@ import Observation
             case .success(let listed):
                 screens = listed
                 if listed.isEmpty { error = "The host has no monitors to show." }
+                answered(.listed(listed))
             case .failure(let failure):
                 screens = []
                 error = failure.message
+                answered(.failed(failure.message))
             }
         }
+    }
+
+    /// Tells the running listing's caller how it ended, once.
+    private func answered(_ result: Answer) {
+        let answer = self.answer
+        self.answer = nil
+        answer?(result)
     }
 
     /// Forgets the list, any listing and its error unless they are for `host`: the field now
@@ -84,6 +107,7 @@ import Observation
         listing = nil
         isListing = false
         error = nil
+        answered(.cancelled)
     }
 
     /// Whether `choice` can be used for `host`: a named monitor only from this host's list.

@@ -28,6 +28,8 @@ The name combines *gliff*, the Scots word for a glimpse, with *desktop* and *cli
 - Port forwards: a port that starts listening on the host is offered, one click from
   `localhost` on the Mac. Your ssh config's `LocalForward` lines, a machine's saved ports and
   ports you type are forwarded too, while a window to the host is open.
+- Several monitors at once (Connection ▸ Show All Monitors), each in a tab or window, the
+  pointer handing over between them.
 
 <img src="docs/media/screensaver.png" width="480" alt="Omarchy's screensaver in Glifftop: the logo's colour gradient, sharp at full chroma">
 
@@ -60,7 +62,9 @@ encode).
 1. Type the ssh destination, as you would after `ssh` (for example `omarchy`, a `Host` in
    your `~/.ssh/config`), pick the screen under **Options**, and connect. **Get Screens**
    lists the host's monitors. Each host you connect to is kept under **Machines**, with its
-   options.
+   options. **Focused Monitor** shows the monitor that has the host's focus when you
+   connect; a reconnect brings back the monitor the window showed, unless the host no longer
+   has it.
 
    <img src="docs/media/screen-choice.png" width="480" alt="The Glifftop window: the host omarchy, Options open with the Screen menu listing Focused Monitor, Virtual Screen and two monitors, and omarchy under Machines">
 2. While the window is in front, the keyboard and pointer go to the remote computer. With
@@ -100,6 +104,27 @@ encode).
    ports without asking, though never a database or cache port, and stops each once it has
    been gone 10 s. A machine's **Ports forwarded when connected** (in its sheet, ⌘E) are
    forwarded each time it connects.
+7. **Connection ▸ Show All Monitors**, while a window streams, opens the host's other
+   monitors: **Show as Tabs** as tabs of that window, **Show as Windows** each in a window of
+   its own, behind it. Neither moves the host's pointer or focus. With **Place Windows in the
+   Host's Order** (also under Settings ▸ General), Show as Windows puts the host's leftmost
+   monitor on the Mac's leftmost display, and so on; extra windows go on the last display.
+
+   Rest the pointer on another monitor's window for a moment (with input in Integrated) and it
+   comes to the front: input and the host's focus follow, and the host's pointer lands where
+   yours entered.
+
+   Known limits:
+   - A host copy on the Mac goes when the window it came from closes, even with other windows
+     to that host open.
+   - Show All Monitors may open a monitor again whose Focused Monitor window is still
+     connecting.
+   - The handover moves the host's focus only where the focus follows the pointer (Hyprland's
+     `follow_mouse`), as switching windows does.
+   - With placement off, windows cascade, and resting the pointer on the uncovered strip of a
+     back window hands over too.
+   - Each tab or window takes one ssh channel. Past 10 to one host, a further ssh connection
+     opens, and it may ask you to sign in.
 
 ## Build
 

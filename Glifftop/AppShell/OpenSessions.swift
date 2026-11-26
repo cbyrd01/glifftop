@@ -61,6 +61,33 @@ import Observation
         for other in models where other !== model && other.destination == destination { other.revive() }
     }
 
+    /// The monitors the windows to `destination` show (`MonitorPlanning`): a live session's
+    /// monitor (a reconnecting Focused Monitor mirror's, the one its try asks for), an ended named
+    /// mirror's, and whether a live Focused Monitor mirror's output is still unnamed.
+    func shown(for destination: SSHTarget) -> ShownMonitors {
+        var shown = ShownMonitors()
+        for model in models where model.destination == destination {
+            if model.canDisconnect {
+                if let monitor = model.shownMonitor {
+                    shown.live.insert(monitor)
+                } else if model.screenChoice == .focused, model.outputName == nil {
+                    shown.unnamedFocused = true
+                }
+            } else if model.canTryAgain, case .named(let name) = model.screenChoice {
+                shown.ended.insert(name)
+            }
+        }
+        return shown
+    }
+
+    /// The ended window to `destination` of the named monitor `name`, to start again in place.
+    func ended(_ name: String, on destination: SSHTarget) -> SessionModel? {
+        models.first {
+            $0.destination == destination && !$0.canDisconnect && $0.canTryAgain
+                && $0.screenChoice == .named(name)
+        }
+    }
+
     /// The machine sheet saved `saved`: every window showing it takes its options, so none
     /// records its older ones back over them.
     func machineSaved(_ saved: Machine) {

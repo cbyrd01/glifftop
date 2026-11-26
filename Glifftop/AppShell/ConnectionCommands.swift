@@ -2,8 +2,9 @@ import GliffInput
 import SwiftUI
 
 /// The Connection menu: Disconnect (⇧⌘D), Reconnect (⇧⌘R: Reconnect Now, or Try Again), Connection
-/// Info (⌘I), Show Ports (⌥⌘P, `PortsCommands`) and Edit Machine… (⌘E, the session's machine once
-/// it has one); and in File, New Tab
+/// Info (⌘I), Show Ports (⌥⌘P, `PortsCommands`), Edit Machine… (⌘E, the session's machine once
+/// it has one) and Show All Monitors (no shortcut: any ⌘ chord is a Super bind over the
+/// picture); and in File, New Tab
 /// (⌘T, disabled while the window shows one of its model's sheets), New Window (⌘N), New
 /// Machine… (⌥⌘N) and Close Window (⇧⌘W, every tab of the window); in Window, Previous Tab
 /// (⇧⌘[) and Next Tab (⇧⌘]), to the next window when the window has one tab.
@@ -29,6 +30,8 @@ struct ConnectionCommands: Commands {
             Button("Edit Machine…") { model?.editMachine() }
                 .keyboardShortcut("e")
                 .disabled(model?.isActive != true || model?.machine == nil)
+            Divider()
+            ShowAllMonitorsMenu(model: model) { openWindow(value: $0) }
         }
         CommandGroup(replacing: .newItem) {
             // The key session window's group; without one, a window of its own.
@@ -38,7 +41,7 @@ struct ConnectionCommands: Commands {
             }
             .keyboardShortcut("t")
             // A window with a sheet can't take a tab (`WindowTabbing`).
-            .disabled(model?.showsSheet == true)
+            .disabled(model?.showsAnySheet == true)
             Button("New Window") { openWindow(value: TabRequest(alone: true)) }
                 .keyboardShortcut("n")
             Button("New Machine…") { model?.newMachine() }

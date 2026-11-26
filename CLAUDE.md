@@ -27,6 +27,8 @@ desktop for Hyprland/Omarchy, written in Swift. Not affiliated with Gliff.
   - port forwards on that connection, to this Mac's loopback: the host's new listening ports
     offered as they appear (or forwarded, under a setting), the ssh config's `LocalForward`
     lines, a machine's saved ports, and ports typed in the Ports popover.
+  - several monitors at once (Connection ▸ Show All Monitors), the pointer handing over between
+    their windows.
 - **Not yet:**
   - files over the clipboard;
   - an optional event tap for ⌘Space and ⌘Tab (they stay with the Mac);
@@ -224,7 +226,7 @@ This file wins over any skill, including a skill's "supersedes prior training" c
     - Then it offers its own clipboard and waits for Bye.
 - **Live check** (needs a real host; a headless session): run
   `GLIFFTOP_LIVE_HOST=<ssh host> GLIFFTOP_LIVE_SECONDS=60 swift test --no-parallel --filter
-  'LiveSessionTests|LiveResolutionTests|LiveScreenListTests|LiveClipboardTests|LiveHostConnectionTests|LiveFocusTests|LiveCaptureTests|LivePortsTests'
+  'LiveSessionTests|LiveResolutionTests|LiveScreenListTests|LiveClipboardTests|LiveHostConnectionTests|LiveFocusTests|LiveCaptureTests|LivePortsTests|LiveMonitorsTests'
   --attachments-path DIR` in `Packages/GliffKit`.
   - It streams the screen, resizes a virtual screen (which the server removes at the end),
     asks for one at Standard (and at Automatic with `--video cpu`) and lists the monitors.
@@ -248,6 +250,10 @@ This file wins over any skill, including a skill's "supersedes prior training" c
     under `$XDG_RUNTIME_DIR` and removes at the end (skipped without either or `python3`): the
     port watcher sees it within 4 s, a forward serves its page, a forward comes back on the same
     Mac port after the connection dies, and no watcher shell is left once the graces end.
+  - Several monitors: the listed positions match `hyprctl`; every monitor mirrored at once,
+    each at its size, and two mirrors' activation nudges landing on their monitors (under a
+    minute, motion only, the pointer and focus put back); the clipboard handed over between
+    two virtual screens; and a mirror of a virtual screen's output ending with it.
   - It writes numbers-only `live-*.txt` files. It is off in the gate.
 - **Loopback sign-in check** (no host needed): `GLIFFTOP_LIVE_SSHD=1 swift test --no-parallel
   --filter 'LiveSignInTests|LiveForwardTests'` in `Packages/GliffKit`.

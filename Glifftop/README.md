@@ -78,9 +78,27 @@ as a glass capsule over the picture's bottom edge while the status bar is hidden
 `PortsNoticeCapsule`, each with its buttons and Dismiss); Connection Info, a popover of
 `StatsView`'s numbers and "The host draws W × H",
 and Disconnect), the Connection menu (`ConnectionCommands`: Disconnect ⇧⌘D, Reconnect ⇧⌘R,
-Connection Info ⌘I, Show Ports ⌥⌘P (`PortsCommands`: the popover, or a sheet with the same
-content while the toolbar isn't shown), Edit Machine… ⌘E; and File's New Tab, New Window, New Machine… and Close
-Window), the View menu (Actual Size ⌘0, disabled on a virtual
+Connection Info ⌘I, Show Ports ⌥⌘P (`PortsCommands`: the popover, or a sheet with the
+same content while the toolbar isn't shown), Edit Machine… ⌘E, and `ShowAllMonitorsMenu`: Show All Monitors ▸ Show
+as Tabs and Show as Windows, enabled while the key window streams over a live link with
+nothing listing, Show as Tabs not while the window shows one of its sheets (the Ports sheet
+included), and Place Windows in the Host's
+Order, the same setting as Settings' "Place monitor windows in the host's order"
+(`AppSettings.placeMonitorWindowsKey`, off by default); and File's New
+Tab, New Window, New Machine… and Close Window), Show All Monitors
+(`SessionModel+Monitors.swift`: each press lists the host's monitors afresh through the
+window's `ScreenList`, whose completion always runs, cancelled when a session starts; the
+answer is dropped unless the window still streams that destination; `MonitorPlanning` picks
+the monitors no window to the destination shows, counting `OpenSessions.shown(for:)`'s live
+mirrors, a Focused Monitor mirror not yet named as the focused monitor, and its ended named
+mirrors, which start again in place; each other opens by name with the window's options in
+a window or tab from a `TabRequest` whose `WindowStart` connects it as it opens, its screen
+its own, carrying the source's input mode and `joined`; with the placement setting on, Show as Windows
+gives each window its `MonitorPlacement` slot (a display and a cascade step), counting the
+windows already showing a monitor, and moves the key window to its own when it is a mirror
+of a listed monitor alone in its window and not in full screen (`WindowPlacement.move`, then
+`WindowSizer.fit`); alerts on the window when the listing fails,
+the host has no monitors, or every one is shown), the View menu (Actual Size ⌘0, disabled on a virtual
 screen, turning Scale to Fit off; Scale to Fit ⌥⌘0; Show Status Bar ⌘/, app-wide, off by default; `ScreenMenus.swift`: Text Size, a virtual screen only, its steps
 showing the remote scale on the window's display and the ones that change nothing off;
 Resolution, a virtual screen only: Automatic, Retina and Standard, Standard off on a display
@@ -139,7 +157,10 @@ and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes
   in full screen meanwhile (`isSwitching`); a lost session tried again with backoff
   (`SessionModel+Reconnect.swift`, GliffSession's `Reconnector`): a session that streamed and
   ended with a reason a retry may fix, Reconnect automatically on, each try a new session in
-  the same window, its size and full screen kept; Disconnect, closing the window, quitting,
+  the same window, its size and full screen kept, a Focused Monitor mirror's (and its Try
+  Again's) asking for the monitor it last showed (GliffMachines' `ReconnectScreen`), its
+  choice still Focused Monitor, and with that monitor missing the focused one at once, in the
+  same try; Disconnect, closing the window, quitting,
   another connection or Reconnect automatically turned off stops it (the last, with why it was
   lost on the end screen); `SessionEndedView` after
   an end the person didn't choose, with Try Again, Edit Machine… and Close: Disconnect and
@@ -198,7 +219,14 @@ AppKit adapters for what SwiftUI can't do:
   whose group has a sheet up on any tab (AppKit would lay the group out at the sheet's size);
   it reports the window's
   number and its group's in tab order (KVO on the group's windows) and the window's close;
-  Close Window closes every tab of the key window's group;
+  Close Window closes every tab of the key window's group; a window opened for Show All
+  Monitors leaves the window it ran from key: its tab joins unselected, its window of its own
+  is ordered behind, at its `WindowPlace`: its step's cascade steps from its display's
+  visible top-left (`WindowPlacement`; a display gone leaves it where macOS put it), else
+  from the source's top-left (from its display's visible frame in full screen), and the
+  source is made key again then and after SwiftUI's update, unless the person has moved to
+  another window, quietly (`CaptureController.rekeyQuietly`: no activation's nudge, the
+  host's focus never having left its screen);
 - switching tabs (`TabSwitcher`): Window ▸ Previous Tab and Next Tab (⇧⌘[, ⇧⌘]), and the same
   chord over the picture, taken by `CaptureController`'s key monitor before the remote (while
   captured, too), select the window's previous or next tab; in a window of one tab, the
@@ -242,24 +270,44 @@ AppKit adapters for what SwiftUI can't do:
   remote screen is asked for that size while the session connects;
 - input capture, keys and pointer together: `CaptureController` (one per window's session)
   feeds GliffInput's `InputController` the window, app, picture, link, popover, sleep and
-  lock changes, swallows the window's key events while captured (a local monitor, only while there
-  is a picture), takes the pointer events `VideoNSView` hands it (`onPointer`), sends what it
-  says through `Session.send`, and shows the mode's hint for 3 s (its app, workspace and window
-  observers in `CaptureController+Observers.swift`). It holds the mode (Integrated or
-  Capture), applied on change and to each session attached; any menu of the app open
-  (`MenuTracker`) holds capture off, and Input ▸ Release Input stays enabled through it. In Integrated, a key with ⌘ over the chrome
-  (`ChromeProbe`) is the Mac's. Capture turning on (the
-  window or tab coming to the front, the first picture, recapture) is an activation, but a menu
-  closing is one only if capture would have risen while it was open. So are a
-  wake, an unlock and a user switch back while captured: before anything else, two motions
-  onto `SessionModel.activationTarget` (`VideoNSView`'s Mac pointer over the uncovered picture, else the
-  session's `RemotePointerSlot`, else the centre: `FocusTarget`), so the host's focus follows
-  to the tab's screen. They go through `Session.activate`, so a key typed at once after a
-  switch waits for the host's focus. `CaptureTracker` tells it its window, whether the session's own picture
-  shows (not a reconnect's last one) and whether the Ports popover is on screen; `InputSource`
-  reads the selected layout (HIToolbox's
-  TIS) as the keymap text and whether the keyboard is ISO; `MacKeyEvent+NSEvent` and
-  `PointerEvent+NSEvent` turn an `NSEvent` into values.
+  lock changes, swallows the window's key events while captured (a local monitor, only while
+  there is a picture), takes the pointer events `VideoNSView` hands it (`onPointer`), sends
+  what it says through `Session.send`, and shows the mode's hint for 3 s (its app, workspace
+  and window observers in `CaptureController+Observers.swift`). It holds the mode (Integrated
+  or Capture), applied on change and to each session attached. An overlay holds capture off:
+  any menu of the app open (`MenuTracker`) or the Ports popover; Input ▸ Release Input stays
+  enabled through either. In Integrated, a key with ⌘ over the chrome (`ChromeProbe`) is the
+  Mac's. Capture turning on (the window or tab coming to the front, the first picture,
+  recapture) is an activation, but an overlay closing is one only if capture would have
+  risen while it was open, and a window the app makes key again itself (`rekeyQuietly`) is
+  none, nor is an overlay's close after it. So are a wake, an unlock and a user switch back
+  while captured: before anything else, two motions onto `SessionModel.activationTarget` (a
+  handover's entry point, else `VideoNSView`'s Mac pointer over the uncovered picture, else
+  the session's `RemotePointerSlot`, else the centre: `FocusTarget`), so the host's focus
+  follows to the tab's screen. They go through `Session.activate`, so a key typed at once
+  after a switch waits for the host's focus. `CaptureTracker` tells it its window, whether
+  the session's own picture shows (not a reconnect's last one) and whether the Ports popover
+  is on screen; `InputSource` reads the selected layout (HIToolbox's TIS) as the keymap text
+  and whether the keyboard is ISO; `MacKeyEvent+NSEvent` and `PointerEvent+NSEvent` turn an
+  `NSEvent` into values.
+- The pointer handover between a host's monitor windows: `MonitorHandoverCoordinator`
+  (app-wide) watches the picture of each live mirror whose window isn't key through a
+  `PictureHoverWatcher`, the owner of a second tracking area on its video view (motion and
+  exit while the app is active). Each capture tells it of its key changes, group and video
+  view, and each video view of joining or leaving a window, so a window that is never key
+  watches from its first picture. At each motion, while the key window can leave, it gathers the
+  key window's and the other window's facts (`CaptureController+Handover.swift`: the group the
+  app sets from `SessionModel.sessionPhaseChanged`, the destination while the session streams a
+  monitor; the mode; the picture live; released; captured; a sheet) and the pointer's (the app
+  active, no button, over the picture drawn, that window frontmost there, asked of the window
+  server only while the app is active and no button is held) for GliffInput's
+  `MonitorHandover`, arms a timer for its deadline and checks the facts again then. When it
+  hands over, the other window's capture keeps the last motion's remote position as its entry
+  point (GliffInput's `HandoverEntry`) and the window comes in front (`makeKeyAndOrderFront`,
+  after the event that answered, whose watcher the key change removes);
+  its activation nudges the host's pointer there instead of asking the window server. The entry
+  point is used once, by that key change's activation, and goes on any other key change or
+  after 500 ms.
 - Which window is on top at a point (`NSWindow.shownNumber`): the window server's answer, read
   through tab groups (`NSWindow.shownTab`, a group's selected tab). At a tab switch the server
   still names the tab just left for a frame or so; the tab now selected stands for it, so the
@@ -341,6 +389,16 @@ AppKit adapters for what SwiftUI can't do:
   window; another host's window offers it, host to host.
   `PasteboardSource` reads the data when the remote pastes, only from the copy the offer was
   made from, a TIFF converted to PNG with ImageIO, at most 32 MiB.
+  `HostClipboards` is the app's one `HostClipboardLedger` (GliffClipboard): each controller
+  registers its session with a fresh id and the destination as typed, and reports when it
+  comes in front, its sharing, its offers and withdrawals, and the host copies it sees. A Mac
+  copy another window's session to the host holds isn't offered again from the front; an offer
+  supersedes the host's other sessions; one made within 30 ms after another window's empty
+  offer to the host waits until then. When the holder's session ends (closed, Disconnect, a
+  lost link, another screen) or turns sharing off, the copy goes to the host's other windows,
+  the last in front first, until one offers it, under the settings in force then. ⇧⌘W tells
+  it every tab of the group first, so the tabs don't hand it to each other, and a tab that
+  stays open (a sheet up) takes part again; quitting hands nothing over.
 
 - the clipboard, remote → Mac: the host's offers reach the same policy, which
   puts them on the Mac while the window is in front, or holds them until it is back if the

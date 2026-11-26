@@ -141,8 +141,10 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   or a virtual screen) as gliff-server's arguments. `ScreenListParser` reads the host's
   `hyprctl -j monitors` as untrusted input into `RemoteScreen`s: at most 1 MiB, names only
   `[A-Za-z0-9._:-]` (1–64), a description from make and model only (never the serial
-  number), rotated monitors' sides swapped, disabled ones and gliff-server's own virtual
-  screens (`gliff-<pid>`, gone when their session ends) left out. `ScreenListCommand` is
+  number), each monitor's top-left in the host's layout (`x`, `y`: nil unless a whole
+  number within ±1,048,576), rotated monitors' sides swapped, disabled ones and
+  gliff-server's own virtual screens (`gliff-<pid>`, gone when their session ends) left out
+  (`isMonitorName`). `ScreenListCommand` is
   the one-shot ssh for Get Screens: `SSHCommand`'s options, then a fixed one-line `sh -c`
   script that tries each Hyprland instance as gliff-server does (the session's own, then the
   newest whose socket answers) and prints `hyprctl -j monitors`. `ScreenLister` (macOS) runs

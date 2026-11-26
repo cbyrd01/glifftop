@@ -1,3 +1,5 @@
+import GliffInput
+import GliffMachines
 import SwiftUI
 
 /// What a window is opened for: each request a new window (its own id), in the tab group of
@@ -11,6 +13,25 @@ struct TabRequest: Codable, Hashable {
     var alone = false
     /// The host the new window's field starts with: the session's it was opened beside.
     var host: String?
+    /// A session the window starts at once, never showing the machines (Show All Monitors).
+    var start: WindowStart?
+    /// Where a window of its own goes (Show as Windows).
+    var place: WindowPlace?
+}
+
+/// A session a new window starts as it opens, from window `source`, which stays key.
+struct WindowStart: Codable, Hashable {
+    /// The destination as typed.
+    var host: String
+    var options: MachineOptions
+    /// The source window's input mode: a monitor's window hands over only in Integrated.
+    var mode: CaptureMode
+    /// The screen is the window's own: never kept on the machine.
+    var screenIsOwn = true
+    /// The window joins the source's connection rather than being a person's connect.
+    var joined = true
+    /// The window number of the window the command ran from.
+    var source: Int
 }
 
 /// One window (or tab) and its own session: the model it owns, known to `OpenSessions` while
@@ -18,6 +39,8 @@ struct TabRequest: Codable, Hashable {
 struct SessionWindow: View {
     let request: TabRequest
     @State private var model: SessionModel
+    /// The request's start ran: once, never again after a Disconnect.
+    @State private var started = false
 
     init(request: TabRequest) {
         self.request = request
@@ -32,7 +55,10 @@ struct SessionWindow: View {
         RootView(model: model)
             .focusedSceneValue(\.session, model)
             .background {
-                WindowTabbing(tabOf: request.tabOf, alone: request.alone) { [model] in
+                WindowTabbing(
+                    tabOf: request.tabOf, alone: request.alone, quietFor: request.start?.source,
+                    placement: request.place
+                ) { [model] in
                     model.tabGroup = $0
                 } closed: { [model] in
                     OpenSessions.shared.close(model)
@@ -41,6 +67,10 @@ struct SessionWindow: View {
             .onAppear {
                 OpenSessions.shared.add(model)
                 model.capture.onTabChord = OpenSessions.shared.selectTab
+                if let start = request.start, !started {
+                    started = true
+                    model.connect(start)
+                }
             }
     }
 }

@@ -46,9 +46,21 @@ import Observation
     /// An activation's motions to the session (`Session.activate`).
     @ObservationIgnored private var activateSession: (([InputMessage]) -> Void)?
     @ObservationIgnored private(set) weak var window: NSWindow?
-    @ObservationIgnored private var picture = false
-    @ObservationIgnored private var interrupted = false
+    @ObservationIgnored private(set) var picture = false
+    @ObservationIgnored private(set) var interrupted = false
     @ObservationIgnored private var popover = false
+    /// The destination while the session is a live mirror of one of its monitors (the app sets
+    /// it), nil otherwise: the pointer hands over between windows of one group
+    /// (`CaptureController+Handover.swift`).
+    @ObservationIgnored var handoverGroup: String? {
+        didSet { if handoverGroup != oldValue { MonitorHandoverCoordinator.shared.updateWatchers() } }
+    }
+    /// Where a handover's pointer entered this picture: the next activation's target.
+    @ObservationIgnored var entry = HandoverEntry()
+    /// The window is being made key again by the app itself (`rekeyQuietly`).
+    @ObservationIgnored private var rekeying = false
+    /// Every live controller, weakly: the handover's windows and a quiet re-key's.
+    @ObservationIgnored static let all = NSHashTable<CaptureController>.weakObjects()
     @ObservationIgnored private var monitor: Any?
     @ObservationIgnored var windowObservers: [any NSObjectProtocol] = []
     /// App, workspace and distributed observers, each with its centre: for the controller's life.
@@ -60,8 +72,11 @@ import Observation
     /// remote, its repeats and key-up too.
     @ObservationIgnored var onTabChord: (TabChord, Int?) -> Void = { _, _ in }
     /// The window's video view: the Mac pointer over its uncovered picture is an activation's
-    /// first choice, and its frame tells the picture from the chrome for ⌘ chords.
-    @ObservationIgnored weak var videoView: VideoNSView?
+    /// first choice after a handover's entry point, and its frame tells the picture from the
+    /// chrome for ⌘ chords.
+    @ObservationIgnored weak var videoView: VideoNSView? {
+        didSet { if videoView !== oldValue { MonitorHandoverCoordinator.shared.updateWatchers() } }
+    }
     /// Integrated or Capture: applied on change, and to each session attached.
     var mode: CaptureMode = .integrated {
         didSet { if mode != oldValue { apply(.mode(mode)) } }
@@ -72,7 +87,21 @@ import Observation
         nil
     }
 
-    init() { observeApp() }
+    init() {
+        observeApp()
+        Self.all.add(self)
+    }
+
+    /// Makes `window` its group's selected tab and key again without an activation's nudge: a
+    /// window that lost key only to one opened by the app (Show All Monitors), the host's focus
+    /// still on its screen. AppKit posts the key change within these calls, on the main thread.
+    static func rekeyQuietly(_ window: NSWindow) {
+        let capture = all.allObjects.first { $0.window === window }
+        capture?.rekeying = true
+        defer { capture?.rekeying = false }
+        window.tabGroup?.selectedWindow = window
+        window.makeKeyAndOrderFront(nil)
+    }
 
     isolated deinit {
         for (center, observer) in observers { center.removeObserver(observer) }
@@ -155,7 +184,13 @@ import Observation
         }
         // Where the pointer is, before the edge it may confine at.
         if event == .windowKey(true) || event == .appActive(true) { reportEntry() }
-        guard let result = controller?.capture(event) else { return }
+        if case .windowKey(let key) = event {
+            MonitorHandoverCoordinator.shared.keyChanged(self, isKey: key)
+        }
+        // Only this key change's activation uses a handover's entry point.
+        defer { if case .windowKey = event { entry.clear() } }
+        guard let result = controller?.capture(event, quiet: rekeying && event == .windowKey(true))
+        else { return }
         handle(result)
     }
 
@@ -176,7 +211,7 @@ import Observation
     /// Two motions onto the activation target, so the host's focus follows to this screen;
     /// input sent next waits for it (`Session.activate`).
     private func activate() {
-        guard let target = target(videoView?.macPointerOverPicture()),
+        guard let target = target(entry.take(at: .now) ?? videoView?.macPointerOverPicture()),
             let result = controller?.activate(at: target)
         else { return }
         activateSession?(result.messages)

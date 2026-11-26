@@ -1,14 +1,17 @@
 /// When the Mac's clipboard is offered or withdrawn, and when the remote's goes on the Mac: a
 /// pure decision the app carries out.
 public struct ClipboardPolicy: Sendable {
-    /// The Mac clipboard as the app sees it: its `changeCount`, and whether it may be offered
-    /// (`offerable(typeCount:isPassword:includePasswords:cameFromThisHost:)`).
+    /// The Mac clipboard as the app sees it: its `changeCount`, whether it may be offered
+    /// (`offerable(typeCount:isPassword:includePasswords:cameFromThisHost:)`), and whether
+    /// another window's session to the same host holds this copy
+    /// (`HostClipboardLedger.heldElsewhere`).
     public struct MacClipboard: Equatable, Sendable {
         public var changeCount: Int
         public var offerable: Bool
+        public var heldElsewhere: Bool
 
-        public init(changeCount: Int, offerable: Bool) {
-            (self.changeCount, self.offerable) = (changeCount, offerable)
+        public init(changeCount: Int, offerable: Bool, heldElsewhere: Bool = false) {
+            (self.changeCount, self.offerable, self.heldElsewhere) = (changeCount, offerable, heldElsewhere)
         }
     }
 
@@ -24,6 +27,12 @@ public struct ClipboardPolicy: Sendable {
         /// What may be offered changed (whether passwords are shared): our offer the Mac clipboard no
         /// longer allows is withdrawn, in front or not; in front, one it now allows is offered.
         case recheck(MacClipboard)
+        /// Another session to the host offered: the host's clipboard is no longer ours, so
+        /// nothing of ours is withdrawn there.
+        case superseded
+        /// The host's holder ended while the Mac clipboard was its copy: this session offers
+        /// it, in front or not, so the host keeps it.
+        case handOver(MacClipboard)
     }
 
     /// Whether a Mac copy may be offered: it has types to forward, a password manager's
@@ -59,6 +68,9 @@ public struct ClipboardPolicy: Sendable {
     private var withheld: Int?
     /// A remote offer that came while away, and the Mac's `changeCount` then.
     private var held: (offer: RemoteClipboardOffer, changeCount: Int)?
+    /// The Mac `changeCount` when the host last copied something: a Mac copy at that count is
+    /// older than the host's, and isn't handed over onto it.
+    private var hostCopied: Int?
 
     public init(sharing: Bool) { self.sharing = sharing }
 
@@ -87,6 +99,7 @@ public struct ClipboardPolicy: Sendable {
             hostHasOurs = false
             seen = nil
             (held, withheld) = (nil, nil)
+            if offer.hasFiles || !offer.isEmpty { hostCopied = mac.changeCount }
             guard offer.isPasteable else {
                 // A copy of nothing the Mac takes (files, which aren't shared; JPEG, RTF)
                 // stands on the host: the Mac's clipboard is offered over it only once it
@@ -118,11 +131,23 @@ public struct ClipboardPolicy: Sendable {
                 return withdraw()
             }
             return front ? offerCurrent(mac) : []
+        case .superseded:
+            (live, hostHasOurs, withheld) = (false, false, nil)
+            return []
+        case .handOver(let mac):
+            guard sharing, mac.offerable, mac.changeCount != owned, mac.changeCount != hostCopied else {
+                return []
+            }
+            seen = mac.changeCount
+            return offer(mac.changeCount)
         }
     }
 
     /// In front: offers the Mac clipboard, or withdraws ours if it can't be offered.
     private mutating func offerCurrent(_ mac: MacClipboard) -> [Action] {
+        // The host has it from another window: offering it again would make the host fetch it
+        // again. Not marked seen: once no window holds it, the front offers it.
+        if mac.heldElsewhere { return [] }
         let nowAllowed = mac.offerable && mac.changeCount == withheld
         guard mac.changeCount != seen || nowAllowed, mac.changeCount != owned else { return [] }
         seen = mac.changeCount
@@ -130,9 +155,14 @@ public struct ClipboardPolicy: Sendable {
             withheld = mac.changeCount
             return withdraw()
         }
+        return offer(mac.changeCount)
+    }
+
+    /// Offers the Mac clipboard at `changeCount`: ours stands on the host.
+    private mutating func offer(_ changeCount: Int) -> [Action] {
         withheld = nil
         (live, hostHasOurs) = (true, true)
-        return [.offerMac(changeCount: mac.changeCount)]
+        return [.offerMac(changeCount: changeCount)]
     }
 
     /// Withdraws ours; an empty offer replaces it on the host while the host still holds it (once

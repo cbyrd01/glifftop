@@ -1,6 +1,6 @@
 /// How a captured window treats the pointer and ⌘ chords ("Integrated" and "Capture"). Both
 /// capture keys and the pointer on the same conditions.
-public enum CaptureMode: Sendable, Equatable, CaseIterable {
+public enum CaptureMode: String, Sendable, Equatable, CaseIterable, Codable {
     /// The pointer moves freely; over the chrome, ⌘ chords are the Mac's
     /// (`InputController.key(_:overChrome:)`).
     case integrated
@@ -42,7 +42,8 @@ public struct CaptureChange: Sendable, Equatable {
     /// Capture rose: the window became key, the app active, the picture or the link came back,
     /// or a click took input back, so the host's focus should follow this window. A rise at a
     /// menu's or the Ports popover's close activates only when one of those happened while it
-    /// was open; a mode change never moves capture.
+    /// was open; a mode change never moves capture; a quiet rise (`apply(_:quiet:)`: a window
+    /// the app made key again itself) never activates, nor does an overlay's close after it.
     public var activates: Bool
 
     public init(showHint: Bool = false, activates: Bool = false) {
@@ -87,6 +88,9 @@ public struct InputCapture: Sendable {
     /// Capture mode, captured, and the pointer has entered the picture since.
     public var isConfined: Bool { mode == .confined && isCaptured && pointerOnPicture }
 
+    /// Shift+Esc released input, and no click on the picture or new picture took it back.
+    public var isReleased: Bool { released }
+
     /// Whether a click on the picture would take input back: only Shift+Esc's release holds it
     /// off (not an interruption, a menu, the popover, focus or the picture's end).
     public var clickRecaptures: Bool { released && conditionsHold }
@@ -107,7 +111,9 @@ public struct InputCapture: Sendable {
     /// overlay (any menu, the Input menu itself while the item is chosen, or the popover).
     public var isReleasable: Bool { capturedBesideOverlay }
 
-    public mutating func apply(_ event: CaptureEvent) -> CaptureChange {
+    /// `quiet`: a rise that is no activation (a window made key again by the app itself, the
+    /// host's focus never having left it).
+    public mutating func apply(_ event: CaptureEvent, quiet: Bool = false) -> CaptureChange {
         let wasCaptured = isCaptured
         let wasBesideOverlay = capturedBesideOverlay
         switch event {
@@ -150,7 +156,7 @@ public struct InputCapture: Sendable {
         }
         isCaptured = conditionsHold && !released
         if wasCaptured, !isCaptured { pointerOnPicture = false }
-        if overlaid, capturedBesideOverlay, !wasBesideOverlay { roseUnderOverlay = true }
+        if overlaid, capturedBesideOverlay, !wasBesideOverlay, !quiet { roseUnderOverlay = true }
         let rose = isCaptured && !wasCaptured
         // An overlay closing alone is no activation: the window stayed key, and the host's
         // focus with it.
@@ -164,6 +170,6 @@ public struct InputCapture: Sendable {
         let hintState = mode == .confined ? isConfined : isCaptured
         return CaptureChange(
             showHint: hintState && hintsShown.insert(mode).inserted,
-            activates: rose && (!overlayClosing || roseUnderOverlay))
+            activates: rose && !quiet && (!overlayClosing || roseUnderOverlay))
     }
 }
