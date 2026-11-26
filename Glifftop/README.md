@@ -225,8 +225,8 @@ AppKit adapters for what SwiftUI can't do:
   measured as the video view will be (`NSView.backingPixels`, less the status bar), so the
   remote screen is asked for that size while the session connects;
 - input capture, keys and pointer together: `CaptureController` (one per window's session)
-  feeds GliffInput's `InputController` the window, app, picture, link, sleep and lock
-  changes, swallows the window's key events while captured (a local monitor, only while there
+  feeds GliffInput's `InputController` the window, app, picture, link, popover, sleep and
+  lock changes, swallows the window's key events while captured (a local monitor, only while there
   is a picture), takes the pointer events `VideoNSView` hands it (`onPointer`), sends what it
   says through `Session.send`, and shows the Shift+Esc hint for 3 s. Capture turning on (the
   window or tab coming to the front, the first picture, recapture) is an activation, as are a
@@ -234,7 +234,8 @@ AppKit adapters for what SwiftUI can't do:
   onto `SessionModel.activationTarget` (`VideoNSView`'s Mac pointer over the uncovered picture, else the
   session's `RemotePointerSlot`, else the centre: `FocusTarget`), so the host's focus follows
   to the tab's screen. `CaptureTracker` tells it
-  its window and whether the session's own picture shows (not a reconnect's last one); `InputSource` reads the selected layout (HIToolbox's
+  its window, whether the session's own picture shows (not a reconnect's last one) and
+  whether the Ports popover is on screen; `InputSource` reads the selected layout (HIToolbox's
   TIS) as the keymap text and whether the keyboard is ISO; `MacKeyEvent+NSEvent` and
   `PointerEvent+NSEvent` turn an `NSEvent` into values.
 - the pointer: `VideoNSView` takes the mouse buttons, drags and scrolling over the picture,

@@ -12,6 +12,8 @@ struct PortsPopover: View {
 
     @Bindable private var app = AppPorts.shared
     @State private var adding = false
+    /// The list's own height.
+    @State private var listHeight: CGFloat = 0
     @State private var remoteText = ""
     @State private var localText = ""
 
@@ -27,11 +29,12 @@ struct PortsPopover: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            ViewThatFits(in: .vertical) {
-                sections
-                ScrollView { sections }
+            // As tall as the list, up to 420, so the popover follows rows that come and go.
+            ScrollView {
+                sections.onGeometryChange(for: CGFloat.self, of: \.size.height) { listHeight = $0 }
             }
-            .frame(maxHeight: 420)
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(height: min(listHeight, 420))
             Divider()
             footer
         }
@@ -137,19 +140,22 @@ struct PortsPopover: View {
                 TextField("Port on \(host)", text: $remoteText)
                 TextField("Local port", text: $localText)
                     .frame(width: 100)
+                // Return forwards a typed port; with none, it is the sheet's Done.
                 Button("Forward", action: forwardTyped)
+                    .defaultAction(when: remoteTyped)
                     .disabled(typed == nil)
             }
-            .onSubmit(forwardTyped)
         }
         if let done {
             HStack {
                 Spacer()
                 Button("Done", action: done)
-                    .defaultAction(unless: adding && !remoteText.isEmpty)
+                    .defaultAction(when: !adding || !remoteTyped)
             }
         }
     }
+
+    private var remoteTyped: Bool { !remoteText.trimmingCharacters(in: .whitespaces).isEmpty }
 
     /// The typed ports: one on the host, and a Mac port or none for the chooser's.
     private var typed: (remote: Int, local: Int?)? {

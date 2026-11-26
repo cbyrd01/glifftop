@@ -3,7 +3,7 @@ import Testing
 @testable import GliffInput
 
 /// Mode A: input (keys and pointer) goes to the remote while the window is key, the app active, the
-/// picture showing and the link live, unless Shift+Esc released it (until the picture is
+/// picture showing, the link live and no popover over it, unless Shift+Esc released it (until the picture is
 /// clicked).
 @Suite struct InputCaptureTests {
     /// Applies `events` in order; the hint answers, in order.
@@ -16,7 +16,7 @@ import Testing
 
     @Test func capturedOnlyWhenAllHold() {
         let spoilers: [CaptureEvent] = [
-            .windowKey(false), .appActive(false), .picture(false), .interrupted(true),
+            .windowKey(false), .appActive(false), .picture(false), .interrupted(true), .popover(true),
         ]
         for spoiler in spoilers {
             var capture = InputCapture(mode: .windowInFront)
@@ -77,5 +77,16 @@ import Testing
         var capture = InputCapture(mode: .windowInFront)
         apply(&capture, allHold + [.release, .interrupted(true), .pictureClicked, .interrupted(false)])
         #expect(!capture.isCaptured)
+    }
+
+    /// A popover over the window takes the keys while it is open; capture comes back after,
+    /// without the hint.
+    @Test func aPopoverTakesTheKeys() {
+        var capture = InputCapture(mode: .windowInFront)
+        #expect(
+            apply(&capture, allHold + [.popover(true), .popover(false)]) == [
+                false, false, true, false, false,
+            ])
+        #expect(capture.isCaptured)
     }
 }

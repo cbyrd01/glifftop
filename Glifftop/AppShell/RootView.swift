@@ -62,7 +62,10 @@ struct RootView: View {
             // the old screen.
             CaptureTracker(
                 controller: model.capture, picture: model.shownStream != nil && !model.isReconnecting,
-                interrupted: model.isInterrupted)
+                interrupted: model.isInterrupted,
+                // The Ports popover's keys, its fields' among them, are the Mac's while it shows;
+                // the click that closes it is the Mac's too.
+                popover: AppPorts.shared.ports(for: model).popoverShown)
         }
         .background { ClipboardTracker(controller: model.clipboard) }
         .background { LiveResizeTracker(changed: model.liveResizeChanged) }

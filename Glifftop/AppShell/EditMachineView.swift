@@ -73,12 +73,12 @@ struct EditMachineView: View {
                         .disabled(!canSave)
                 }
                 Button("Save") { _ = save() }
-                    .defaultAction(unless: !pendingPort.isEmpty)
+                    .defaultAction(when: pendingPort.isEmpty)
                     .disabled(!canSave)
             }
         }
         .padding(20)
-        .frame(width: 460)
+        .frame(width: 520)
         .onAppear { screenList.asker = model.signIn.queue }
         .onDisappear { screenList.stop() }
         // Over this sheet: the window's own sheet can't show while this one does.

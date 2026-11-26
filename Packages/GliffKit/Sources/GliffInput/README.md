@@ -20,8 +20,8 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   comes from its own device-dependent bit, so left and right stay apart; with only the shared
   bit (software-posted events), one side.
 - **`InputCapture`:** when keys and the pointer go to the remote (one capture for both). Mode
-  A (`windowInFront`): the window key, the app active, the picture showing and the link
-  live, unless Shift+Esc released it (until the picture is clicked; a new picture starts
+  A (`windowInFront`): the window key, the app active, the picture showing, the link
+  live and no Ports popover over the window, unless Shift+Esc released it (until the picture is clicked; a new picture starts
   captured). Says when to show the "Shift+Esc releases input" hint: first capture, and the
   first after each release. The other capture modes join here later.
 - **`PointerEvent`:** a pointer event over the picture, with its position in remote

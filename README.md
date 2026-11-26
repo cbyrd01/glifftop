@@ -61,7 +61,8 @@ encode).
 
    <img src="docs/media/screen-choice.png" width="480" alt="The Glifftop window: the host omarchy, Options open with the Screen menu listing Focused Monitor, Virtual Screen and two monitors, and omarchy under Machines">
 2. While the window is in front, the keyboard and pointer go to the remote computer;
-   **Input ▸ Release Input** (⇧Esc) gives them back to the Mac.
+   **Input ▸ Release Input** (⇧Esc) gives them back to the Mac, as does the Ports popover
+   while it is open.
 3. **View ▸ Actual Size** (⌘0) shows the remote 1:1, turning Scale to Fit off; **View ▸ Scale
    to Fit** (⌥⌘0) scales a smaller screen up.
 4. **Settings ▸ Clipboard**, or the clipboard button in the toolbar, shares the clipboard,

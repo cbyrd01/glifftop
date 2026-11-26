@@ -3,8 +3,8 @@ import GliffInput
 import Observation
 
 /// Input capture for one window's session, keys and pointer together: feeds `InputController`
-/// what capture depends on (the window key, the app active, the picture, the link, sleep and
-/// lock), takes the window's key events while there is a picture, takes the pointer events the
+/// what capture depends on (the window key, the app active, the picture, the link, a popover
+/// over the window, sleep and lock), takes the window's key events while there is a picture, takes the pointer events the
 /// video view hands it, and sends what it says through the session.
 @Observable final class CaptureController {
     private(set) var isCaptured = false
@@ -16,6 +16,7 @@ import Observation
     @ObservationIgnored private weak var window: NSWindow?
     @ObservationIgnored private var picture = false
     @ObservationIgnored private var interrupted = false
+    @ObservationIgnored private var popover = false
     @ObservationIgnored private var monitor: Any?
     @ObservationIgnored private var windowObservers: [any NSObjectProtocol] = []
     /// App, workspace and distributed observers, each with its centre: for the controller's life.
@@ -76,6 +77,7 @@ import Observation
         apply(.windowKey(window?.isKeyWindow ?? false))
         apply(.picture(picture))
         apply(.interrupted(interrupted))
+        apply(.popover(popover))
         updateMonitor()
     }
 
@@ -88,8 +90,9 @@ import Observation
         hideHint()
     }
 
-    /// The window and what the window shows, from `CaptureTracker`; acts on changes only.
-    func update(window: NSWindow?, picture: Bool, interrupted: Bool) {
+    /// The window, what the window shows and whether a popover is over it, from
+    /// `CaptureTracker`; acts on changes only.
+    func update(window: NSWindow?, picture: Bool, interrupted: Bool, popover: Bool) {
         if window !== self.window {
             self.window = window
             observeWindow()
@@ -102,6 +105,10 @@ import Observation
         if interrupted != self.interrupted {
             self.interrupted = interrupted
             apply(.interrupted(interrupted))
+        }
+        if popover != self.popover {
+            self.popover = popover
+            apply(.popover(popover))
         }
         updateMonitor()
     }

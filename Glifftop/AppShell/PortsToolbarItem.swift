@@ -26,6 +26,8 @@ private struct PortsButton: View {
         .accessibilityValue(ports.activeCount == 0 ? "" : "\(ports.activeCount) forwarded")
         .popover(isPresented: $ports.showsPopover, arrowEdge: .bottom) {
             PortsPopover(ports: ports, session: session)
+                .onAppear { ports.popoverShown = true }
+                .onDisappear { ports.popoverShown = false }
         }
     }
 

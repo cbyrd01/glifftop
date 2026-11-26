@@ -13,6 +13,8 @@ public enum CaptureEvent: Sendable, Equatable {
     case appActive(Bool)
     case picture(Bool)
     case interrupted(Bool)
+    /// A popover with fields (Ports) is over the window: its keys are the Mac's while it is.
+    case popover(Bool)
     /// Shift+Esc, or Input ▸ Release Input: keys and pointer go back to the Mac.
     case release
     /// A click on the picture takes input back after a release.
@@ -33,6 +35,7 @@ public struct InputCapture: Sendable {
     private var appActive = false
     private var picture = false
     private var interrupted = false
+    private var popover = false
     private var released = false
     private var hintDue = true
 
@@ -47,7 +50,7 @@ public struct InputCapture: Sendable {
     /// The mode's conditions for capture, Shift+Esc's release aside.
     private var conditionsHold: Bool {
         switch mode {
-        case .windowInFront: windowKey && appActive && picture && !interrupted
+        case .windowInFront: windowKey && appActive && picture && !interrupted && !popover
         }
     }
 
@@ -64,6 +67,7 @@ public struct InputCapture: Sendable {
             }
             picture = shown
         case .interrupted(let on): interrupted = on
+        case .popover(let on): popover = on
         case .release:
             released = true
             hintDue = true

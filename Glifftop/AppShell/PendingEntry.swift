@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// The text in a field below whose entry Return adds (the machine sheet's port), empty when
-/// none: the sheet's default button gives up Return meanwhile, since it would take Return
-/// before the field, and its Save keeps the entry.
+/// The text in a field whose entry Return adds (the machine sheet's port), empty when none:
+/// the sheet's default button gives Return to the entry's Add meanwhile, since the default
+/// button takes Return before the field, and its Save keeps the entry.
 struct PendingEntryKey: PreferenceKey {
     static let defaultValue = ""
 
@@ -12,8 +12,9 @@ struct PendingEntryKey: PreferenceKey {
 }
 
 extension View {
-    /// The default button, unless `pending`: then Return goes to the field holding the entry.
-    func defaultAction(unless pending: Bool) -> some View {
-        keyboardShortcut(pending ? nil : .defaultAction)
+    /// The default button while `isDefault`: a sheet's gives Return to an entry's own button
+    /// while the entry is typed.
+    func defaultAction(when isDefault: Bool) -> some View {
+        keyboardShortcut(isDefault ? .defaultAction : nil)
     }
 }

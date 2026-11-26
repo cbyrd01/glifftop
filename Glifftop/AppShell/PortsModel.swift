@@ -9,6 +9,9 @@ import Observation
 @Observable final class PortsModel {
     private(set) var snapshot = PortsSnapshot()
     var showsPopover = false
+    /// The popover is on screen: asked for, it may have no item to show from (the toolbar's
+    /// overflow).
+    var popoverShown = false
     /// Show Ports while the toolbar isn't shown.
     var showsSheet = false
     /// The Available ports the popover has shown: the toolbar's dot is for the others.

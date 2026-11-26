@@ -1,17 +1,19 @@
 import AppKit
 import SwiftUI
 
-/// Tells a `CaptureController` its window, and whether the window shows the live picture.
+/// Tells a `CaptureController` its window, whether the window shows the live picture, and
+/// whether a popover is over it.
 struct CaptureTracker: NSViewRepresentable {
     let controller: CaptureController
     let picture: Bool
     let interrupted: Bool
+    let popover: Bool
 
     func makeNSView(context: Context) -> CaptureTrackerView { CaptureTrackerView() }
 
     func updateNSView(_ nsView: CaptureTrackerView, context: Context) {
-        nsView.report = { [controller, picture, interrupted] window in
-            controller.update(window: window, picture: picture, interrupted: interrupted)
+        nsView.report = { [controller, picture, interrupted, popover] window in
+            controller.update(window: window, picture: picture, interrupted: interrupted, popover: popover)
         }
         // Not inside SwiftUI's update pass: capture changes observable state and may send.
         Task { nsView.report(nsView.window) }
