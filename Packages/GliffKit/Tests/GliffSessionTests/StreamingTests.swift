@@ -241,13 +241,23 @@ import Testing
         #expect(core.decoded(frameID: 7, outcome: .picture, decodeMilliseconds: 1, now: 5) == [])
     }
 
+    /// Each Ping's `t` is its own, so its Pong names it alone (`FenceLedger`): a Ping in the
+    /// same millisecond as the last, or just after a small step back, counts on from it.
+    @Test func eachPingHasItsOwnT() {
+        var core = streaming()
+        #expect(core.pingNow(now: 10_000) == .send(.ping(t: 10_000)))
+        #expect(core.pingNow(now: 10_000) == .send(.ping(t: 10_001)))
+        #expect(core.pingNow(now: 9_999) == .send(.ping(t: 10_002)))
+        #expect(core.pingNow(now: 10_005) == .send(.ping(t: 10_005)))
+    }
+
     /// `now` is the wall clock: a step backwards gives no RTT sample and no stats over a
-    /// negative window.
+    /// negative window. A step back of a ping interval or more pings at the new time.
     @Test func clockStepBackIsNotMeasured() {
         var core = streaming()
         #expect(core.tick(now: 10_000) == [.send(.ping(t: 10_000))])
-        #expect(core.tick(now: 9_000) == [.send(.ping(t: 9_000))])
-        #expect(core.receive(.pong(t: 10_000, serverNowMilliseconds: 0), payloadLength: 0, now: 9_040) == [])
+        #expect(core.tick(now: 8_000) == [.send(.ping(t: 8_000))])
+        #expect(core.receive(.pong(t: 10_000, serverNowMilliseconds: 0), payloadLength: 0, now: 8_040) == [])
         let stats = core.tick(now: 10_000).compactMap {
             if case .status(.stats(let s)) = $0 { s } else { nil }
         }

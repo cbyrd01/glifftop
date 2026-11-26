@@ -83,6 +83,16 @@ import Testing
         #expect(!failed)
     }
 
+    /// Upstream's writer drops a Pong still queued when a newer one is: the Pong to a Ping sent
+    /// after the probe (each `t` later than the last) answers it too.
+    @Test func aLaterPingsPongAnswersIt() {
+        var liveness = Liveness()
+        liveness.probe(ping: 7, at: 0, order: 1)
+        liveness.answered(ping: 8)
+        let failed = liveness.probeFailed(at: 10_000)
+        #expect(!failed)
+    }
+
     /// The network went away after the probe (Wi-Fi still joining after a wake): the probe
     /// sent once it's back decides, not this one.
     @Test func aWithdrawnProbeNeverFails() {

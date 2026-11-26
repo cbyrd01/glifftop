@@ -111,4 +111,34 @@ import Testing
         let key = gate.admits(.key(code: 0x110, pressed: false), streaming: true, interrupted: false)
         #expect(!key)
     }
+
+    /// Queued input judged ahead of delivery leaves the gate as it was: a press and release
+    /// judged together both still go when delivered.
+    @Test func aPreviewLeavesTheGateAsItWas() {
+        var gate = InputGate()
+        let judge = gate.preview(streaming: true, interrupted: false)
+        #expect(judge(press))
+        #expect(judge(release))
+        let pressed = gate.admits(press, streaming: true, interrupted: false)
+        let released = gate.admits(release, streaming: true, interrupted: false)
+        #expect(pressed && released)
+    }
+
+    /// A press kept at the handshake, then dropped on delivery (the link interrupted meanwhile):
+    /// its release must not go unpaired.
+    @Test func aPressKeptThenDroppedDropsItsRelease() {
+        var gate = InputGate()
+        #expect(gate.preview(streaming: true, interrupted: false)(press))
+        let pressed = gate.admits(press, streaming: true, interrupted: true)
+        #expect(!pressed)
+        let released = gate.admits(release, streaming: true, interrupted: false)
+        #expect(!released)
+    }
+
+    /// The preview judges each input after the ones before it, as delivery in order would.
+    @Test func aPreviewJudgesInOrder() {
+        let judge = InputGate().preview(streaming: false, interrupted: false)
+        #expect(!judge(press))
+        #expect(!judge(release))
+    }
 }

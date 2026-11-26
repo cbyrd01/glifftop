@@ -24,17 +24,15 @@ struct PortsNoticeCapsule: View {
     let statusBarShown: Bool
 
     var body: some View {
+        // No container: with no notice the capsule is nothing, and takes no stack spacing.
         let ports = AppPorts.shared.ports(for: session)
-        ZStack {
-            if !statusBarShown, let notice = ports.fresh {
-                PortsNoticeContent(notice: notice, ports: ports, session: session)
-                    .overPictureCapsule()
-                    // Clicks go to the host while input is captured.
-                    .allowsHitTesting(!session.capture.isCaptured)
-                    .transition(.opacity)
-            }
+        if !statusBarShown, let notice = ports.fresh {
+            PortsNoticeContent(notice: notice, ports: ports, session: session)
+                .overPictureCapsule()
+                // Clicks go to the host while input is captured.
+                .allowsHitTesting(!session.capture.isCaptured)
+                .transition(.opacity)
         }
-        .animation(.easeInOut(duration: 0.2), value: ports.fresh)
     }
 }
 

@@ -9,6 +9,7 @@ extension VideoNSView {
     /// Motion, a drag's too (one goes on after ⌘Tab): on the picture, focused, its cursor; else given back.
     @discardableResult func followPointer(_ event: NSEvent) -> Bool {
         let hit = isHit(at: event.locationInWindow)
+        onHover(hit && isInsidePicture(at: event.locationInWindow))
         if hit, isFocused { showCursor() } else { giveBackCursor() }
         return hit
     }
@@ -27,6 +28,8 @@ extension VideoNSView {
     // then on nothing shows the picture's. The display link checks again once back in focus.
     @objc func focusLost(_ notification: Notification) {
         if notification.name == NSApplication.willResignActiveNotification { focusLeaving = true }
+        // Its release may go elsewhere now; back in focus, the cursor is checked anyway.
+        pressedHere = false
         giveBackCursor()
         cursorPending = true
     }
@@ -37,15 +40,43 @@ extension VideoNSView {
         refreshCursor()
     }
 
-    /// The session's shapes, whether input is captured and the video carries the pointer: the
-    /// cursor changes at once if the pointer is over the picture.
-    func updateCursor(slot: CursorSlot, captured: Bool, videoHasPointer: Bool) {
-        guard cursor.slot !== slot || cursor.captured != captured || cursor.videoHasPointer != videoHasPointer
+    /// The session's shapes, whether input is captured, whether the Mac pointer is held
+    /// (confined) and whether the video carries the pointer: the cursor changes at once if the
+    /// pointer is over the picture.
+    func updateCursor(slot: CursorSlot, captured: Bool, confined: Bool, videoHasPointer: Bool) {
+        guard
+            cursor.slot !== slot || cursor.captured != captured || cursor.confined != confined
+                || cursor.videoHasPointer != videoHasPointer
         else {
             return
         }
-        (cursor.slot, cursor.captured, cursor.videoHasPointer) = (slot, captured, videoHasPointer)
+        // Confined, the view sees no button's release.
+        if confined, !cursor.confined { pressedHere = false }
+        (cursor.slot, cursor.captured, cursor.confined, cursor.videoHasPointer) = (
+            slot, captured, confined, videoHasPointer
+        )
         refreshCursor()
+    }
+
+    /// Confinement began or ended (and capture with it): the cursor changes now, not at
+    /// SwiftUI's next update.
+    func setCursor(captured: Bool, confined: Bool) {
+        guard let slot = cursor.slot else { return }
+        updateCursor(
+            slot: slot, captured: captured, confined: confined, videoHasPointer: cursor.videoHasPointer)
+    }
+
+    /// The confined pointer's sprite at the remote logical point `remote` (the captured look),
+    /// or none while the host hides its pointer (`visible` false), with no shape to show over a
+    /// video that carries it, or with no picture.
+    func showConfinedCursor(at remote: (x: Double, y: Double), visible: Bool) {
+        guard visible, let window, let point = viewPoint(ofRemote: remote),
+            let sprite = cursor.sprite(pointsPerPixel: cursorPointsPerPixel())
+        else {
+            confinedCursor.hide()
+            return
+        }
+        confinedCursor.show(sprite, at: point, scale: window.backingScaleFactor)
     }
 
     /// Whether this window would get the pointer's events: key, the app active and not leaving.
@@ -107,8 +138,13 @@ extension VideoNSView {
     /// (window coordinates) on screen.
     private func isFrontmost(at location: NSPoint) -> Bool {
         guard let window else { return false }
-        return NSWindow.windowNumber(
-            at: window.convertPoint(toScreen: location), belowWindowWithWindowNumber: 0)
-            == window.windowNumber
+        return isFrontmost(onScreen: window.convertPoint(toScreen: location))
+    }
+
+    /// Whether this window, not another app's or another of ours, is the one at `point` (AppKit
+    /// screen coordinates); at a tab switch, as soon as this tab is selected.
+    func isFrontmost(onScreen point: NSPoint) -> Bool {
+        guard let window else { return false }
+        return NSWindow.shownNumber(at: point) == window.windowNumber
     }
 }

@@ -15,7 +15,7 @@ public enum KeyAction: Sendable, Equatable {
 
 public enum MacKeyTranslator {
     public static func action(for event: MacKeyEvent) -> KeyAction {
-        let flags = MacModifierFlags(rawValue: event.flags)
+        let flags = event.modifiers
         // Only Caps Lock and the modifiers in `modifiers` are sent from flagsChanged: Fn and the
         // Globe key are not, and aren't unknown keys either.
         if event.kind == .flagsChanged, event.keyCode != capsLock, modifiers[event.keyCode] == nil {
@@ -59,6 +59,10 @@ public enum MacKeyTranslator {
             return heldSides.isEmpty ? [pair.left] : heldSides
         }.compactMap(MacKeyCode.evdev).sorted()
     }
+
+    /// The evdev codes of the modifier keys: Control, Shift, Option (Alt) and Command (Super),
+    /// left and right.
+    public static let modifierCodes = Set(modifiers.keys.compactMap(MacKeyCode.evdev))
 
     /// The evdev codes of the modifiers `flags` says are up. With only a shared bit set, neither
     /// side is known to be up.

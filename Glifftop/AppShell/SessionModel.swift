@@ -274,23 +274,12 @@ import os
             snapshot.apply(.ended(.decoderFailed(error.setupFailure)))
             return
         }
-        let pixels = DisplayMetrics.largestDisplayPixels()
-        // Hello carries no keymap: one the server's xkeyboard-config can't compile would fail
-        // its setup, where a Keymap that fails is ignored (it keeps US). The Mac's layout
-        // goes as a Keymap straight after, queued before the session runs.
-        let session = Session(
-            transport: AppConnections.session(
-                on: destination, serverArguments: screen.serverArguments, fresh: asksAgain(reconnecting),
-                asker: signIn.queue),
-            configuration: SessionConfiguration(maxWidth: pixels.width, maxHeight: pixels.height),
-            decoder: decoder, cursor: cursor, pointer: remotePointer,
-            clipboard: ClipboardSetup(source: PasteboardSource()), observer: protocolObserver)
+        let session = makeSession(
+            to: destination, screen: screen, reconnecting: reconnecting, decoder: decoder)
         self.session = session
         sendViewTarget()
         if inLiveResize { session.setLiveResize(true) }
-        capture.attach(
-            target: { [weak self] in self?.activationTarget(macPointer: $0) }, send: { session.send($0) })
-        clipboard.attach(session, host: destination.value)
+        attachInput(to: session)
         // Leave the machines now, not when the session's own `.connecting` arrives.
         snapshot = SessionSnapshot()
         snapshot.apply(.connecting)

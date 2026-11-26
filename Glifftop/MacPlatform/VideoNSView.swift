@@ -72,11 +72,18 @@ final class VideoNSView: NSView {
     /// A pointer event over the picture, in remote coordinates: true when it was for the remote
     /// (or took input back), and so goes no further on the Mac.
     var onPointer: (PointerEvent) -> Bool = { _ in false }
+    /// Whether the pointer is over the picture drawn (not its bars, an overlay or another
+    /// window): each motion, the tracking area's enter and exit, a click and a scroll.
+    var onHover: (Bool) -> Void = { _ in }
+    /// Each display-link tick, before the cursor and the picture.
+    var onTick: () -> Void = {}
 
     /// The pointer's look over the picture.
     let cursor = RemoteCursor()
+    /// The confined pointer's sprite, over the picture.
+    let confinedCursor = ConfinedCursorLayer()
 
-    private let slot: PictureSlot
+    let slot: PictureSlot
     /// The cursor shape's generation and size last seen by the display link.
     private var cursorSeen: (generation: UInt64?, pointsPerPixel: Double?) = (nil, nil)
     /// A cursor change `refreshCursor` couldn't show yet: the display link tries again.
@@ -116,6 +123,7 @@ final class VideoNSView: NSView {
         metalLayer.backgroundColor = CGColor(gray: 0, alpha: 1)
         // While a live resize waits for the next draw, keep the last frame's proportions.
         metalLayer.contentsGravity = .resizeAspect
+        metalLayer.addSublayer(confinedCursor.layer)
         wantsLayer = true
         // Motion while the window is key, over whatever part of the view is visible (it follows
         // resizes by itself). Not while the window is in the background: nothing is captured then.
@@ -195,11 +203,15 @@ final class VideoNSView: NSView {
     }
 
     // Leaving the view; overlays are inside (`followPointer` handles them).
-    override func mouseExited(with event: NSEvent) { giveBackCursor() }
+    override func mouseExited(with event: NSEvent) {
+        onHover(false)
+        giveBackCursor()
+    }
 
     // Coming back in, the picture's cursor. Not sent during a drag, even with
     // `.enabledDuringMouseDrag` (checked by hand): `followPointer` covers a drag.
     override func mouseEntered(with event: NSEvent) {
+        onHover(isOverPicture(at: event.locationInWindow))
         if NSEvent.pressedMouseButtons == 0 { refreshCursor() }
     }
 
@@ -217,70 +229,20 @@ final class VideoNSView: NSView {
         }
     }
 
-    /// Points per remote view pixel at the picture's size on screen; nil without a picture.
-    func cursorPointsPerPixel() -> Double? {
-        guard let view = slot.latest?.picture.view, let window else { return nil }
-        let fit = VideoFit.viewport(picture: view, drawable: drawableSize(), scaleToFit: scaleToFit)
-        return CursorImage.pointsPerPixel(
-            rectWidth: Double(fit.width), viewWidth: view.width, backingScale: window.backingScaleFactor)
-    }
-
     /// Hands `event` to `onPointer` at its remote position; false when there's no picture to
     /// map it over, or it wasn't for the remote.
     private func pointer(_ event: NSEvent) -> Bool {
+        switch event.type {
+        case .leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel:
+            onHover(isOverPicture(at: event.locationInWindow))
+        default: break
+        }
         guard let position = remotePosition(of: event), let pointerEvent = PointerEvent(event, at: position)
         else {
             return false
         }
         return onPointer(pointerEvent)
     }
-
-    /// Where `event` is over the latest picture, in the remote's logical coordinates.
-    private func remotePosition(of event: NSEvent) -> (x: Double, y: Double)? {
-        remotePosition(ofWindowPoint: event.locationInWindow)?.position
-    }
-
-    /// Where a window `point` is over the latest picture, in the remote's logical coordinates,
-    /// and whether it is inside the picture drawn: the point in drawable pixels from the
-    /// top-left, mapped through the fit the renderer draws with (`VideoFit.viewport` of the
-    /// picture's view box in this drawable).
-    private func remotePosition(ofWindowPoint windowPoint: NSPoint) -> (
-        position: (x: Double, y: Double), inside: Bool
-    )? {
-        guard let picture = slot.latest?.picture, bounds.width > 0, bounds.height > 0 else { return nil }
-        let drawable = drawableSize()
-        let point = convert(windowPoint, from: nil)
-        // Not flipped: AppKit's y grows upward, the drawable's downward.
-        let x = (point.x - bounds.minX) * Double(drawable.width) / bounds.width
-        let y = (bounds.maxY - point.y) * Double(drawable.height) / bounds.height
-        let rect = pictureRect(for: picture, in: drawable)
-        let inside = x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height
-        guard let position = PointerMapper.remote(x: x, y: y, in: rect, geometry: picture.pointerGeometry)
-        else { return nil }
-        return (position, inside)
-    }
-
-    /// The picture's rectangle in drawable pixels, as the renderer draws it.
-    private func pictureRect(for picture: GliffVideo.Picture, in drawable: PixelSize) -> PictureRect {
-        let fit = VideoFit.viewport(
-            picture: picture.geometry.view, drawable: drawable, scaleToFit: scaleToFit)
-        return PictureRect(
-            x: Double(fit.x), y: Double(fit.y), width: Double(fit.width), height: Double(fit.height))
-    }
-
-    /// The Mac pointer in remote coordinates, when it is over the picture and nothing covers it
-    /// there: an activation's first choice of target (`FocusTarget`). Nil otherwise.
-    func macPointerOverPicture() -> (x: Double, y: Double)? {
-        guard let window else { return nil }
-        let mouse = NSEvent.mouseLocation
-        guard NSWindow.windowNumber(at: mouse, belowWindowWithWindowNumber: 0) == window.windowNumber,
-            let mapped = remotePosition(ofWindowPoint: window.convertPoint(fromScreen: mouse)), mapped.inside
-        else { return nil }
-        return mapped.position
-    }
-
-    /// The drawable's size: the view's bounds in backing pixels.
-    private func drawableSize() -> PixelSize { backingPixels() }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -314,6 +276,7 @@ final class VideoNSView: NSView {
 
     /// One display-link tick (`VideoDisplayLinkTarget`): the cursor, then the picture.
     func step() {
+        onTick()
         // A new shape, or the picture's size on screen changing (the first picture, Actual Size,
         // another screen), shows under a resting pointer without waiting for motion.
         let seen = (generation: cursor.generation, pointsPerPixel: cursorPointsPerPixel())

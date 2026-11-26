@@ -16,6 +16,9 @@ desktop for Hyprland/Omarchy, written in Swift. Not affiliated with Gliff.
     sheets;
   - the picture (H.264 through VideoToolbox, Dual420 recombined in Metal);
   - keyboard and pointer capture, and the remote cursor shape;
+  - two input modes: Integrated (⌘ shortcuts over the toolbar are the Mac's) and Capture (the
+    pointer kept in the picture);
+  - ⌘Q held to quit while a session is live;
   - choosing the screen (a monitor, the focused one, or a virtual screen that follows the window);
   - the shared clipboard: text, HTML and images, both ways, off until turned on;
   - saved machines with their options, and reconnecting by itself after a lost link;
@@ -145,7 +148,8 @@ This file wins over any skill, including a skill's "supersedes prior training" c
     - if `Glifftop/` or `Config/` changed, the app must build.
     - It skips the build when the tree is unchanged since its last clean pass.
   - `record-review.sh` notes each `/simplify` and `/code-review`, with the `HEAD` it ran at, in
-    `.git/claude-reviews`, for the pre-commit hook.
+    `claude-reviews` in the worktree's own git dir (`.git/claude-reviews` in the main checkout),
+    for the pre-commit hook; each worktree keeps its own record.
   - **Guardrails:** `.claude/settings.json` denies edits to:
     - `.swift-format`, `.gitleaks.toml`, `.claude/settings.json`, `.claude/hooks/`,
       `scripts/git-hooks/`;
@@ -178,8 +182,9 @@ This file wins over any skill, including a skill's "supersedes prior training" c
   client behaved, 1 with one `fake-server: ` line on stderr when it didn't, and 2 on bad usage.
   - `serve stream --streams DIR [--size WxH]` replays `NNN.main.h264` (and `NNN.aux.h264`
     under Dual420) from `DIR`, one file per frame, the first a keyframe.
-  - `serve input [--keymap-first] [--expect-keys N] [--expect-pointer N] [--expect-nudge]`
-    streams two frames, then checks the client's input until Bye or EOF:
+  - `serve input [--keymap-first] [--expect-keys N] [--expect-pointer N] [--expect-nudge]
+    [--pong-delay MS] [--coalesce-pongs MS]` streams two frames, then checks the client's input
+    until Bye or EOF:
     - no key or button pressed twice, released unheld, or still held at the end;
     - motion inside the streamed 1280×720 output;
     - a scroll's value finite, and its stop after a scroll of that axis;
@@ -187,7 +192,9 @@ This file wins over any skill, including a skill's "supersedes prior training" c
 
     The flags require the Keymap first, at least N keys, and at least N pointer messages;
     `--expect-nudge` requires a window activation's nudge before any other input: two motions
-    1 apart on x, at the same y.
+    1 apart on x, at the same y. `--pong-delay` answers each Ping MS late, reading nothing
+    meanwhile. `--coalesce-pongs` queues each Pong MS, still reading, and drops one still
+    queued when a newer one is, as upstream's writer does. The two don't go together.
   - `serve cursor [--valid-only]` sends three cursor shapes after the StreamConfig, then two
     frames:
     - a valid 2×2 shape (id 7), its frame four bytes longer than it declares;
@@ -217,7 +224,7 @@ This file wins over any skill, including a skill's "supersedes prior training" c
     - Then it offers its own clipboard and waits for Bye.
 - **Live check** (needs a real host; a headless session): run
   `GLIFFTOP_LIVE_HOST=<ssh host> GLIFFTOP_LIVE_SECONDS=60 swift test --no-parallel --filter
-  'LiveSessionTests|LiveResolutionTests|LiveScreenListTests|LiveClipboardTests|LiveHostConnectionTests|LiveFocusTests|LivePortsTests'
+  'LiveSessionTests|LiveResolutionTests|LiveScreenListTests|LiveClipboardTests|LiveHostConnectionTests|LiveFocusTests|LiveCaptureTests|LivePortsTests'
   --attachments-path DIR` in `Packages/GliffKit`.
   - It streams the screen, resizes a virtual screen (which the server removes at the end),
     asks for one at Standard (and at Automatic with `--video cpu`) and lists the monitors.
@@ -229,6 +236,14 @@ This file wins over any skill, including a skill's "supersedes prior training" c
   - It opens two virtual screens on one master, with a terminal on each (closed by address at
     the end): activation moves the host's focus to the screen in front, the host's pointer
     matches `hyprctl cursorpos`, and Super held on one screen types no digit on the other.
+  - It switches between two screens by a tab chord's keys, typing a letter at once after each
+    switch into a terminal that shows its keys in its title, paced and then in one burst after
+    an idle gap: every key lands, in order, on the screen in front.
+  - Capture's checks: the server's rounding and clamp of a motion match `VirtualPointer`'s, a
+    workspace change's warp is followed, a ⌘-scroll holds Super, and 50 Super taps on one
+    screen, each followed at once by a digit on the other, never change the other's
+    workspace. Whether a key hides the host's pointer is recorded, not checked. They need the
+    host's Super+digit to keep to the monitor in front, as omarchy's do, and stop otherwise.
   - It runs a web server on the host's 127.0.0.1 for at most 60 s, serving a directory it makes
     under `$XDG_RUNTIME_DIR` and removes at the end (skipped without either or `python3`): the
     port watcher sees it within 4 s, a forward serves its page, a forward comes back on the same

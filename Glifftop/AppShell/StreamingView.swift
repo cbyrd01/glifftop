@@ -33,6 +33,7 @@ struct StreamingView: View {
             onTarget: model.viewTargetChanged, capture: model.capture,
             cursor: model.viewCursor,
             captured: model.capture.isCaptured,
+            confined: model.capture.isConfined,
             videoHasPointer: CursorLook.videoHasPointer(model.snapshot.session)
         )
         // A new session's slot gets a new video view: the old one would keep drawing the old slot.
@@ -43,13 +44,14 @@ struct StreamingView: View {
             VStack(spacing: 12) {
                 PortsNoticeCapsule(session: model, statusBarShown: showsStatusBar)
                 if model.capture.showsHint {
-                    InputHintView()
+                    InputHintView(mode: model.capture.mode)
                         .allowsHitTesting(false)
                         .transition(.opacity)
                 }
             }
             .padding(24)
             .animation(.easeInOut(duration: 0.2), value: model.capture.showsHint)
+            .animation(.easeInOut(duration: 0.2), value: AppPorts.shared.ports(for: model).fresh)
         }
         // Connection Info (⌘I, the toolbar's ⓘ) from the picture's top trailing corner, under
         // the ⓘ: the toolbar may be hidden (full screen) or the item in its overflow.

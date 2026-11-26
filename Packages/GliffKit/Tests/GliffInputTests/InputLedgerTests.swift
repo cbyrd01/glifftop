@@ -43,6 +43,17 @@ import Testing
         #expect(again.isEmpty)
     }
 
+    /// A ⌘ chord going to the Mac lets go of the keys only: a drag's button stays down.
+    @Test func releaseAllKeysKeepsButtons() {
+        var ledger = InputLedger()
+        _ = ledger.press(button: 0x110)
+        _ = ledger.press(key: 125)
+        _ = ledger.press(key: 30)
+        #expect(ledger.releaseAllKeys() == [.key(code: 30, pressed: false), .key(code: 125, pressed: false)])
+        #expect(ledger.heldKeys.isEmpty)
+        #expect(ledger.heldButtons == [0x110])
+    }
+
     @Test func aReleasedKeyCanBePressedAgain() {
         var ledger = InputLedger()
         _ = ledger.press(key: 30)
@@ -75,5 +86,19 @@ import Testing
         let released = ledger.releaseAll()
         #expect(released == [.pointerButton(code: 0x110, pressed: false), .key(code: 29, pressed: false)])
         #expect(ledger.heldButtons.isEmpty && ledger.heldKeys.isEmpty)
+    }
+
+    /// The confined pointer ending mid-drag lets go of the buttons only.
+    @Test func releaseAllButtonsKeepsKeys() {
+        var ledger = InputLedger()
+        _ = ledger.press(key: 125)
+        _ = ledger.press(button: 0x110)
+        _ = ledger.press(button: 0x111)
+        #expect(
+            ledger.releaseAllButtons() == [
+                .pointerButton(code: 0x111, pressed: false), .pointerButton(code: 0x110, pressed: false),
+            ])
+        #expect(ledger.heldButtons.isEmpty)
+        #expect(ledger.heldKeys == [125])
     }
 }

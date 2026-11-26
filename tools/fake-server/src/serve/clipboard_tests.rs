@@ -3,7 +3,7 @@
 use super::clipboard::pattern;
 use super::tests::{ack, hello, try_options as options};
 use super::*;
-use crate::wire::Frame;
+use crate::wire::{read_frame, Frame};
 use gliff_proto::clipboard::{CHUNK, TEXT_MIME};
 use gliff_proto::ClipboardItem;
 use std::io::Cursor;

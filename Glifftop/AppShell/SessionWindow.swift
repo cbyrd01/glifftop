@@ -23,6 +23,8 @@ struct SessionWindow: View {
         self.request = request
         let model = SessionModel()
         model.fieldHost = request.host
+        // Settings' mode, once: the window keeps its own through reconnects.
+        model.capture.mode = AppSettings.inputMode
         _model = State(initialValue: model)
     }
 

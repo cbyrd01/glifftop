@@ -4,18 +4,21 @@ public import GliffProtocol
 /// visible shape, sized so a remote pixel matches a picture pixel on screen. With no shape to
 /// show (none yet, one that can't be shown or has nothing to show, no picture to size it by):
 /// a hidden cursor when the video carries the pointer (`videoHasPointer`), otherwise the Mac
-/// arrow (upstream `set_remote_cursor`). Released: the arrow.
+/// arrow (upstream `set_remote_cursor`). Confined: the Mac cursor hidden, as it stays put; the
+/// app draws the virtual pointer with the captured look. Released: the arrow.
 public enum CursorLook: Sendable, Equatable {
     case arrow
     case hidden
     case shape(CursorImage, pointsPerPixel: Double)
 
     public static func choose(
-        captured: Bool, videoHasPointer: Bool, image: CursorImage?, pointsPerPixel: Double?
+        captured: Bool, videoHasPointer: Bool, image: CursorImage?, pointsPerPixel: Double?,
+        confined: Bool = false
     )
         -> CursorLook
     {
         guard captured else { return .arrow }
+        if confined { return .hidden }
         guard let image, image.isVisible, let pointsPerPixel else {
             return videoHasPointer ? .hidden : .arrow
         }

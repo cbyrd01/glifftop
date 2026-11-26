@@ -81,4 +81,58 @@ import Testing
         #expect(remote(.nan, 10, rect) == nil)
         #expect(remote(10, .infinity, rect) == nil)
     }
+    /// A drawn picture: where it is, and what it shows.
+    struct Picture: Sendable, CustomTestStringConvertible {
+        var name: String
+        var rect: PictureRect
+        var geometry: PictureGeometry
+        var testDescription: String { name }
+    }
+
+    static let pictures = [
+        Picture(
+            name: "letterboxed", rect: PictureRect(x: 0, y: 90, width: 1280, height: 720),
+            geometry: PictureGeometry(
+                streamWidth: 2560, streamHeight: 1440, viewWidth: 2560, viewHeight: 1440, scaleMilli: 1000)),
+        Picture(
+            name: "scale 2", rect: PictureRect(x: 0, y: 0, width: 2560, height: 1440),
+            geometry: PictureGeometry(
+                streamWidth: 2560, streamHeight: 1440, viewWidth: 2560, viewHeight: 1440, scaleMilli: 2000)),
+        Picture(
+            name: "stretched view box", rect: PictureRect(x: 40, y: 0, width: 1200, height: 800),
+            geometry: PictureGeometry(
+                streamWidth: 1280, streamHeight: 720, viewWidth: 2560, viewHeight: 1440, scaleMilli: 1500)),
+    ]
+
+    @Test(arguments: pictures)
+    func localInvertsRemote(_ picture: Picture) throws {
+        for (x, y) in [(0.0, 0.0), (100.5, 37.25), (600, 400)] {
+            let local = try #require(
+                PointerMapper.local(x: x, y: y, in: picture.rect, geometry: picture.geometry))
+            let back = try #require(
+                PointerMapper.remote(x: local.x, y: local.y, in: picture.rect, geometry: picture.geometry))
+            #expect(abs(back.x - x) < 1e-9 && abs(back.y - y) < 1e-9, "\(x), \(y)")
+        }
+    }
+
+    @Test(arguments: pictures)
+    func remoteDeltaIsTheDifferenceOfTwoPoints(_ picture: Picture) throws {
+        let (rect, geometry) = (picture.rect, picture.geometry)
+        let start = (x: rect.x + 100, y: rect.y + 50)
+        let (dx, dy) = (13.5, -7.0)
+        let a = try #require(PointerMapper.remote(x: start.x, y: start.y, in: rect, geometry: geometry))
+        let b = try #require(
+            PointerMapper.remote(x: start.x + dx, y: start.y + dy, in: rect, geometry: geometry))
+        let delta = try #require(PointerMapper.remoteDelta(dx: dx, dy: dy, in: rect, geometry: geometry))
+        #expect(abs(delta.dx - (b.x - a.x)) < 1e-9)
+        #expect(abs(delta.dy - (b.y - a.y)) < 1e-9)
+    }
+
+    @Test func noDeltaWithoutAPicture() {
+        let empty = PictureRect(x: 0, y: 0, width: 0, height: 0)
+        #expect(PointerMapper.remoteDelta(dx: 1, dy: 1, in: empty, geometry: qhd) == nil)
+        #expect(PointerMapper.local(x: 1, y: 1, in: empty, geometry: qhd) == nil)
+        let rect = PictureRect(x: 0, y: 0, width: 100, height: 100)
+        #expect(PointerMapper.remoteDelta(dx: .nan, dy: 1, in: rect, geometry: qhd) == nil)
+    }
 }

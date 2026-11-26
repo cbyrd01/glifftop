@@ -7,27 +7,7 @@ import Testing
 @Suite struct InputControllerTests {
     private typealias Flags = MacModifierFlags
 
-    private func captured() -> InputController {
-        var controller = InputController(keymap: "k1")
-        for event: CaptureEvent in [.windowKey(true), .appActive(true), .picture(true)] {
-            _ = controller.capture(event)
-        }
-        return controller
-    }
-
-    private func down(_ code: UInt16, _ flags: Flags = [], isRepeat: Bool = false) -> MacKeyEvent {
-        MacKeyEvent(keyCode: code, kind: .down(isRepeat: isRepeat), flags: flags.rawValue)
-    }
-
-    private func up(_ code: UInt16, _ flags: Flags = []) -> MacKeyEvent {
-        MacKeyEvent(keyCode: code, kind: .up, flags: flags.rawValue)
-    }
-
-    private func flags(_ code: UInt16, _ flags: Flags = []) -> MacKeyEvent {
-        MacKeyEvent(keyCode: code, kind: .flagsChanged, flags: flags.rawValue)
-    }
-
-    private func key(_ code: UInt32, _ pressed: Bool) -> InputMessage { .key(code: code, pressed: pressed) }
+    private func captured() -> InputController { capturedController() }
 
     @Test func notCapturedPassesThrough() {
         var controller = InputController(keymap: "k1")
@@ -51,14 +31,15 @@ import Testing
         #expect(!controller.isCaptured)
     }
 
-    @Test func keyUpWithoutPressIsDropped() {
+    /// Its press went to the Mac, so its release goes there too, and nothing to the host.
+    @Test func keyUpWithoutPressPasses() {
         var controller = InputController(keymap: "k1")
         #expect(!controller.key(flags(0x37, [.command, .leftCommand])).consumed)
         for event: CaptureEvent in [.windowKey(true), .appActive(true), .picture(true)] {
             _ = controller.capture(event)
         }
         let result = controller.key(flags(0x37))
-        #expect(result.consumed)
+        #expect(!result.consumed)
         #expect(result.messages.isEmpty)
     }
 
@@ -200,7 +181,40 @@ import Testing
         var controller = captured()
         _ = controller.activate(at: (x: 100, y: 50))
         let left = try #require(PointerButtons.code(forButtonNumber: 0))
-        let click = controller.pointer(.button(number: 0, pressed: true, x: 100, y: 50))
+        let click = controller.pointer(.button(number: 0, pressed: true, x: 100, y: 50, flags: 0))
         #expect(click.messages == [.pointerButton(code: left, pressed: true)])
+    }
+
+    @Test func anOpenMenuLetsGoOfEverything() {
+        var controller = captured()
+        _ = controller.key(down(0x00))
+        _ = controller.pointer(.button(number: 0, pressed: true, x: 1, y: 2, flags: 0))
+        let result = controller.capture(.menuOpen(true))
+        #expect(result.messages == [.pointerButton(code: 272, pressed: false), key(30, false)])
+        #expect(!controller.isCaptured)
+        #expect(controller.key(down(0x00)).consumed == false)
+    }
+
+    @Test func theResultSaysWhenToActivate() {
+        var controller = captured()
+        _ = controller.capture(.windowKey(false))
+        let result = controller.capture(.windowKey(true))
+        #expect(result.activates)
+        #expect(controller.capture(.menuOpen(true)).activates == false)
+        #expect(controller.capture(.menuOpen(false)).activates == false)
+    }
+
+    @Test func theModeAndConfinementShowThrough() {
+        var controller = InputController(mode: .confined, keymap: "k1")
+        for event: CaptureEvent in [.windowKey(true), .appActive(true), .picture(true)] {
+            _ = controller.capture(event)
+        }
+        #expect(controller.mode == .confined)
+        #expect(!controller.isConfined)
+        _ = controller.capture(.pointerOnPicture(true))
+        #expect(controller.isConfined)
+        _ = controller.capture(.mode(.integrated))
+        #expect(controller.mode == .integrated)
+        #expect(!controller.isConfined)
     }
 }

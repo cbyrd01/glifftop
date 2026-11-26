@@ -3,7 +3,20 @@ import os
 
 /// Frames onto the writer, and what the protocol observer hears of the frames read.
 extension Session {
+    /// Sends a Ping now, whenever the last went (`SessionCore.pingNow`): its `t`, or nil unless
+    /// streaming.
+    func pingNow() -> UInt64? {
+        guard case .send(let ping)? = core.pingNow(now: Self.now()), case .ping(let t) = ping else {
+            return nil
+        }
+        liveness.pinged(at: Self.uptime())
+        enqueue(ping)
+        return t
+    }
+
     func enqueue(_ message: ClientMessage) {
+        // Recorded as written: the barrier matches each Pong to its Ping.
+        if case .ping(let t) = message, writer != nil { fences.pingSent(t: t) }
         send(body: message.encoded, type: SessionCore.name(of: message))
     }
 

@@ -33,27 +33,17 @@ public struct TabChordKeys: Sendable {
         case passed
     }
 
-    /// The key whose press made a chord, until its key-up.
-    private var held: UInt16?
+    /// The keys whose press made a chord, until their key-up. A new press of one passes: its
+    /// key-up went to another window, and this one is the remote's.
+    private var held = MacChordKeys()
 
     public init() {}
 
     public mutating func take(_ event: MacKeyEvent) -> Outcome {
         if let chord = TabChord(event) {
-            held = event.keyCode
+            held.hold(event.keyCode)
             return .chord(chord)
         }
-        guard event.keyCode == held else { return .passed }
-        switch event.kind {
-        case .up:
-            held = nil
-            return .swallowed
-        case .down(isRepeat: true): return .swallowed
-        case .down:
-            // A new press: the chord's key-up went to another window, and this one is the remote's.
-            held = nil
-            return .passed
-        case .flagsChanged: return .passed
-        }
+        return held.take(event) ? .swallowed : .passed
     }
 }

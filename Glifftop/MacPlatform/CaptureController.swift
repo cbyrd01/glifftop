@@ -1,60 +1,78 @@
 import AppKit
 import GliffInput
+import GliffSession
 import Observation
 
 /// Input capture for one window's session, keys and pointer together: feeds `InputController`
 /// what capture depends on (the window key, the app active, the picture, the link, a popover
-/// over the window, sleep and lock), takes the window's key events while there is a picture, takes the pointer events the
-/// video view hands it, and sends what it says through the session.
+/// over the window, sleep and lock), takes the window's key events while there is a picture,
+/// takes the pointer events the video view hands it, and sends what it says through the
+/// session.
 @Observable final class CaptureController {
     private(set) var isCaptured = false
-    /// The "Shift+Esc releases input" hint, for 3 s at a time.
+    /// Input ▸ Release Input has something to release (`InputController.isReleasable`).
+    private(set) var isReleasable = false
+    /// The mode's input hint (`InputHintView`), for 3 s at a time.
     private(set) var showsHint = false
+    /// The Mac pointer is held over the picture (Capture mode): its cursor is hidden. Follows
+    /// `confinement`.
+    private(set) var isConfined = false
 
-    @ObservationIgnored private var controller: InputController?
+    /// The session's input rules; `CaptureController+Confinement.swift` drives its pointer too.
+    @ObservationIgnored var controller: InputController?
+    /// Holds the Mac pointer while confined (`CaptureController+Confinement.swift`).
+    @ObservationIgnored var confinement: PointerConfinement? {
+        didSet {
+            isConfined = confinement != nil
+            confinementChanged()
+        }
+    }
+    /// Where the session's host pointer is (`attach`): the confined pointer follows its warps.
+    @ObservationIgnored var hostPointer: HostPointerFollower?
+    /// The start of the clock the confined pointer's times count from.
+    @ObservationIgnored let clockStart = ContinuousClock.now
+    /// The pointer's place last reported (`.pointerOnPicture`); nil once anything else is
+    /// applied, so the next report goes through again (after a suspension, an edge, a fall).
+    @ObservationIgnored var hovering: Bool?
+    /// When full screen began being entered or left (the frame moving), until it ends: the
+    /// pointer can't be held meanwhile.
+    @ObservationIgnored var transitionStarted: Duration?
+    /// Another app coming forward (this one still active for a moment): the pointer can't be
+    /// held until this app is active and in front again.
+    @ObservationIgnored var leaving = false
+    /// This app about to resign: the pointer can't be held until it resigns or is active again.
+    @ObservationIgnored var resigning = false
     @ObservationIgnored private var send: ((InputMessage) -> Void)?
-    @ObservationIgnored private weak var window: NSWindow?
+    /// An activation's motions to the session (`Session.activate`).
+    @ObservationIgnored private var activateSession: (([InputMessage]) -> Void)?
+    @ObservationIgnored private(set) weak var window: NSWindow?
     @ObservationIgnored private var picture = false
     @ObservationIgnored private var interrupted = false
     @ObservationIgnored private var popover = false
     @ObservationIgnored private var monitor: Any?
-    @ObservationIgnored private var windowObservers: [any NSObjectProtocol] = []
+    @ObservationIgnored var windowObservers: [any NSObjectProtocol] = []
     /// App, workspace and distributed observers, each with its centre: for the controller's life.
-    @ObservationIgnored private var observers: [(NotificationCenter, any NSObjectProtocol)] = []
+    @ObservationIgnored var observers: [(NotificationCenter, any NSObjectProtocol)] = []
     @ObservationIgnored private var hintTimer: Task<Void, Never>?
     /// One for every window: the chord's repeats and key-up reach the window it moved to.
     @ObservationIgnored private static var chordKeys = TabChordKeys()
     /// ⌘⇧[ or ⌘⇧] over the picture, captured or not, with the window's number: kept from the
     /// remote, its repeats and key-up too.
     @ObservationIgnored var onTabChord: (TabChord, Int?) -> Void = { _, _ in }
-    /// The Mac pointer over the uncovered picture, in remote coordinates (`VideoNSView`): an
-    /// activation's first choice, set by the window's video view.
-    @ObservationIgnored var macPointer: () -> (x: Double, y: Double)? = { nil }
-    /// Where an activation puts the remote pointer, given `macPointer`'s answer: the session's
+    /// The window's video view: the Mac pointer over its uncovered picture is an activation's
+    /// first choice, and its frame tells the picture from the chrome for ⌘ chords.
+    @ObservationIgnored weak var videoView: VideoNSView?
+    /// Integrated or Capture: applied on change, and to each session attached.
+    var mode: CaptureMode = .integrated {
+        didSet { if mode != oldValue { apply(.mode(mode)) } }
+    }
+    /// Where an activation puts the remote pointer, given the Mac pointer's place: the session's
     /// (`attach`), nil without a stream, and then nothing is sent.
-    @ObservationIgnored private var target: ((x: Double, y: Double)?) -> (x: Double, y: Double)? = { _ in nil
+    @ObservationIgnored private(set) var target: ((x: Double, y: Double)?) -> (x: Double, y: Double)? = { _ in
+        nil
     }
 
-    init() {
-        let app = NotificationCenter.default
-        observe(app, NSApplication.didBecomeActiveNotification) { $0.apply(.appActive(true)) }
-        observe(app, NSApplication.didResignActiveNotification) { $0.apply(.appActive(false)) }
-        let workspace = NSWorkspace.shared.notificationCenter
-        for name in [
-            NSWorkspace.willSleepNotification, NSWorkspace.screensDidSleepNotification,
-            NSWorkspace.sessionDidResignActiveNotification,
-        ] {
-            observe(workspace, name) { $0.apply(.away) }
-        }
-        // Back from sleep, a lock or another user: the host's focus again, if still captured.
-        for name in [NSWorkspace.screensDidWakeNotification, NSWorkspace.sessionDidBecomeActiveNotification] {
-            observe(workspace, name) { $0.reactivate() }
-        }
-        let distributed = DistributedNotificationCenter.default()
-        observe(distributed, Notification.Name("com.apple.screenIsLocked")) { $0.apply(.away) }
-        observe(distributed, Notification.Name("com.apple.screenIsUnlocked")) { $0.reactivate() }
-        observe(distributed, InputSource.changed) { $0.keymapChanged() }
-    }
+    init() { observeApp() }
 
     isolated deinit {
         for (center, observer) in observers { center.removeObserver(observer) }
@@ -64,20 +82,24 @@ import Observation
     }
 
     /// A session started, its Hello with no keymap: `send` queues input for it, the Mac's
-    /// layout first.
+    /// layout first, and `activate` an activation's motions.
     func attach(
         target: @escaping ((x: Double, y: Double)?) -> (x: Double, y: Double)?,
-        send: @escaping (InputMessage) -> Void
+        send: @escaping (InputMessage) -> Void, activate: @escaping ([InputMessage]) -> Void,
+        pointer: RemotePointerSlot
     ) {
         detach()
-        controller = InputController(keymap: "")
-        (self.target, self.send) = (target, send)
+        controller = InputController(mode: mode, keymap: "")
+        (self.target, self.send, activateSession) = (target, send, activate)
+        hostPointer = HostPointerFollower(pointer)
         keymapChanged()
+        // The menu and the popover first: capture never rises under either.
+        apply(.menuOpen(MenuTracker.shared.isOpen))
+        apply(.popover(popover))
         apply(.appActive(NSApplication.shared.isActive))
         apply(.windowKey(window?.isKeyWindow ?? false))
         apply(.picture(picture))
         apply(.interrupted(interrupted))
-        apply(.popover(popover))
         updateMonitor()
     }
 
@@ -85,7 +107,7 @@ import Observation
     func detach() {
         apply(.picture(false))
         controller = nil
-        send = nil
+        (send, activateSession, hostPointer) = (nil, nil, nil)
         updateMonitor()
         hideHint()
     }
@@ -93,6 +115,11 @@ import Observation
     /// The window, what the window shows and whether a popover is over it, from
     /// `CaptureTracker`; acts on changes only.
     func update(window: NSWindow?, picture: Bool, interrupted: Bool, popover: Bool) {
+        // The popover first: capture never rises under it for a moment.
+        if popover != self.popover {
+            self.popover = popover
+            apply(.popover(popover))
+        }
         if window !== self.window {
             self.window = window
             observeWindow()
@@ -105,10 +132,6 @@ import Observation
         if interrupted != self.interrupted {
             self.interrupted = interrupted
             apply(.interrupted(interrupted))
-        }
-        if popover != self.popover {
-            self.popover = popover
-            apply(.popover(popover))
         }
         updateMonitor()
     }
@@ -124,33 +147,46 @@ import Observation
     /// Input ▸ Release Input.
     func release() { apply(.release) }
 
-    private func apply(_ event: CaptureEvent) {
+    func apply(_ event: CaptureEvent) {
+        if case .pointerOnPicture = event {} else { hovering = nil }
+        if case .appActive(let active) = event {
+            resigning = false
+            if active { leaving = false }
+        }
+        // Where the pointer is, before the edge it may confine at.
+        if event == .windowKey(true) || event == .appActive(true) { reportEntry() }
         guard let result = controller?.capture(event) else { return }
         handle(result)
     }
 
-    /// Capture turning on is an activation: its nudge goes before anything else.
-    private func handle(_ result: InputResult) {
+    /// An activation's nudge goes before anything else; confinement follows what it says.
+    func handle(_ result: InputResult) {
         let captured = controller?.isCaptured ?? false
-        if captured, !isCaptured { activate() }
+        if result.activates { activate() }
         for message in result.messages { send?(message) }
         if result.showHint { flashHint() }
         if captured != isCaptured { isCaptured = captured }
+        let releasable = controller?.isReleasable ?? false
+        if releasable != isReleasable { isReleasable = releasable }
         // The hint says how to release input: gone once it is released.
         if !captured { hideHint() }
+        updateConfinement()
     }
 
-    /// Two motions onto the activation target, so the host's focus follows to this screen.
+    /// Two motions onto the activation target, so the host's focus follows to this screen;
+    /// input sent next waits for it (`Session.activate`).
     private func activate() {
-        guard let target = target(macPointer()), let result = controller?.activate(at: target) else { return }
-        for message in result.messages { send?(message) }
+        guard let target = target(videoView?.macPointerOverPicture()),
+            let result = controller?.activate(at: target)
+        else { return }
+        activateSession?(result.messages)
     }
 
-    private func reactivate() {
+    func reactivate() {
         if isCaptured { activate() }
     }
 
-    private func keymapChanged() {
+    func keymapChanged() {
         // Optional chaining skips reading the layout when there is no session.
         guard let message = controller?.keymap(InputSource.currentKeymap()) else { return }
         send?(message)
@@ -183,9 +219,16 @@ import Observation
         case .swallowed: return nil
         case .passed: break
         }
-        guard let result = controller?.key(key) else { return event }
+        guard let result = controller?.key(key, overChrome: { overChrome(event) }) else { return event }
         handle(result)
         return result.consumed ? nil : event
+    }
+
+    /// Whether `event` happened over the window's chrome (Integrated's ⌘ chords are the Mac's
+    /// there); without a video view in the window, over the picture.
+    private func overChrome(_ event: NSEvent) -> Bool {
+        guard let window, let videoView, videoView.window === window else { return false }
+        return ChromeProbe.place(of: event, keyWindow: window, videoView: videoView) == .chrome
     }
 
     private func flashHint() {
@@ -201,32 +244,5 @@ import Observation
     private func hideHint() {
         hintTimer?.cancel()
         if showsHint { showsHint = false }
-    }
-
-    private func observeWindow() {
-        windowObservers.forEach(NotificationCenter.default.removeObserver)
-        windowObservers = []
-        guard let window else { return }
-        for (name, key) in [
-            (NSWindow.didBecomeKeyNotification, true), (NSWindow.didResignKeyNotification, false),
-        ] {
-            windowObservers.append(
-                NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) {
-                    [weak self] _ in
-                    MainActor.assumeIsolated { self?.apply(.windowKey(key)) }
-                })
-        }
-    }
-
-    private func observe(
-        _ center: NotificationCenter, _ name: Notification.Name,
-        _ action: @escaping @MainActor (CaptureController) -> Void
-    ) {
-        let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated {
-                if let self { action(self) }
-            }
-        }
-        observers.append((center, observer))
     }
 }

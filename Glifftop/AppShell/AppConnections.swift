@@ -1,4 +1,5 @@
 import Foundation
+import GliffSession
 import GliffTransport
 
 /// The app's connections to hosts: one signed-in ssh per destination, shared by its sessions
@@ -26,4 +27,7 @@ enum AppConnections {
 
     /// Ends every connection: at quit, once the sessions have said Bye.
     static func closeAll() async { await shared.closeAll() }
+
+    /// Every session's input waits after another session's modifier release.
+    static let inputBarrier = InputBarrier()
 }
