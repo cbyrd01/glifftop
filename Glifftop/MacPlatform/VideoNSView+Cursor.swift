@@ -142,9 +142,9 @@ extension VideoNSView {
     }
 
     /// Whether this window, not another app's or another of ours, is the one at `point` (AppKit
-    /// screen coordinates).
+    /// screen coordinates); at a tab switch, as soon as this tab is selected.
     func isFrontmost(onScreen point: NSPoint) -> Bool {
         guard let window else { return false }
-        return NSWindow.windowNumber(at: point, belowWindowWithWindowNumber: 0) == window.windowNumber
+        return NSWindow.shownNumber(at: point) == window.windowNumber
     }
 }

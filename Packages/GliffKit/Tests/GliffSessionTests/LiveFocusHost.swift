@@ -60,6 +60,11 @@
             (try json("activewindow") as? [String: Any])?["monitor"] as? Int
         }
 
+        /// The address of the window with keyboard focus; nil without one.
+        static func activeWindow() throws -> String? {
+            (try json("activewindow") as? [String: Any])?["address"] as? String
+        }
+
         /// The monitor with Hyprland's focus.
         static func focusedMonitor() throws -> Int? {
             let list = try #require(try json("monitors") as? [[String: Any]])

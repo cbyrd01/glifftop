@@ -3,6 +3,7 @@
     import GliffInput
     import GliffSession
     import GliffTransport
+    import Synchronization
     import Testing
 
     /// Input follows the window on top, against a real Hyprland host: two headless sessions (A
@@ -91,6 +92,46 @@
                 pair.b.capture(.windowKey(false))
                 Attachment.record("B workspace unchanged \(before == after)", named: "live-focus-super.txt")
                 #expect(before == after)
+            }
+        }
+
+        /// The host's side of a tab switch by keys: ⇧⌘ held on the screen in front (a tab
+        /// chord's), its window resigning, the other activated at the Mac pointer's place over
+        /// its terminal, and a key at once, three times each way: the focus is on that terminal
+        /// after each key. Each host pointer starts over its screen's bar, where an activation
+        /// at the host's own place leaves the focus behind. (Finding the Mac pointer at a switch
+        /// is the app's: a hand check.) The key's delivery isn't read back: the barrier's own
+        /// case (`aSwitchWhileSuperIsHeldTypesNoDigit`) covers a key read with Super held.
+        @Test func aSwitchByKeysTypesIntoTheScreenInFront() async throws {
+            try await withTwoScreens { pair in
+                let size = try #require(pair.a.geometry?.logicalSize)
+                let overTerminal = (x: size.width / 2, y: size.height / 2)
+                for screen in [pair.a, pair.b] {
+                    try screen.activate(macPointer: (12, 7))
+                    try await LiveScreens.nap(0.3)
+                    screen.capture(.windowKey(false))
+                }
+                try pair.b.activate(macPointer: overTerminal)
+                try await LiveScreens.nap(0.3)
+                var landed = 0
+                let chord = LiveScreens.superHeld.union(LiveScreens.shiftHeld)
+                for round in 0..<6 {
+                    let (from, to) = round.isMultiple(of: 2) ? (pair.b, pair.a) : (pair.a, pair.b)
+                    from.key(LiveScreens.superKey, .flagsChanged, flags: LiveScreens.superHeld)
+                    from.key(LiveScreens.shiftKey, .flagsChanged, flags: chord)
+                    from.capture(.windowKey(false))
+                    try to.activate(macPointer: overTerminal)
+                    to.key(LiveScreens.shiftKey, .flagsChanged, flags: LiveScreens.superHeld)
+                    to.key(LiveScreens.superKey, .flagsChanged)
+                    to.key(LiveScreens.xKey, .down(isRepeat: false))
+                    to.key(LiveScreens.xKey, .up)
+                    try await LiveScreens.nap(0.5)
+                    let active = try LiveHyprland.activeWindow()
+                    if let active, to.opened.withLock({ $0.contains(active) }) { landed += 1 }
+                }
+                Attachment.record(
+                    "keys on the screen in front \(landed) of 6", named: "live-focus-switch.txt")
+                #expect(landed == 6)
             }
         }
 

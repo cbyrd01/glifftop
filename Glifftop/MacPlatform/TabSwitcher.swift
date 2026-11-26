@@ -19,7 +19,7 @@ enum TabSwitcher {
         let windows = order.compactMap { NSApp.window(withWindowNumber: $0) }.compactMap {
             other -> NSWindow? in
             guard seen.insert(group(of: other)).inserted else { return nil }
-            return other.tabGroup?.selectedWindow ?? other
+            return other.shownTab
         }
         guard windows.count > 1, let index = windows.firstIndex(where: { group(of: $0) == group(of: window) })
         else { return }

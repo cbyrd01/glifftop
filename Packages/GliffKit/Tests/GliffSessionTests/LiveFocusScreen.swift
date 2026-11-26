@@ -65,10 +65,12 @@
         /// The window's capture changes; what the rules say goes to the host.
         func capture(_ event: CaptureEvent) { send(input.withLock { $0.capture(event) }) }
 
-        /// The window comes to the front: activation on the rising edge, as the app does.
-        func activate() throws {
+        /// The window comes to the front: activation on the rising edge, as the app does, onto
+        /// the Mac pointer's place over the picture (logical), else where the host's pointer is.
+        func activate(macPointer: (x: Double, y: Double)? = nil) throws {
             let geometry = try #require(geometry)
-            let target = try #require(Self.target(host: pointer.latest, geometry: geometry))
+            let target = try #require(
+                Self.target(macPointer: macPointer, host: pointer.latest, geometry: geometry))
             // As the app: the nudge before what capture turning on sends.
             let captured = input.withLock { controller in
                 [CaptureEvent.appActive(true), .picture(true), .windowKey(true)].map {
@@ -138,12 +140,13 @@
             follower.withLock { $0.reports() }
         }
 
-        /// Where an activation puts the remote pointer with no Mac pointer over the picture: the
-        /// host's, else the centre.
-        private static func target(host: RemotePointerSlot.Position?, geometry: PictureGeometry)
-            -> (x: Double, y: Double)?
-        {
-            FocusTarget.target(macPointer: nil, cursor: host.map { ($0.x, $0.y) }, geometry: geometry)
+        /// Where an activation puts the remote pointer: the Mac pointer's place over the picture,
+        /// else the host's pointer, else the centre.
+        private static func target(
+            macPointer: (x: Double, y: Double)? = nil, host: RemotePointerSlot.Position?,
+            geometry: PictureGeometry
+        ) -> (x: Double, y: Double)? {
+            FocusTarget.target(macPointer: macPointer, cursor: host.map { ($0.x, $0.y) }, geometry: geometry)
         }
 
         private func send(_ result: InputResult) {

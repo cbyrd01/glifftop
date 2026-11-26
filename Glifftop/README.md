@@ -238,6 +238,11 @@ AppKit adapters for what SwiftUI can't do:
   its window and whether the session's own picture shows (not a reconnect's last one); `InputSource` reads the selected layout (HIToolbox's
   TIS) as the keymap text and whether the keyboard is ISO; `MacKeyEvent+NSEvent` and
   `PointerEvent+NSEvent` turn an `NSEvent` into values.
+- Which window is on top at a point (`NSWindow.shownNumber`): the window server's answer, read
+  through tab groups (`NSWindow.shownTab`, a group's selected tab). At a tab switch the server
+  still names the tab just left for a frame or so; the tab now selected stands for it, so the
+  activation finds the Mac pointer over the new tab's picture at once. The Mac pointer's place
+  over the picture, `ChromeProbe` and confinement's start all ask it.
 - `ChromeProbe`: where a key event happened, for Integrated's ⌘ chords. It reads the event's
   location (`ScreenCoordinates` flips Quartz's global coordinates into AppKit's), the window
   under it, the video view's frame on screen and the menu bar's strip, and lets GliffInput's

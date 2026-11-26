@@ -19,12 +19,12 @@ enum ChromeProbe {
     }
 
     /// The window under `point` (mouse-down hit-testing rules), as it relates to the key
-    /// session window. Over the key window, the video view's frame decides: `windowNumber`
+    /// session window. Over the key window, the video view's frame decides: the window number
     /// can't tell the content from the title bar or toolbar.
     @MainActor private static func window(
         at point: NSPoint, keyWindow: NSWindow, videoView: VideoNSView
     ) -> PointerPlace.Facts.Window {
-        let number = NSWindow.windowNumber(at: point, belowWindowWithWindowNumber: 0)
+        let number = NSWindow.shownNumber(at: point)
         if number == keyWindow.windowNumber {
             // The resize margin hit-tests as the window but lies outside its frame: outside.
             guard NSMouseInRect(point, keyWindow.frame, false) else { return .notOurs }

@@ -13,7 +13,11 @@
         /// Left ⌘, Super on the host, and the flags it holds.
         static let superKey: UInt16 = 55
         static let superHeld: MacModifierFlags = [.command, .leftCommand]
-        /// Mac key codes: Return, and the digits 1, 2 and 3.
+        /// Left Shift, and the flags it holds.
+        static let shiftKey: UInt16 = 56
+        static let shiftHeld: MacModifierFlags = [.shift, .leftShift]
+        /// Mac key codes: X, Return, and the digits 1, 2 and 3.
+        static let xKey: UInt16 = 7
         static let returnKey: UInt16 = 36
         static let one: UInt16 = 18
         static let two: UInt16 = 19
