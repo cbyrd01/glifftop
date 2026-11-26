@@ -146,7 +146,7 @@ struct PortsPopover: View {
             HStack {
                 Spacer()
                 Button("Done", action: done)
-                    .keyboardShortcut(.defaultAction)
+                    .defaultAction(unless: adding && !remoteText.isEmpty)
             }
         }
     }

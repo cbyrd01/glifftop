@@ -16,7 +16,8 @@ name) and reads and writes them as JSON.
   spelling) and its ports in range; one that isn't, or repeats an earlier one, is dropped and
   the rest kept. A window's record never changes its machine's forwards. A forward to a name
   only the ssh_config gives can't be saved; `toggleForwardWhenConnected` adds a forward with
-  its Mac port, or removes it.
+  its Mac port, or removes it; `addForwardWhenConnected` adds a typed port on the host itself,
+  once.
 - `TabPlanning`: a new tab to a machine open elsewhere starts as a virtual screen, and a
   window's tabs are titled with their machine's name, numbered from its second tab.
 - It has no storage of its own: the app keeps the data (in `UserDefaults`).

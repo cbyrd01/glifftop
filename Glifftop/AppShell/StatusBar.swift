@@ -2,7 +2,7 @@ import GliffSession
 import SwiftUI
 
 /// Under the picture with View ▸ Show Status Bar: the state, the live numbers, the encoding,
-/// and the host's read of the Mac clipboard with Cancel. The bar material, never glass, and
+/// the newest port notice, and the host's read of the Mac clipboard with Cancel. The bar material, never glass, and
 /// never over the picture: the window's fit counts its height.
 struct StatusBar: View {
     static let height: CGFloat = 28
@@ -29,6 +29,7 @@ struct StatusBar: View {
                 [stream.chroma.displayName, stream.pipeline?.displayName].compactMap(\.self).joined(
                     separator: " · "))
             Spacer(minLength: 0)
+            PortsNoticeBar(session: model)
             ClipboardReadView(
                 activity: model.clipboardActivity, host: model.host, cancel: model.cancelClipboardServing,
                 dismissed: $model.dismissedClipboardRun)

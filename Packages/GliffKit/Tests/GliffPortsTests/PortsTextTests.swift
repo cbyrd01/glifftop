@@ -47,4 +47,11 @@ import Testing
         #expect(snapshot.movedFrom(ForwardID(value: 1)) == 5173)
         #expect(snapshot.movedFrom(ForwardID(value: 2)) == nil)
     }
+
+    @Test func aForwardIsFoundByItsID() {
+        var snapshot = PortsSnapshot()
+        snapshot.forwarded = [row(.waiting)]
+        #expect(snapshot.forward(ForwardID(value: 1)) == row(.waiting))
+        #expect(snapshot.forward(ForwardID(value: 2)) == nil)
+    }
 }

@@ -5,7 +5,7 @@ import GliffVideo
 import SwiftUI
 
 /// The remote picture filling the window (below the toolbar, never under it), the input hint
-/// at the bottom for a few seconds after capture, the interruption panel over it while the
+/// at the bottom for a few seconds after capture and a new port notice above it, the interruption panel over it while the
 /// server is quiet, and under it the status bar when View ▸ Show Status Bar is on. Liquid
 /// Glass on the overlays only, never the video.
 struct StreamingView: View {
@@ -38,17 +38,18 @@ struct StreamingView: View {
         // A new session's slot gets a new video view: the old one would keep drawing the old slot.
         .id(ObjectIdentifier(model.shownSlot))
         .overlay(alignment: .bottom) {
-            // Its own container, so the fade animates only the hint; clicks go through to
-            // the picture under it.
-            ZStack {
+            // Its own container, so the fade animates only these; clicks on the hint go through
+            // to the picture under it. A new port notice stands above the hint.
+            VStack(spacing: 12) {
+                PortsNoticeCapsule(session: model, statusBarShown: showsStatusBar)
                 if model.capture.showsHint {
                     InputHintView()
-                        .padding(24)
+                        .allowsHitTesting(false)
                         .transition(.opacity)
                 }
             }
+            .padding(24)
             .animation(.easeInOut(duration: 0.2), value: model.capture.showsHint)
-            .allowsHitTesting(false)
         }
         // Connection Info (⌘I, the toolbar's ⓘ) from the picture's top trailing corner, under
         // the ⓘ: the toolbar may be hidden (full screen) or the item in its overflow.

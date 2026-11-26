@@ -6,7 +6,8 @@ import SwiftUI
 
 /// A machine's options, for the connect field's Options and the machine sheet: the screen (the
 /// host's monitors once Get Screens lists them; a machine's monitor though not listed), a
-/// virtual screen's text size and resolution, Scale to Fit, reconnect, and the clipboard.
+/// virtual screen's text size and resolution, Scale to Fit, reconnect, the clipboard, and the
+/// ports forwarded when connected.
 struct MachineOptionsForm: View {
     @Binding var options: MachineOptions
     let screenList: ScreenList
@@ -67,6 +68,7 @@ struct MachineOptionsForm: View {
             ForEach(ClipboardSharing.allCases, id: \.self) { Text($0.label).tag(Optional($0)) }
         }
         .clipboardSharingConfirmation($askingClipboard) { _ in options.clipboard = askedClipboard }
+        MachinePortsSection(options: $options, host: host)
     }
 
     /// The machine's sharing, asking first when the choice sends more than the sharing it has

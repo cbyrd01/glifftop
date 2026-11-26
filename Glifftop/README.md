@@ -58,7 +58,7 @@ the server is quiet, with Disconnect and Reconnect Now; `ReconnectingView`, the 
 dimmed under a glass panel while a lost session is tried again: why it ended, the countdown
 and the try, Reconnect Now and Disconnect; the "Shift+Esc releases input" hint for a few seconds after capture; and
 under the picture, with View ▸ Show Status Bar, `StatusBar`: the state, fps, Mbit/s, round
-trip, chroma · encoder and the clipboard read, on the bar material, its height counted when
+trip, chroma · encoder, the newest port notice (`PortsNoticeBar`) and the clipboard read, on the bar material, its height counted when
 a mirror's window is fitted), the window's title (the machine's name, else the host; numbered from a machine's second tab
 in the window, "omarchy 2") and subtitle ("Virtual Screen ·
 Connected", `SessionModel+Chrome.swift`), the toolbar (`SessionToolbar`, while a session is
@@ -71,7 +71,9 @@ listening on this Mac, else a dot for an offer the popover hasn't shown, and the
 Other ports, Forward a Port… and "Forward new ports automatically"; each forward's row,
 `PortsForwardRow`, with Open or Try Again and a menu of Open in Browser, Copy Address,
 Forward When Connected (the machine's, disabled for a host not saved) and Stop; every address
-`localhost:P` on both loopbacks, `127.0.0.1:P` on IPv4 alone); Connection Info, a popover of
+`localhost:P` on both loopbacks, `127.0.0.1:P` on IPv4 alone; a new notice also shows for 8 s
+as a glass capsule over the picture's bottom edge while the status bar is hidden,
+`PortsNoticeCapsule`, each with its buttons and Dismiss); Connection Info, a popover of
 `StatsView`'s numbers and "The host draws W × H",
 and Disconnect), the Connection menu (`ConnectionCommands`: Disconnect ⇧⌘D, Reconnect ⇧⌘R,
 Connection Info ⌘I, Show Ports ⌥⌘P (`PortsCommands`: the popover, or a sheet with the same
@@ -143,7 +145,10 @@ and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes
   session is active, with
   its machine's "Forward when connected" ports, following `OpenSessions` and each model's
   session and machine; each window's `PortsModel`, the host's latest snapshot and the actions
-  on it; and "Forward new ports automatically", in `UserDefaults`), `ScreenList`
+  on it; and "Forward new ports automatically", in `UserDefaults`, shown in Settings by
+  `PortsSettingsSection` and in the popover; the machine's saved ports in its options,
+  `MachinePortsSection`, whose typed port takes Return from the sheet's Save through
+  `PendingEntryKey`), `ScreenList`
   (the host's monitors, listed through a lister closure, by default on the host's shared
   connection, and never saved:
   one listing at a time, stopped (its error dismissed) when a session starts; a refresh keeps the list until the

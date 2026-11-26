@@ -30,7 +30,10 @@ The module for a host's port forwards and the ports it offers. It holds the modu
   not attached, and stopped only once the watcher gave up.
 - **The popover's text** (`PortsText`): a forward's Mac address (`localhost:P` on both
   loopbacks, `127.0.0.1:P` on IPv4 alone), the page it opens, a destination (the port alone on
-  the host itself) and the Mac port a moved forward had.
+  the host itself), the Mac port a moved forward had, and a forward's row by its id.
+- **The notice a window shows** (`ShownNotice`): the last new one (an offer naming a port no
+  earlier offer named, or a forward's notice not there before), else the one shown while it
+  lasts, else the last; nothing is new in a window's first snapshot.
 
 - **Imports:** Foundation, `os`, `Synchronization` and GliffTransport only. POSIX calls come
   through Foundation's re-export of Darwin.

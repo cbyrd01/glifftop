@@ -1,3 +1,5 @@
+import GliffTransport
+
 /// The watcher's frames: what is offered, what the automatic setting forwards, and the
 /// snapshot the popover shows.
 ///

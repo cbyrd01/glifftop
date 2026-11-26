@@ -1,3 +1,4 @@
+import Foundation
 public import GliffTransport
 
 /// A port a machine forwards when connected: the port on the host, where it goes there
@@ -79,5 +80,21 @@ extension MachineOptions {
             let saved = SavedForward(destination, remotePort: remotePort, localPort: localPort)
         else { return }
         forwards.append(saved)
+    }
+
+    /// The machine sheet's add field: `typed` as a forward to keep, a port on the host itself;
+    /// nil unless it is a port not kept already.
+    public func forwardToAdd(_ typed: String) -> SavedForward? {
+        guard let port = Int(typed.trimmingCharacters(in: .whitespaces)),
+            !forwards.contains(where: { $0.remotePort == port && $0.forwardDestination.isLoopback })
+        else { return nil }
+        return SavedForward(.localhost, remotePort: port, localPort: nil)
+    }
+
+    /// Keeps `forwardToAdd(typed)`, if any; says whether it did.
+    public mutating func addForwardWhenConnected(_ typed: String) -> Bool {
+        guard let saved = forwardToAdd(typed) else { return false }
+        forwards.append(saved)
+        return true
     }
 }

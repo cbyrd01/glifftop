@@ -47,7 +47,8 @@ enum AppSettings {
     }
 }
 
-/// Settings ▸ General: the options each new host or machine starts from, and the clipboard.
+/// Settings ▸ General: the options each new host or machine starts from, the clipboard, and
+/// forwarding new ports.
 struct SettingsView: View {
     @AppStorage(AppSettings.connectScreenKey) private var connectScreen = "focused"
     @AppStorage(AppSettings.virtualTextSizeKey) private var virtualTextSize = TextSize.mac.factor
@@ -78,6 +79,7 @@ struct SettingsView: View {
             Text("A machine with its own Clipboard setting keeps it.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+            PortsSettingsSection()
         }
         .formStyle(.grouped)
         .clipboardSharingConfirmation($askingClipboard) {

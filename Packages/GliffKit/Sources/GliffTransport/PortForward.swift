@@ -55,6 +55,16 @@ public enum ForwardDestination: Hashable, Sendable {
         case .configured(let host): host.name
         }
     }
+
+    /// `.localhost` or a loopback address: a forward here reaches the host's own loopback and
+    /// wildcard sockets, the ports the watcher sees and offers.
+    public var isLoopback: Bool {
+        switch self {
+        case .localhost: true
+        case .address(let address): address.isLoopback
+        case .configured: false
+        }
+    }
 }
 
 /// A host name from the person's ssh_config, checked: non-empty, no NUL, whitespace, `/`,

@@ -107,6 +107,21 @@ import Testing
         #expect(options.forwards.isEmpty)
     }
 
+    /// The machine sheet's add field: a port on the host itself, kept once.
+    @Test func aTypedPortIsAddedOnce() throws {
+        var options = MachineOptions()
+        let added = [" 5173 ", "5173", "0", "65536", "web"].map { options.addForwardWhenConnected($0) }
+        #expect(added == [true, false, false, false, false])
+        #expect(options.forwardsWhenConnected(.localhost, 5173))
+        #expect(options.forwards.map(\.localPort) == [nil])
+        #expect(options.forwardToAdd("8080")?.remotePort == 8080)
+        #expect(options.forwardToAdd("5173") == nil)
+        // The host's own port kept through another loopback is the same port.
+        let ipv6 = try #require(SavedForward(remotePort: 8000, destination: "::1", localPort: nil))
+        options.forwards.append(ipv6)
+        #expect(options.forwardToAdd("8000") == nil)
+    }
+
     @Test func aHostNameDestinationIsRefused() throws {
         #expect(SavedForward(remotePort: 5173, destination: "omarchy", localPort: nil) == nil)
         #expect(SavedForward(remotePort: 5173, destination: "", localPort: nil) == nil)

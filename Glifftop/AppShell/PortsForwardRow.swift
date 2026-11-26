@@ -96,7 +96,7 @@ struct PortsForwardRow: View {
                 .help(session.machine == nil ? "Save \(session.host) as a machine to keep its ports" : "")
             }
             Divider()
-            Button("Stop") { ports.stop(row) }
+            Button("Stop") { ports.stop(row.id) }
                 .disabled(row.state == .stopping)
         } label: {
             Image(systemName: "ellipsis.circle")

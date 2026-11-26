@@ -8,16 +8,20 @@ struct PortsCommands: View {
 
     var body: some View {
         Button("Show Ports") {
-            guard let model else { return }
-            let ports = AppPorts.shared.ports(for: model)
-            if WindowToolbar.isShown(window: model.tabGroup?.window) {
-                ports.showsPopover = true
-            } else {
-                ports.showsSheet = true
-            }
+            if let model { Self.show(model) }
         }
         .keyboardShortcut("p", modifiers: [.command, .option])
         .disabled(model?.isActive != true || model?.showsSheet == true)
+    }
+
+    /// `model`'s window's Ports popover, or its sheet while the toolbar isn't shown.
+    static func show(_ model: SessionModel) {
+        let ports = AppPorts.shared.ports(for: model)
+        if WindowToolbar.isShown(window: model.tabGroup?.window) {
+            ports.showsPopover = true
+        } else {
+            ports.showsSheet = true
+        }
     }
 }
 

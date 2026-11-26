@@ -13,10 +13,18 @@ import Observation
     var showsSheet = false
     /// The Available ports the popover has shown: the toolbar's dot is for the others.
     private var seen: Set<Int> = []
+    /// The notice the window shows (`PortsSnapshot.shownNotice`): the status bar's.
+    private(set) var notice: PortNotice?
+    /// The notice while it is new, for 8 s: the picture's capsule while the status bar is
+    /// hidden.
+    private(set) var fresh: PortNotice?
 
     @ObservationIgnored private let registry: PortsRegistry
     @ObservationIgnored private var target: SSHTarget?
     @ObservationIgnored private var following: Task<Void, Never>?
+    @ObservationIgnored private var freshEnds: Task<Void, Never>?
+    /// Whether a snapshot came since `follow`: the first is where the window starts.
+    @ObservationIgnored private var started = false
 
     init(registry: PortsRegistry) { self.registry = registry }
 
@@ -41,14 +49,40 @@ import Observation
         self.target = target
         following?.cancel()
         following = nil
-        (snapshot, seen) = (PortsSnapshot(), [])
+        (snapshot, seen, notice, fresh, started) = (PortsSnapshot(), [], nil, nil, false)
+        freshEnds?.cancel()
         guard let target else {
             (showsPopover, showsSheet) = (false, false)
             return
         }
         let snapshots = registry.snapshots(for: target)
         following = Task { [weak self] in
-            for await snapshot in snapshots { self?.snapshot = snapshot }
+            for await snapshot in snapshots { self?.take(snapshot) }
+        }
+    }
+
+    private func take(_ snapshot: PortsSnapshot) {
+        let shown = snapshot.shownNotice(since: started ? self.snapshot : nil, shown: notice)
+        (self.snapshot, notice, started) = (snapshot, shown.notice, true)
+        guard shown.isNew else {
+            // The capsule shows only the notice that came: not one an answer left behind.
+            if fresh != notice { fresh = nil }
+            return
+        }
+        fresh = notice
+        freshEnds?.cancel()
+        freshEnds = Task { [weak self] in
+            guard (try? await Task.sleep(for: .seconds(8))) != nil else { return }
+            self?.fresh = nil
+        }
+    }
+
+    /// A notice's Forward: the port as Available lists it, else on the host itself.
+    func forwardOffer(_ port: Int) {
+        if let offered = snapshot.available.first(where: { $0.port == port }) {
+            forward(offered)
+        } else {
+            forward(remote: port, localPort: nil)
         }
     }
 
@@ -61,7 +95,7 @@ import Observation
         withPorts { await $0.forward(remote: remote, destination: .localhost, localPort: localPort) }
     }
 
-    func stop(_ row: ForwardRow) { withPorts { await $0.stop(row.id) } }
+    func stop(_ id: ForwardID) { withPorts { await $0.stop(id) } }
 
     func retry(_ row: ForwardRow) { withPorts { await $0.retry(row.id) } }
 

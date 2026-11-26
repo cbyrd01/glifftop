@@ -41,4 +41,7 @@ extension PortsSnapshot {
             return from
         }.first
     }
+
+    /// Forward `id`'s row, if it is still forwarded.
+    public func forward(_ id: ForwardID) -> ForwardRow? { forwarded.first { $0.id == id } }
 }

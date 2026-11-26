@@ -22,6 +22,8 @@ struct EditMachineView: View {
     @State private var refused: (host: String, message: String)?
     /// The sheet's own list of the host's monitors: the session's (View ▸ Screen) is left alone.
     @State private var screenList = ScreenList()
+    /// A port typed in the options and not added yet: Return adds it rather than saving.
+    @State private var pendingEntry = false
 
     private enum Field { case name, host }
 
@@ -60,6 +62,7 @@ struct EditMachineView: View {
                     options: $machine.options, screenList: screenList, host: machine.destination,
                     getScreens: { screenList.list(host: committed().destination) })
             }
+            .onPreferenceChange(PendingEntryKey.self) { pendingEntry = $0 }
             HStack {
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
@@ -68,7 +71,7 @@ struct EditMachineView: View {
                     Button("Connect") { if let saved = save() { connect(saved) } }
                 }
                 Button("Save") { _ = save() }
-                    .keyboardShortcut(.defaultAction)
+                    .defaultAction(unless: pendingEntry)
             }
         }
         .padding(20)
