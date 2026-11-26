@@ -32,26 +32,26 @@ file request refused; GliffProtocol still reads and writes both.
   - Mac → remote: `offer` (a fresh serial each time; a password manager's copy carries KDE's
     `x-kde-passwordManagerHint`, whose request gets one empty final chunk) and `revoke` (an
     empty offer only when asked). A request is served whenever it comes, only for the current
-    offer and a type it holds. A file request is refused. The app's
-    `LocalClipboardSource` reads the type in a task of its own, within the idle timeout; an
-    offer, revoke or cancel stops reads still under way. Offers reach the wire in serial order. The host's reads of an offer are reported as one `ClipboardActivity`,
-    after 1 s.
+    offer and a type it holds. A file request is refused. The app's `LocalClipboardSource` reads
+    the type in a task of its own, within the idle timeout; an offer, revoke or cancel stops
+    reads still under way. Offers reach the wire in serial order. The host's reads of an offer
+    are reported as one `ClipboardActivity`, after 1 s.
   - Remote → Mac: the remote's offer (its file list dropped) and `fetch` of a type into memory
     (32 MiB at most).
 - **`ClipboardSharing`:** Share the clipboard, one setting of three (Not shared, Shared,
   Shared including passwords), in order of what each sends; Settings holds one, and a machine
   may hold its own.
-- **`ClipboardPolicy`:** when to offer, withdraw, or put the remote's offer on the Mac,
-  as a pure struct whose actions the app carries out. A Mac copy may be offered if it has types to
-  forward, a password manager's only while passwords are shared, and never one this host's
-  own session put on the Mac (another host's is offered, as a Mac copy) (`offerable`); a `recheck`
-  when that changes withdraws our offer the clipboard no longer allows, in front or not, and
-  in front offers one it now allows (never over a newer host copy).
-  A copy another window's session to the same host holds (`heldElsewhere`) isn't offered in
-  front, nor marked seen, so a later trip to the front offers it once no window holds it;
-  `superseded` (another session to the host offered) forgets ours on the host, and what was
-  withheld, without sending; `handOver` offers the copy in front or not, unless the host
-  copied since (a real copy, not the empty selection an ending source leaves).
+- **`ClipboardPolicy`:** when to offer, withdraw, or put the remote's offer on the Mac, as a
+  pure struct whose actions the app carries out. A Mac copy may be offered if it has types to
+  forward, a password manager's only while passwords are shared, and never one this host's own
+  session put on the Mac (another host's is offered, as a Mac copy) (`offerable`); a `recheck`
+  when that changes withdraws our offer the clipboard no longer allows, in front or not, and in
+  front offers one it now allows (never over a newer host copy). A copy another window's session
+  to the same host holds (`heldElsewhere`) isn't offered in front, nor marked seen, so a later
+  trip to the front offers it once no window holds it; `superseded` (another session to the host
+  offered) forgets ours on the host, and what was withheld, without sending; `handOver` offers
+  the copy in front or not, unless the host copied since (a real copy, not the empty selection
+  an ending source leaves).
 - **`HostClipboardLedger`:** one clipboard per host across the app's windows, pure, keyed by
   the destination as typed with each session an opaque `UUID`; it never sees a session, a
   target or clipboard data, and only sessions with sharing on take a handover. Two destinations

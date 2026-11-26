@@ -19,7 +19,8 @@ desktop for Hyprland/Omarchy, written in Swift. Not affiliated with Gliff.
   - two input modes: Integrated (⌘ shortcuts over the toolbar are the Mac's) and Capture (the
     pointer kept in the picture);
   - ⌘Q held to quit while a session is live;
-  - choosing the screen (a monitor, the focused one, or a virtual screen that follows the window);
+  - choosing the screen (a monitor, the focused one, or a virtual screen that follows the
+    window);
   - the shared clipboard: text, HTML and images, both ways, off until turned on;
   - saved machines with their options, and reconnecting by itself after a lost link;
   - tabs and windows, one session each, sharing one ssh connection per host, with input and

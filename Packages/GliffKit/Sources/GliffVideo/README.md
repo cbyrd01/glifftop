@@ -2,9 +2,9 @@
 
 Owns decoding the video stream into pictures.
 
-- **Imports:** Foundation, `Synchronization`, `os` (Logger), GliffProtocol (the StreamConfig and VideoFrame
-  types), Metal, and internally VideoToolbox, CoreMedia (VideoToolbox's sample and format
-  types) and CoreVideo. Must not import GliffSession, GliffTransport, AppKit or UIKit.
+- **Imports:** Foundation, `Synchronization`, `os` (Logger), GliffProtocol (the StreamConfig and
+  VideoFrame types), Metal, and internally VideoToolbox, CoreMedia (VideoToolbox's sample and
+  format types) and CoreVideo. Must not import GliffSession, GliffTransport, AppKit or UIKit.
 - **Seam:** `FrameDecoder` (`configure` per coded-stream change, `update` for a StreamConfig
   that keeps the coded stream, `decode` per frame → `DecodeOutcome`). The session awaits each
   decode before it acks the frame.

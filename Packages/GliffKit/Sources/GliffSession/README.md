@@ -3,8 +3,9 @@
 Owns one Gliff protocol session: the handshake, the stream's rules, acks, recording, and
 the feature seam.
 
-- **Imports:** GliffProtocol, GliffTransport, GliffVideo, GliffInput, GliffClipboard, Foundation, `os` (Logger),
-  `Synchronization`. Must not import AppKit, UIKit, SwiftUI or Observation.
+- **Imports:** GliffProtocol, GliffTransport, GliffVideo, GliffInput, GliffClipboard,
+  Foundation, `os` (Logger), `Synchronization`. Must not import AppKit, UIKit, SwiftUI or
+  Observation.
 - **`SessionCore`:** the rules as a pure struct (no I/O, clock or concurrency): server
   messages in, `SessionAction`s out. Ported from upstream's client (`net.rs`): Hello first;
   Ping answered with Pong in every state; HelloAck version 1 or the session is incompatible;
@@ -17,17 +18,17 @@ the feature seam.
   new decoder; any other updates the kept one (`updateDecoder`: a new view box, pace, scale
   or pipeline).
 - **`Session`:** the actor that runs a core against a `Transport` and a `FrameDecoder`: one
-  reader, one writer task (`SessionWriter`), a 500 ms tick, and `status` as an
-  `AsyncStream`. It reports `.interrupted(true)` when `Liveness` says so (a Ping unanswered
-  for 2 s and not a byte for 4 s, on a clock that stops in sleep), and `.interrupted(false)`
-  at the next bytes. `probe()` (after a wake or a network change, while streaming) sends a
-  Ping at once and ends the session as `.connectionLost` unless that Ping's Pong (or a later
-  Ping's, as upstream's writer may drop it), or any bytes 1 s or more after it, arrive within
-  3 s; bytes sooner may predate the sleep, so they
-  don't answer it. `withdrawProbe()` (the network went away) drops a probe waiting; the
-  next probe decides. The handshake isn't probed. Closing waits up to 1 s for queued frames (Bye), then closes the
-  connection, or abandons it (`ByteConnection.abandon()`) after an unanswered probe or when it ends while interrupted. Cancelling `run()` is a disconnect. A run of decode failures logs each
-  reason once; the next picture ends the run.
+  reader, one writer task (`SessionWriter`), a 500 ms tick, and `status` as an `AsyncStream`. It
+  reports `.interrupted(true)` when `Liveness` says so (a Ping unanswered for 2 s and not a byte
+  for 4 s, on a clock that stops in sleep), and `.interrupted(false)` at the next bytes.
+  `probe()` (after a wake or a network change, while streaming) sends a Ping at once and ends
+  the session as `.connectionLost` unless that Ping's Pong (or a later Ping's, as upstream's
+  writer may drop it), or any bytes 1 s or more after it, arrive within 3 s; bytes sooner may
+  predate the sleep, so they don't answer it. `withdrawProbe()` (the network went away) drops a
+  probe waiting; the next probe decides. The handshake isn't probed. Closing waits up to 1 s for
+  queued frames (Bye), then closes the connection, or abandons it (`ByteConnection.abandon()`)
+  after an unanswered probe or when it ends while interrupted. Cancelling `run()` is a
+  disconnect. A run of decode failures logs each reason once; the next picture ends the run.
 - **Input:** `Session.send(_:)` queues an `InputMessage` from any thread (`InputQueue`, in
   order); the session sends what `InputGate` admits: a key or button press, motion and
   scrolling only while streaming and not interrupted; a release (or a scroll's stop) only if
@@ -132,25 +133,25 @@ the feature seam.
   connect (a write error waits for ssh's classified exit); after it, a lost connection. A
   parse error on the very first frame means stdout wasn't Gliff (`remoteNotGliff`). Server
   text is made displayable as ssh's stderr is.
-- **Reconnect:** `ReconnectPolicy` says whether an end is tried again and after how long: an
-  end that may reconnect, and, once retrying, a host not found, a connection refused or a
-  failure ssh doesn't classify (a network or host coming back after a wake); after 1, 2, 4, 8
-  and 16 s, then it gives up. `Reconnector` runs it: a countdown before each try
-  (`ReconnectState`, for the window), cut short by `reconnectNow()`, stopped while
-  `networkAvailable(false)` without spending a try and started again once the network is back,
-  and ended by cancelling its task (Disconnect).
-  A run counts from the first try, unless the last run's session ended within `ReconnectMemory.steadyTime`
-  (30 s) of streaming: then it goes on from that count (`ReconnectMemory`, shared by a
-  window's reconnectors), so a host that streams, then drops, runs out of tries. Its clock (by default one that stops in sleep) is
-  injected; tests use `ManualClock`.
+- **Reconnect:** `ReconnectPolicy` says whether an end is tried again and after how long: an end
+  that may reconnect, and, once retrying, a host not found, a connection refused or a failure
+  ssh doesn't classify (a network or host coming back after a wake); after 1, 2, 4, 8 and 16 s,
+  then it gives up. `Reconnector` runs it: a countdown before each try (`ReconnectState`, for
+  the window), cut short by `reconnectNow()`, stopped while `networkAvailable(false)` without
+  spending a try and started again once the network is back, and ended by cancelling its task
+  (Disconnect). A run counts from the first try, unless the last run's session ended within
+  `ReconnectMemory.steadyTime` (30 s) of streaming: then it goes on from that count
+  (`ReconnectMemory`, shared by a window's reconnectors), so a host that streams, then drops,
+  runs out of tries. Its clock (by default one that stops in sleep) is injected; tests use
+  `ManualClock`.
 - **Features:** `SessionFeature` is an optional protocol feature as a plug-in unit: offered
   in Hello by name, active once HelloAck echoes it, then handed the unknown server variants
   it claims. `FeatureContext` lets it send its own client messages.
-- **Clipboard:** a session given a `ClipboardSetup` owns a `ClipboardBridge` (`clipboard`).
-  Its messages go straight to the writer (`ClipboardWire`), `Data` chunks in a bulk lane that
-  yields to other frames (but takes a turn after every 8) and is dropped at the drain.
-  `offerClipboard` and `revokeClipboard` are queued with the input, in the order they
-  happened: input before one goes first, input after it waits until it is carried out, and
-  they wait for the writer. The app never calls the bridge's `offer` or `revoke` itself. The
-  bridge's events arrive as `.clipboardOffer` and `.clipboardActivity`; it closes before the connection does,
-  and a read still shown running then ends as failed.
+- **Clipboard:** a session given a `ClipboardSetup` owns a `ClipboardBridge` (`clipboard`). Its
+  messages go straight to the writer (`ClipboardWire`), `Data` chunks in a bulk lane that yields
+  to other frames (but takes a turn after every 8) and is dropped at the drain. `offerClipboard`
+  and `revokeClipboard` are queued with the input, in the order they happened: input before one
+  goes first, input after it waits until it is carried out, and they wait for the writer. The
+  app never calls the bridge's `offer` or `revoke` itself. The bridge's events arrive as
+  `.clipboardOffer` and `.clipboardActivity`; it closes before the connection does, and a read
+  still shown running then ends as failed.
