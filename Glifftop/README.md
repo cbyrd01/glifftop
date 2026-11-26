@@ -147,8 +147,8 @@ and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes
   session and machine; each window's `PortsModel`, the host's latest snapshot and the actions
   on it; and "Forward new ports automatically", in `UserDefaults`, shown in Settings by
   `PortsSettingsSection` and in the popover; the machine's saved ports in the machine sheet,
-  `MachinePortsSection`, whose typed port takes Return from the sheet's Save through
-  `PendingEntryKey`), `ScreenList`
+  `MachinePortsSection`, whose typed port takes Return from the sheet's Save, which keeps
+  it, through `PendingEntryKey`), `ScreenList`
   (the host's monitors, listed through a lister closure, by default on the host's shared
   connection, and never saved:
   one listing at a time, stopped (its error dismissed) when a session starts; a refresh keeps the list until the

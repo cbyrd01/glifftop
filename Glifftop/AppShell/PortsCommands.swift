@@ -38,9 +38,10 @@ private struct PortsSheet: ViewModifier {
 
     func body(content: Content) -> some View {
         // The model's own sheets come first (a sign-in question must show): this one steps
-        // aside while one is up.
+        // aside while one is up, and comes back after.
         let shown = Binding(
-            get: { ports.showsSheet && !session.showsSheet }, set: { ports.showsSheet = $0 })
+            get: { ports.showsSheet && !session.showsSheet },
+            set: { if !session.showsSheet { ports.showsSheet = $0 } })
         content.sheet(isPresented: shown) {
             PortsPopover(ports: ports, session: session) { ports.showsSheet = false }
         }

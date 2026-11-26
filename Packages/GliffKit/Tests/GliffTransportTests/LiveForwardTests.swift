@@ -46,11 +46,14 @@
             // The grace never runs out: the test ends the master itself.
             let connections = HostConnections(open: { _, _ in connection }, clock: ManualClock())
             let registry = PortsRegistry(connections: connections, clock: ManualClock())
+            var tab: HostLease?
+            var hold: PortsHold?
+            var failure: (any Error)?
             do {
                 // A channel opening while the busy port is held, before and after the forwards.
                 #expect(try await Self.echo(on: connection))
-                let tab = try await connections.lease(for: target)
-                let hold = await registry.hold(target, saved: [])
+                tab = try await connections.lease(for: target)
+                hold = await registry.hold(target, saved: [])
                 let ports = try #require(await registry.ports(for: target))
                 let wanted: [ForwardState] = [
                     .failed(.localPortInUse), .active(local: free, loopbacks: .both),
@@ -62,13 +65,13 @@
                 #expect(try await Self.echo(on: connection))
                 #expect(Self.firstBytes(host: "127.0.0.1", port: free)?.hasPrefix("SSH-2.0-") == true)
                 #expect(Self.firstBytes(host: "::1", port: free)?.hasPrefix("SSH-2.0-") == true)
-                await hold.end()
-                await tab.end()
             } catch {
-                await connection.close()
-                throw error
+                failure = error
             }
+            await hold?.end()
+            await tab?.end()
             await connection.close()
+            if let failure { throw failure }
         }
 
         /// A forward asked on each loopback binds both through the mux, and each carries a TCP

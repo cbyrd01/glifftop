@@ -17,7 +17,7 @@ struct MachinePortsSection: View {
                     .monospacedDigit()
                     .lineLimit(1)
                     .truncationMode(.tail)
-                Button(editing ? "Done" : "Edit…") { editing.toggle() }
+                Button(editing ? "Done" : "Edit…", action: toggleEditing)
             }
         }
         if editing {
@@ -44,8 +44,13 @@ struct MachinePortsSection: View {
                 Button("Add", action: add)
                     .disabled(!canAdd)
             }
-            // Return adds the typed port, not the sheet's Save.
-            .preference(key: PendingEntryKey.self, value: !typed.isEmpty)
+            // Return adds the typed port, not the sheet's Save, which keeps it.
+            .preference(key: PendingEntryKey.self, value: typed.trimmingCharacters(in: .whitespaces))
+            if let problem {
+                Text(problem)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -56,11 +61,29 @@ struct MachinePortsSection: View {
     }
 
     private var canAdd: Bool {
-        options.forwardToAdd(typed) != nil
+        if case .new = options.typedPort(typed) { true } else { false }
+    }
+
+    /// Why the typed text can't be added, if it can't.
+    private var problem: String? {
+        switch options.typedPort(typed) {
+        case .notAPort: "A port is 1 to 65535."
+        case .kept: "This port is in the list."
+        case .empty, .new: nil
+        }
     }
 
     private func add() {
         if options.addForwardWhenConnected(typed) { typed = "" }
+    }
+
+    /// Done adds a port still typed, and lets go of the field.
+    private func toggleEditing() {
+        if editing {
+            add()
+            typed = ""
+        }
+        editing.toggle()
     }
 }
 

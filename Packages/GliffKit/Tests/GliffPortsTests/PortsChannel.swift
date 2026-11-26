@@ -53,14 +53,18 @@ final class PortsChannel: ByteConnection {
         continuation.finish()
     }
 
-    /// A frame of `ports`, each on 0.0.0.0 (those in `lan` on 192.168.1.5 only) under uid 1000
-    /// and named when a name is given.
-    func send(_ ports: [(Int, String?)], lan: Set<Int> = []) {
+    /// A frame of `ports`, each on 0.0.0.0 (those in `lan` on 192.168.1.5 only, those in
+    /// `loopback` on 127.0.0.1 only) under uid 1000 and named when a name is given.
+    func send(_ ports: [(Int, String?)], lan: Set<Int> = [], loopback: Set<Int> = []) {
         var rows: [String] = []
         var names: [String] = []
         for (port, name) in ports {
             let (hexAddress, address) =
-                lan.contains(port) ? ("0501A8C0", "192.168.1.5") : ("00000000", "0.0.0.0")
+                switch port {
+                case _ where lan.contains(port): ("0501A8C0", "192.168.1.5")
+                case _ where loopback.contains(port): ("0100007F", "127.0.0.1")
+                default: ("00000000", "0.0.0.0")
+                }
             rows.append("P \(hexAddress):\(hex(port)) 1000")
             if let name {
                 names.append("N LISTEN   \(address):\(port) 0.0.0.0:* users:((\"\(name)\",pid=7,fd=3))")

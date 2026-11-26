@@ -33,20 +33,25 @@ import Observation
     @ObservationIgnored private var windows: [ObjectIdentifier: Window] = [:]
     @ObservationIgnored private var started = false
 
-    /// `session`'s window's ports, made on first ask.
-    func ports(for session: SessionModel) -> PortsModel { window(for: session).ports }
+    /// `session`'s window's ports, made on first ask; asked in a view's update, so what they
+    /// change waits for its end.
+    func ports(for session: SessionModel) -> PortsModel { window(for: session, inUpdate: true).ports }
 
-    private func window(for session: SessionModel) -> Window {
+    /// `session`'s window, made on first ask: a model gone before `track` saw it, its
+    /// identifier reused, has its hold and stream ended, and the new ports follow the host. In
+    /// a view's update, those changes wait for its end.
+    private func window(for session: SessionModel, inUpdate: Bool = false) -> Window {
         let key = ObjectIdentifier(session)
-        if let window = windows[key] {
-            if window.session === session { return window }
-            // A model gone before `track` saw it, its identifier reused: its hold and stream end.
-            window.holding?.end()
-            window.ports.follow(nil)
-        }
+        if let window = windows[key], window.session === session { return window }
+        let stale = windows[key]
         let window = Window(session: session, ports: PortsModel(registry: registry))
-        window.ports.follow(Self.target(of: session))
         windows[key] = window
+        let begin = { [weak session] in
+            stale?.holding?.end()
+            stale?.ports.follow(nil)
+            if let session { window.ports.follow(Self.target(of: session)) }
+        }
+        if inUpdate { Task { @MainActor in begin() } } else { begin() }
         return window
     }
 

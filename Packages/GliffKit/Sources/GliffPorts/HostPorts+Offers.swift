@@ -51,7 +51,7 @@ extension HostPorts {
     private var offerNotice: PortNotice? {
         switch offered.count {
         case 0: nil
-        case 1: .listening(port: offered[0].port, name: offered[0].name)
+        case 1: .listening(offered[0])
         default: .several(ports: offered.map(\.port))
         }
     }

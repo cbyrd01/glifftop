@@ -18,9 +18,18 @@ the latest commit on `main` is supported.
   `ask`, never `accept-new` or `no`, so a changed host key is always refused. The helper
   answers only ssh processes Glifftop started, over a socket only you can open, with a
   one-time token. Everything else runs with `BatchMode=yes`. It uses your ssh config, keys
-  and agent; it stores no credentials, and never logs or writes what you type. Of your
-  config's port forwards, only `LocalForward` lines apply, each listening on 127.0.0.1 alone;
-  `RemoteForward` and `DynamicForward` lines don't.
+  and agent; it stores no credentials, and never logs or writes what you type.
+- **Port forwards** listen on this Mac's 127.0.0.1, and ::1 when it has one, nowhere else, on
+  ports of 1024 or more. Of your config's forwards only `LocalForward` lines apply, each bound
+  to loopback whatever address it names; `RemoteForward` and `DynamicForward` lines don't.
+  Before every forward, the config's included, Glifftop checks that no Mac server already
+  listens on that port, so a forward never shadows one. Loopback isn't private: any process
+  on this Mac, and a web page in its browser, can reach a forwarded port. So a new port on the
+  host is offered, not forwarded, unless you turn on **Forward new ports automatically**; even
+  then, nothing is forwarded unasked when the host can't name its listeners, and database and
+  cache ports are only offered. Every forward shows in the Ports popover, and they end with the
+  host's windows. To list its ports, Glifftop runs a fixed shell script on the host that reads
+  `/proc/net/tcp` and `ss`; its output is read as untrusted.
 - **The remote computer** is trusted with what you send it: your keystrokes while captured,
   and your clipboard while sharing is on. Everything it sends back (video, cursor images,
   clipboard data, the monitor list) is read as untrusted and checked for size and shape.
@@ -29,7 +38,8 @@ the latest commit on `main` is supported.
   marked as a password is flagged so the remote's clipboard history can leave it out. A copy
   made on the remote before you connected is never brought to the Mac.
 - **Logs** go to the system log (subsystem `me.cbyrd.Glifftop`). They never contain clipboard
-  contents, clipboard types, file names or paths.
+  contents, clipboard types, file names or paths, nor port numbers, addresses, destinations
+  or process names.
 
 ## How the app is built
 

@@ -1,11 +1,14 @@
 import SwiftUI
 
-/// Whether a field below holds an entry Return adds (the machine sheet's port): the sheet's
-/// default button gives up Return meanwhile, since it would take Return before the field.
+/// The text in a field below whose entry Return adds (the machine sheet's port), empty when
+/// none: the sheet's default button gives up Return meanwhile, since it would take Return
+/// before the field, and its Save keeps the entry.
 struct PendingEntryKey: PreferenceKey {
-    static let defaultValue = false
+    static let defaultValue = ""
 
-    static func reduce(value: inout Bool, nextValue: () -> Bool) { value = value || nextValue() }
+    static func reduce(value: inout String, nextValue: () -> String) {
+        if value.isEmpty { value = nextValue() }
+    }
 }
 
 extension View {

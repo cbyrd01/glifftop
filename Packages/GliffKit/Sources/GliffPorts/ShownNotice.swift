@@ -32,7 +32,7 @@ extension PortNotice {
     /// The ports an offer names; none for a forward's notice.
     fileprivate var offeredPorts: [Int] {
         switch self {
-        case .listening(let port, _): [port]
+        case .listening(let offer): [offer.port]
         case .several(let ports): ports
         case .forwarded, .moved: []
         }

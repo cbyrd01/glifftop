@@ -122,8 +122,8 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
 - **The config's port forwards:** every ssh this module starts runs with
   `ClearAllForwardings=yes` (`SSHCommand`'s options, a channel's), and control requests read no
   config (`-F none`), so ssh opens none of the config's forwards: one on a busy port would end
-  the master under `ExitOnForwardFailure yes`, or fail a channel, which asks the master for them. `SSHResolvedConfig` reads the `LocalForward`
-  lines (`SSHLocalForward`, its bind address kept for display), and `configuredForwards`
+  the master under `ExitOnForwardFailure yes`, or fail a channel, which asks the master for
+  them. `SSHResolvedConfig` reads the `LocalForward` lines (`SSHLocalForward`, its bind address kept for display), and `configuredForwards`
   gives them for GliffPorts to apply. `RemoteForward`, `DynamicForward`, and unix-socket,
   under-1024 or otherwise unholdable `LocalForward` lines don't apply; `notAppliedLines` keeps
   their text, and `NotAppliedReason` says which are a Mac port under 1024. Only counts are
@@ -132,7 +132,8 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   `-O cancel` with an `SSHForwardSpec` (`127.0.0.1:P:dest:port` or `[::1]:P:dest:port`, from
   typed values only), one request at a time per connection (`MasterRequests`), each within
   5 s. `SSHForwardClassifier` reads ssh's status and stderr, which are never logged: a busy
-  port is `.localPortInUse`, the master gone `.connectionLost`, and cancelling a forward
+  port is `.localPortInUse`, the master gone or ending `.connectionLost` (only then, whatever
+  ssh said), and cancelling a forward
   already gone succeeds. Asking for a forward the master already holds succeeds too.
   `LoopbackPorts` checks a port by binding 127.0.0.1 and ::1 without `SO_REUSEADDR`, so a Mac
   server on `*:P`, which ssh's bind would shadow, makes the port taken.

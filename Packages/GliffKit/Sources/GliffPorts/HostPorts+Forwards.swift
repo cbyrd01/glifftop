@@ -4,11 +4,19 @@ import os
 /// Making, stopping and applying forwards, one at a time.
 extension HostPorts {
     /// Forwards `remote` on the host to a Mac port: `localPort` alone when the person typed
-    /// one (it fails when taken), else the chooser's. Nil once these ports have ended: the
-    /// registry has others for the host.
+    /// one (it fails when taken), else the chooser's. A forward of it already kept, on that
+    /// Mac port if one is typed, is the one there is (a failed one tried again). Nil once these
+    /// ports have ended: the registry has others for the host.
     @discardableResult
     public func forward(remote: Int, destination: ForwardDestination, localPort: Int?) async -> ForwardID? {
         guard !isFinished else { return nil }
+        if let kept = entries.first(where: { entry in
+            entry.forwards(destination, remote) && entry.state != .stopping
+                && (localPort == nil || localPort == entry.local || localPort == entry.wanted)
+        }) {
+            if case .failed = kept.state { await retry(kept.id) }
+            return kept.id
+        }
         let id = newID()
         entries.append(
             Entry(
@@ -20,11 +28,13 @@ extension HostPorts {
         return id
     }
 
-    /// Cancels a forward on its loopbacks and removes it. A config forward comes back on the
-    /// next attachment. One already stopping is left to finish; one whose cancel the master
-    /// refuses stays active, as it may still listen.
+    /// Cancels a forward on its loopbacks and removes it. A config or saved forward comes back
+    /// on the next attachment. One already stopping is left to finish; one whose cancel the
+    /// master refuses stays active, as it may still listen.
     public func stop(_ id: ForwardID) async {
-        guard let index = entries.firstIndex(where: { $0.id == id }), entries[index].state != .stopping
+        // Once the grace has ended, the end cancels every forward itself.
+        guard !isFinished, let index = entries.firstIndex(where: { $0.id == id }),
+            entries[index].state != .stopping
         else { return }
         let entry = entries[index]
         absent.removeValue(forKey: id)?.cancel()
@@ -63,7 +73,7 @@ extension HostPorts {
     /// Dismisses a notice.
     public func dismiss(_ notice: PortNotice) {
         switch notice {
-        case .listening(let port, _): offered.removeAll { $0.port == port }
+        case .listening(let offer): offered.removeAll { $0.port == offer.port }
         case .several(let ports): offered.removeAll { ports.contains($0.port) }
         case .forwarded, .moved:
             if let index = entries.firstIndex(where: { $0.notice == notice }) { entries[index].notice = nil }

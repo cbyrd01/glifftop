@@ -20,7 +20,10 @@ desktop for Hyprland/Omarchy, written in Swift. Not affiliated with Gliff.
   - the shared clipboard: text, HTML and images, both ways, off until turned on;
   - saved machines with their options, and reconnecting by itself after a lost link;
   - tabs and windows, one session each, sharing one ssh connection per host, with input and
-    the host's focus following the window on top.
+    the host's focus following the window on top;
+  - port forwards on that connection, to this Mac's loopback: the host's new listening ports
+    offered as they appear (or forwarded, under a setting), the ssh config's `LocalForward`
+    lines, a machine's saved ports, and ports typed in the Ports popover.
 - **Not yet:**
   - files over the clipboard;
   - an optional event tap for ⌘Space and ⌘Tab (they stay with the Mac);
@@ -264,7 +267,8 @@ Glifftop.app   Glifftop/: AppShell (SwiftUI windows, settings) + MacPlatform (Ap
 GliffKit       Packages/GliffKit/, platform-neutral, one target per module
   GliffMachines   saved machines and their options, as JSON for the app to store; a new tab's
                   options and the tabs' titles
-  GliffPorts      a host's port forwards and the ports it offers
+  GliffPorts      a host's port forwards on its shared connection, the watcher of its
+                  listening ports, and what is offered or forwarded unasked
   GliffSession    per-window actor: handshake, reader/writer tasks, acks, resize, input order
   GliffClipboard  offer/request/data/ack/abort state machine, sharing policy (no pasteboard)
   GliffVideo      H.264 → VideoToolbox (2 sessions) → Metal recombine → BGRA texture

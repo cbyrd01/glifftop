@@ -57,3 +57,10 @@ struct PortsBench {
         try await snapshot().forwarded.first { $0.remotePort == remote }
     }
 }
+
+extension PortNotice {
+    /// An offer of `port` listening on every address, as `PortsChannel.send` makes it.
+    static func listening(port: Int, name: String?) -> PortNotice {
+        .listening(RemotePort(port: port, destination: .localhost, name: name))
+    }
+}

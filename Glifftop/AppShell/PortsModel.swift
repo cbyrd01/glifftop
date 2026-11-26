@@ -77,15 +77,6 @@ import Observation
         }
     }
 
-    /// A notice's Forward: the port as Available lists it, else on the host itself.
-    func forwardOffer(_ port: Int) {
-        if let offered = snapshot.available.first(where: { $0.port == port }) {
-            forward(offered)
-        } else {
-            forward(remote: port, localPort: nil)
-        }
-    }
-
     func forward(_ port: RemotePort) {
         withPorts { await $0.forward(remote: port.port, destination: port.destination, localPort: nil) }
     }

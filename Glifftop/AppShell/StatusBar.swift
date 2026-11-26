@@ -2,8 +2,8 @@ import GliffSession
 import SwiftUI
 
 /// Under the picture with View ▸ Show Status Bar: the state, the live numbers, the encoding,
-/// the newest port notice, and the host's read of the Mac clipboard with Cancel. The bar material, never glass, and
-/// never over the picture: the window's fit counts its height.
+/// the newest port notice, and the host's read of the Mac clipboard with Cancel. The bar
+/// material, never glass, and never over the picture: the window's fit counts its height.
 struct StatusBar: View {
     static let height: CGFloat = 28
 

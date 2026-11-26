@@ -5,9 +5,9 @@ import GliffVideo
 import SwiftUI
 
 /// The remote picture filling the window (below the toolbar, never under it), the input hint
-/// at the bottom for a few seconds after capture and a new port notice above it, the interruption panel over it while the
-/// server is quiet, and under it the status bar when View ▸ Show Status Bar is on. Liquid
-/// Glass on the overlays only, never the video.
+/// at the bottom for a few seconds after capture and a new port notice above it, the
+/// interruption panel over it while the server is quiet, and under it the status bar when
+/// View ▸ Show Status Bar is on. Liquid Glass on the overlays only, never the video.
 struct StreamingView: View {
     @Bindable var model: SessionModel
     let stream: StreamInfo

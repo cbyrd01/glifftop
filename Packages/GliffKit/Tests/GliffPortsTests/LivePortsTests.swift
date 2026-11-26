@@ -117,7 +117,7 @@
         private static func offers(_ port: Int, _ ports: HostPorts) async -> Bool {
             await ports.snapshot.notices.contains {
                 switch $0 {
-                case .listening(let offered, _): offered == port
+                case .listening(let offered): offered.port == port
                 case .several(let offered): offered.contains(port)
                 case .forwarded, .moved: false
                 }

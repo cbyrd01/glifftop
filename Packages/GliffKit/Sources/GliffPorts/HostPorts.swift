@@ -173,6 +173,13 @@ public actor HostPorts {
     /// Saved forwards are kept until the last hold ends: a port already forwarded isn't added
     /// again.
     private func addSaved(_ saved: [PortForward]) {
+        guard appendSaved(saved) else { return }
+        dropTakenOffers()
+        publish()
+    }
+
+    /// `addSaved` but for the snapshot, which the caller publishes; whether any was added.
+    private func appendSaved(_ saved: [PortForward]) -> Bool {
         let count = entries.count
         for forward in saved
         where !entries.contains(where: { $0.forwards(forward.destination, forward.remotePort) }) {
@@ -181,9 +188,7 @@ public actor HostPorts {
                     id: newID(), kind: .saved, destination: forward.destination,
                     remotePort: forward.remotePort, wanted: forward.localPort, exact: false))
         }
-        guard entries.count != count else { return }
-        dropTakenOffers()
-        publish()
+        return entries.count != count
     }
 
     private func expire() async {
@@ -271,6 +276,8 @@ public actor HostPorts {
                         && config.contains { $0.forwards(entry.destination, entry.remotePort) })
             }
         notApplied = configured.notApplied
+        // The holds' saved ports the config no longer forwards are theirs again.
+        _ = appendSaved(holds.sorted { $0.key < $1.key }.flatMap(\.value))
         dropTakenOffers()
         publish()
         startWatcher()

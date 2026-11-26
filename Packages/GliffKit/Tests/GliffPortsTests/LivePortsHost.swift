@@ -87,7 +87,7 @@
                 let port = Int.random(in: 20000...29999)
                 let script = """
                     exec 3<&0; { cat <&3 >/dev/null; kill 0; } & exec 0</dev/null 3<&-; \
-                    timeout 60 python3 -u -m http.server --bind 127.0.0.1 \
+                    timeout --foreground 60 python3 -u -m http.server --bind 127.0.0.1 \
                     --directory \(SSHCommand.shellQuoted(directory)) \(port)
                     """
                 let channel = try await tab.channel(command: Self.sh(script))

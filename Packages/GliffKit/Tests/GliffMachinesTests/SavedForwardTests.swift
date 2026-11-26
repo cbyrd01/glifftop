@@ -114,12 +114,27 @@ import Testing
         #expect(added == [true, false, false, false, false])
         #expect(options.forwardsWhenConnected(.localhost, 5173))
         #expect(options.forwards.map(\.localPort) == [nil])
-        #expect(options.forwardToAdd("8080")?.remotePort == 8080)
-        #expect(options.forwardToAdd("5173") == nil)
+        let web = try #require(SavedForward(remotePort: 8080, destination: "localhost", localPort: nil))
+        #expect(options.typedPort(" 8080") == .new(web))
+        #expect(options.typedPort("5173") == .kept)
+        #expect(options.typedPort(" ") == .empty)
+        #expect(options.typedPort("0") == .notAPort)
         // The host's own port kept through another loopback is the same port.
         let ipv6 = try #require(SavedForward(remotePort: 8000, destination: "::1", localPort: nil))
         options.forwards.append(ipv6)
-        #expect(options.forwardToAdd("8000") == nil)
+        #expect(options.typedPort("8000") == .kept)
+    }
+
+    /// Save with a port still typed keeps it; one kept already, or nothing typed, changes
+    /// nothing; text that is no port holds Save back.
+    @Test func saveKeepsATypedPort() throws {
+        var options = MachineOptions()
+        options = try #require(options.keeping(typed: " 5173 "))
+        #expect(options.forwards.map(\.remotePort) == [5173])
+        #expect(options.keeping(typed: "5173") == options)
+        #expect(options.keeping(typed: "  ") == options)
+        #expect(options.keeping(typed: "") == options)
+        for typed in ["0", "65536", "web", "51 73"] { #expect(options.keeping(typed: typed) == nil) }
     }
 
     @Test func aHostNameDestinationIsRefused() throws {

@@ -243,6 +243,61 @@ import Testing
         await tab.end()
     }
 
+    /// Forward asked again for a port already forwarded, as a second click before the next
+    /// snapshot, is the forward there is; another Mac port typed is a forward of its own.
+    @Test func aSecondForwardOfAPortIsTheFirst() async throws {
+        let tab = try await connections.lease(for: omarchy())
+        let hold = await registry.hold(try omarchy(), saved: [])
+        let ports = try #require(await registry.ports(for: omarchy()))
+        let first = await ports.forward(remote: 3000, destination: .localhost, localPort: nil)
+        let second = await ports.forward(remote: 3000, destination: .localhost, localPort: nil)
+        let typed = await ports.forward(remote: 3000, destination: .localhost, localPort: 3000)
+        #expect(first != nil && second == first && typed == first)
+        let other = await ports.forward(remote: 3000, destination: .localhost, localPort: 4000)
+        #expect(other != first)
+        #expect(try await rows().map(\.localPort) == [3000, 4000])
+        await hold.end()
+        await tab.end()
+    }
+
+    /// A saved port the config forwarded on one connection is the machine's again on the next,
+    /// whose config doesn't forward it.
+    @Test func aSavedPortTheConfigCoveredComesBack() async throws {
+        opener.configure(Self.configured(5432))
+        _ = try await connections.lease(for: omarchy())
+        let hold = await registry.hold(try omarchy(), saved: [Self.forward(5432)])
+        #expect(try await rows().map(\.kind) == [.config])
+        opener.made[0].lose()
+        #expect(await eventually { (try? await state(of: 5432)) == .waiting })
+        opener.configure(.none)
+        _ = try await connections.lease(for: omarchy(), fresh: true)
+        #expect(await eventually { (try? await rows().map(\.kind)) == [.saved] })
+        #expect(await eventually { (try? await state(of: 5432)) == .active(local: 5432, loopbacks: .both) })
+        await hold.end()
+    }
+
+    /// A stop asked once the grace has ended leaves the forward to the end's own cancel.
+    @Test func aStopAfterTheGraceIsTheEnds() async throws {
+        let tab = try await connections.lease(for: omarchy())
+        let hold = await registry.hold(try omarchy(), saved: [Self.forward(5173), Self.forward(5174)])
+        let ports = try #require(await registry.ports(for: omarchy()))
+        let ids = try await rows().map(\.id)
+        opener.made[0].block(.cancel(5173, .ipv4))
+        let stopping = Task { await ports.stop(ids[0]) }
+        #expect(await eventually { opener.made[0].isParked(.cancel(5173, .ipv4)) })
+        await hold.end()
+        #expect(await clock.waitForSleepers(1))
+        clock.advance(by: .seconds(10))
+        #expect(await eventually { await ports.isFinished })
+        await ports.stop(ids[1])
+        #expect(try await rows().last?.state == .active(local: 5174, loopbacks: .both))
+        opener.made[0].release(.cancel(5173, .ipv4))
+        await stopping.value
+        #expect(await eventually { (try? await registry.ports(for: omarchy())) == nil })
+        #expect(opener.made[0].calls.suffix(2) == [.cancel(5174, .ipv4), .cancel(5174, .ipv6)])
+        await tab.end()
+    }
+
     @Test func snapshotsFollowTheHost() async throws {
         let tab = try await connections.lease(for: omarchy())
         var snapshots = registry.snapshots(for: try omarchy()).makeAsyncIterator()

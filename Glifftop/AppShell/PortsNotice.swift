@@ -68,8 +68,8 @@ private struct PortsNoticeContent: View {
 
     private var sentence: String {
         switch notice {
-        case .listening(let port, let name):
-            "Port \(port) is listening on \(host)" + (name.map { " (\($0))" } ?? "")
+        case .listening(let offer):
+            "Port \(offer.port) is listening on \(host)" + (offer.name.map { " (\($0))" } ?? "")
         case .several(let ports): "\(ports.count) ports are listening on \(host)"
         case .forwarded(let id, let remote, let local):
             "Port \(remote) is forwarded to \(address(id, local))"
@@ -80,9 +80,9 @@ private struct PortsNoticeContent: View {
 
     @ViewBuilder private var buttons: some View {
         switch notice {
-        case .listening(let port, _):
-            Button("Forward") { ports.forwardOffer(port) }
-            Button("Ignore") { ports.ignore(port) }
+        case .listening(let offer):
+            Button("Forward") { ports.forward(offer) }
+            Button("Ignore") { ports.ignore(offer.port) }
         case .several:
             Button("Show Ports") {
                 PortsCommands.show(session)

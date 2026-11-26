@@ -48,6 +48,18 @@ import Testing
         await tab.end()
     }
 
+    /// An offer is the port as Available lists it, where it listens, so its Forward forwards
+    /// that socket: one on 127.0.0.1 alone goes to that address.
+    @Test func anOfferNamesWhereItsPortListens() async throws {
+        let (tab, hold, channel) = try await bench.firstFrame([(5173, "node")])
+        channel.send([(5173, "node"), (3000, "node")], loopback: [3000])
+        let offer = RemotePort(port: 3000, destination: .address(IPLiteral("127.0.0.1")!), name: "node")
+        #expect(await bench.until { $0.notices == [.listening(offer)] })
+        #expect(try await bench.snapshot().available.contains(offer))
+        await hold.end()
+        await tab.end()
+    }
+
     @Test func dismissingAnOfferKeepsANewerOne() async throws {
         let (tab, hold, channel) = try await bench.firstFrame([(5173, "node")])
         channel.send([(5173, "node"), (3000, "node")])

@@ -62,8 +62,8 @@ public struct SSHCommand: Equatable, Sendable {
             + (connectTimeout ? SSHConnectTimeout.options : [])
     }
 
-    /// No port forward from the person's ssh_config: Glifftop's master adds the `LocalForward`s
-    /// itself (`SystemSSHConnection`).
+    /// No port forward from the person's ssh_config: the open's probe reads its `LocalForward`s
+    /// and GliffPorts applies them on the master.
     static let noConfigForwards = ["-o", "ClearAllForwardings=yes"]
 
     /// What every channel turns off, whatever the config says, as `sftp(1)` does: no agent or

@@ -82,19 +82,44 @@ extension MachineOptions {
         forwards.append(saved)
     }
 
-    /// The machine sheet's add field: `typed` as a forward to keep, a port on the host itself;
-    /// nil unless it is a port not kept already.
-    public func forwardToAdd(_ typed: String) -> SavedForward? {
-        guard let port = Int(typed.trimmingCharacters(in: .whitespaces)),
-            !forwards.contains(where: { $0.remotePort == port && $0.forwardDestination.isLoopback })
-        else { return nil }
-        return SavedForward(.localhost, remotePort: port, localPort: nil)
+    /// What the machine sheet's add field holds: a port on the host itself, kept already when
+    /// the machine forwards it to any loopback there.
+    public func typedPort(_ typed: String) -> TypedPort {
+        let text = typed.trimmingCharacters(in: .whitespaces)
+        if text.isEmpty { return .empty }
+        guard let port = Int(text), let saved = SavedForward(.localhost, remotePort: port, localPort: nil)
+        else { return .notAPort }
+        let kept = forwards.contains { $0.remotePort == port && $0.forwardDestination.isLoopback }
+        return kept ? .kept : .new(saved)
     }
 
-    /// Keeps `forwardToAdd(typed)`, if any; says whether it did.
+    /// The options Save keeps with `typed` still in the add field: a new port added; nil when
+    /// `typed` is no port, so Save waits.
+    public func keeping(typed: String) -> MachineOptions? {
+        switch typedPort(typed) {
+        case .empty, .kept: return self
+        case .notAPort: return nil
+        case .new(let saved):
+            var options = self
+            options.forwards.append(saved)
+            return options
+        }
+    }
+
+    /// Keeps the typed port if it is a new one; says whether it did.
     public mutating func addForwardWhenConnected(_ typed: String) -> Bool {
-        guard let saved = forwardToAdd(typed) else { return false }
+        guard case .new(let saved) = typedPort(typed) else { return false }
         forwards.append(saved)
         return true
     }
+}
+
+/// The machine sheet's add field, as `MachineOptions.typedPort` reads it.
+public enum TypedPort: Equatable, Sendable {
+    case empty
+    /// Not a port number (1–65535).
+    case notAPort
+    /// A port the machine forwards already.
+    case kept
+    case new(SavedForward)
 }

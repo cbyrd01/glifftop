@@ -22,8 +22,9 @@ struct EditMachineView: View {
     @State private var refused: (host: String, message: String)?
     /// The sheet's own list of the host's monitors: the session's (View ▸ Screen) is left alone.
     @State private var screenList = ScreenList()
-    /// A port typed in the options and not added yet: Return adds it rather than saving.
-    @State private var pendingEntry = false
+    /// A port typed in the options and not added yet: Return adds it rather than saving, and
+    /// Save keeps it, or waits while it is no port.
+    @State private var pendingPort = ""
 
     private enum Field { case name, host }
 
@@ -62,16 +63,18 @@ struct EditMachineView: View {
                     options: $machine.options, screenList: screenList, host: machine.destination,
                     getScreens: { screenList.list(host: committed().destination) }, showsPorts: true)
             }
-            .onPreferenceChange(PendingEntryKey.self) { pendingEntry = $0 }
+            .onPreferenceChange(PendingEntryKey.self) { pendingPort = $0 }
             HStack {
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 if isNew {
                     Button("Connect") { if let saved = save() { connect(saved) } }
+                        .disabled(!canSave)
                 }
                 Button("Save") { _ = save() }
-                    .defaultAction(unless: pendingEntry)
+                    .defaultAction(unless: !pendingPort.isEmpty)
+                    .disabled(!canSave)
             }
         }
         .padding(20)
@@ -114,10 +117,15 @@ struct EditMachineView: View {
         return machine
     }
 
-    /// Keeps the machine if its host is a valid ssh destination (an empty name becomes the
-    /// host), and closes the sheet; else says why.
+    /// Whether Save can keep the port still typed, if any.
+    private var canSave: Bool { machine.options.keeping(typed: pendingPort) != nil }
+
+    /// Keeps the machine, with a port still typed, if its host is a valid ssh destination (an
+    /// empty name becomes the host), and closes the sheet; else says why.
     private func save() -> Machine? {
         var saved = committed()
+        guard let options = saved.options.keeping(typed: pendingPort) else { return nil }
+        saved.options = options
         do throws(SSHTargetError) {
             saved.destination = try SSHTarget(saved.destination).value
         } catch {
