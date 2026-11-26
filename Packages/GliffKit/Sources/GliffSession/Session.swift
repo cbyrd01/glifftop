@@ -138,10 +138,11 @@ public actor Session {
     /// Queues input for the server, in order, from any thread. A key or button press, motion
     /// and scrolling go only while streaming and not interrupted; a release or a scroll's stop
     /// only if what it ends went (`InputGate`); a keymap always. Nothing is kept once the session has ended.
-    /// Within `barrier`'s wait after another session's modifier release, everything queued waits.
+    /// Within `barrier`'s wait after another session's modifier release, what is sent waits; what
+    /// was queued before it goes as it would.
     public nonisolated func send(_ input: InputMessage) {
         if let wait = barrier?.wait(before: input, from: inputSender, goesAfter: inputs.delay(holding:)) {
-            inputs.hold(for: wait)
+            inputs.holdWhatFollows(for: wait)
         }
         inputs.append(input)
     }

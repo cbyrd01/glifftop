@@ -17,7 +17,8 @@ public enum CaptureEvent: Sendable, Equatable {
     case interrupted(Bool)
     /// Shift+Esc, or Input ▸ Release Input: keys and pointer go back to the Mac.
     case release
-    /// A click on the picture takes input back after a release.
+    /// A click on the view takes input back after a release: an entry only if the last
+    /// `.pointerOnPicture` has the pointer on the picture.
     case pictureClicked
     /// The Mac is going to sleep, or the screen locked: let go of everything held, without
     /// changing capture (the window stays key, so capture returns on its own). It frees a
@@ -62,11 +63,14 @@ public struct InputCapture: Sendable {
     private var interrupted = false
     private var menuOpen = false
     private var released = false
-    /// The last `.pointerOnPicture`, or a recapturing click; each fall of capture, `.away`, a
-    /// new picture and a change of mode make it false, so confinement needs a new entry. The
-    /// app reports the pointer's
-    /// place again after each of those, not only when its own last report changes.
+    /// The last `.pointerOnPicture`, or a recapturing click on the picture; each fall of
+    /// capture, `.away`, a new picture and a change of mode make it false, so confinement needs a
+    /// new entry. The app reports the pointer's place again after each of those, not only when
+    /// its own last report changes.
     private var pointerOnPicture = false
+    /// The last `.pointerOnPicture` as reported: where the pointer is, which nothing else
+    /// changes. The app reports it for each click, just before the click.
+    private var pointerOver = false
     /// Capture would have risen while a menu held it off: its close is an activation.
     private var roseUnderMenu = false
     /// The modes whose hint has shown for this picture since the last release; each mode's hint
@@ -117,18 +121,20 @@ public struct InputCapture: Sendable {
             released = true
             hintsShown.removeAll()
         // Only when nothing else holds capture off (`clickRecaptures`).
-        // The click is on the picture: an entry.
+        // A click on the picture is an entry; one beside it (the bars of a wider window) isn't.
         case .pictureClicked:
             if conditionsHold {
                 released = false
-                pointerOnPicture = true
+                pointerOnPicture = pointerOver
             }
         case .away: pointerOnPicture = false
         case .menuOpen(let open):
             // A new menu session, not a submenu's report within one.
             if open, !menuOpen { roseUnderMenu = false }
             menuOpen = open
-        case .pointerOnPicture(let on): pointerOnPicture = on
+        case .pointerOnPicture(let on):
+            pointerOnPicture = on
+            pointerOver = on
         case .mode(let new):
             if new != mode { pointerOnPicture = false }
             mode = new

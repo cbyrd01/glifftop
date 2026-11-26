@@ -42,11 +42,15 @@ the feature seam.
   one session's next key before another's modifier release. `InputBarrier` (one for the app,
   handed to each `Session`) keeps the last modifier key release (the eight evdev codes of
   `MacKeyTranslator.modifierCodes`): for `InputBarrier.gap` (30 ms) after it goes, another
-  session's input waits, the queue held (`InputQueue.hold(for:)`) with everything in order
-  until then. A release that waits counts from when it leaves its queue: after the barrier's
-  wait, its queue's hold and any activation's pause still queued (`InputQueue.delay`). Sessions are told apart by an
-  `InputBarrier.Sender` each, never reused. The queue keeps one timer per hold, sleeping on
-  to the hold's latest end. `disconnect()` sends a held queue anyway, before Bye.
+  session's input waits: a hold queued in front of it (`InputQueue.holdWhatFollows(for:)`,
+  `Queued.until`) keeps it and what follows until then. What that session queued before the
+  hold goes as it would: another session's wait counted on it, and holding it back would let
+  that session's input overtake it, an activation's motions and keys included. A release that
+  waits counts
+  from when it leaves its queue: after the barrier's wait and whatever is queued in front of it,
+  each hold and activation pause in turn (`InputQueue.delay`). Sessions are told apart by an
+  `InputBarrier.Sender` each, never reused. A hold or pause starts its timer once reached, one
+  at a time. `disconnect()` sends a held queue anyway, before Bye.
   `InputBarrier`, `InputQueue` and `ReconnectMemory` time themselves with `Clock.stopwatch()`
   (`Stopwatch.swift`).
   - The barrier is app-wide: a tab to another host can wait 30 ms too, which no one sees.

@@ -98,10 +98,12 @@
         /// The host's side of a tab switch by keys, as a tab chord's keys come: ⇧⌘ held on the
         /// screen in front, its window resigning, the other activated at the Mac pointer's place
         /// over its terminal, then that screen's ⇧ and ⌘ let go and a U typed at once; five
-        /// times each way. Each terminal counts the keys it got: every U lands, and only in the
-        /// screen in front. Each host pointer starts over its screen's bar, where an activation
-        /// at the host's own place leaves the focus behind. (Finding the Mac pointer at a switch
-        /// is the app's: a hand check.)
+        /// times each way. Then, after 1.5 s idle, five round trips at once, E typed into A and U
+        /// into B: each switch's barrier wait and activation pause must keep the other session's
+        /// queued input in front of it. Each terminal shows the keys it got: every key lands,
+        /// in order, and only in the screen in front. Each host pointer starts over its screen's
+        /// bar, where an activation at the host's own place leaves the focus behind. (Finding the
+        /// Mac pointer at a switch is the app's: a hand check.)
         @Test func aSwitchByKeysTypesEveryKeyIntoTheScreenInFront() async throws {
             let barrier = InputBarrier(clock: ContinuousClock())
             try await LiveScreens.with(2, barrier: barrier, terminals: false) { screens in
@@ -119,30 +121,37 @@
                 try await LiveScreens.nap(0.3)
                 var focused = 0
                 let chord = LiveScreens.superHeld.union(LiveScreens.shiftHeld)
-                for round in 0..<10 {
-                    let (from, to) = round.isMultiple(of: 2) ? (b, a) : (a, b)
+                func switchKeys(from: LiveFocusScreen, to: LiveFocusScreen, typing key: UInt16) throws {
                     from.key(LiveScreens.superKey, .flagsChanged, flags: LiveScreens.superHeld)
                     from.key(LiveScreens.shiftKey, .flagsChanged, flags: chord)
                     from.capture(.windowKey(false))
                     try to.activate(macPointer: overTerminal)
                     to.key(LiveScreens.shiftKey, .flagsChanged, flags: LiveScreens.superHeld)
                     to.key(LiveScreens.superKey, .flagsChanged)
-                    to.key(LiveScreens.uKey, .down(isRepeat: false))
-                    to.key(LiveScreens.uKey, .up)
+                    to.key(key, .down(isRepeat: false))
+                    to.key(key, .up)
+                }
+                for round in 0..<10 {
+                    let (from, to) = round.isMultiple(of: 2) ? (b, a) : (a, b)
+                    try switchKeys(from: from, to: to, typing: LiveScreens.uKey)
                     try await LiveScreens.nap(0.4)
                     let active = try LiveHyprland.activeWindow()
                     if let active, to.opened.withLock({ $0.contains(active) }) { focused += 1 }
                 }
-                try await LiveScreens.nap(0.5)
-                let inA = try LiveHyprland.counted(at: counterA)
-                let inB = try LiveHyprland.counted(at: counterB)
+                try await LiveScreens.nap(1.5)
+                for _ in 0..<5 {
+                    try switchKeys(from: b, to: a, typing: LiveScreens.eKey)
+                    try switchKeys(from: a, to: b, typing: LiveScreens.uKey)
+                }
+                try await LiveScreens.nap(2)
+                let inA = try LiveHyprland.typed(at: counterA)
+                let inB = try LiveHyprland.typed(at: counterB)
                 Attachment.record(
-                    "focus on the screen in front \(focused) of 10; keys in A "
-                        + "\(inA.map(String.init) ?? "none") of 5, in B \(inB.map(String.init) ?? "none") of 5",
+                    "focus on the screen in front \(focused) of 10; A got \(inA ?? "none"), B got \(inB ?? "none")",
                     named: "live-focus-switch.txt")
                 #expect(focused == 10)
-                #expect(inA == 5)
-                #expect(inB == 5)
+                #expect(inA == "uuuuueeeee")
+                #expect(inB == "uuuuuuuuuu")
             }
         }
 

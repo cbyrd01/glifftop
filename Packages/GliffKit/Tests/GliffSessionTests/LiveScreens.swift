@@ -16,9 +16,10 @@
         /// Left Shift, and the flags it holds.
         static let shiftKey: UInt16 = 56
         static let shiftHeld: MacModifierFlags = [.shift, .leftShift]
-        /// Mac key codes: U (no binding of the host's has it), Return, and the digits 1, 2
+        /// Mac key codes: U (no binding of the host's has it), E, Return, and the digits 1, 2
         /// and 3.
         static let uKey: UInt16 = 32
+        static let eKey: UInt16 = 14
         static let returnKey: UInt16 = 36
         static let one: UInt16 = 18
         static let two: UInt16 = 19

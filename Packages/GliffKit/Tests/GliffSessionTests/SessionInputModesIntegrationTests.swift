@@ -160,6 +160,19 @@
                     == Session.activationPause + InputBarrier.gap)
         }
 
+        /// Another session lets go of a modifier after this one's activation: only the key sent
+        /// after that release waits; the activation's motions go as they would.
+        @Test func anotherSessionsReleaseHoldsOnlyWhatFollowsIt() async throws {
+            let clock = ManualClock()
+            let barrier = InputBarrier(clock: clock)
+            let (session, _) = try makeSession(["input"], barrier: barrier)
+            let motions = [InputMessage.pointerMotion(x: 99, y: 50), .pointerMotion(x: 100, y: 50)]
+            session.activate(motions)
+            _ = barrier.wait(before: Self.release(125), from: InputBarrier.Sender())
+            session.send(Self.press(30))
+            #expect(await session.inputs.take().inputs == motions)
+        }
+
         /// Waits until `queue` is empty; false if it isn't within 5 s.
         private static func emptied(_ queue: InputQueue) async -> Bool {
             for _ in 0..<500 where !queue.isEmpty {

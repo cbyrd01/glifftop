@@ -229,8 +229,9 @@ This file wins over any skill, including a skill's "supersedes prior training" c
   - It opens two virtual screens on one master, with a terminal on each (closed by address at
     the end): activation moves the host's focus to the screen in front, the host's pointer
     matches `hyprctl cursorpos`, and Super held on one screen types no digit on the other.
-  - It switches between two screens by a tab chord's keys, typing U at once after each switch
-    into a terminal that counts its keys in its title: every key lands on the screen in front.
+  - It switches between two screens by a tab chord's keys, typing a letter at once after each
+    switch into a terminal that shows its keys in its title, paced and then in one burst after
+    an idle gap: every key lands, in order, on the screen in front.
   - Capture's checks: the server's rounding and clamp of a motion match `VirtualPointer`'s, a
     workspace change's warp is followed, a ⌘-scroll holds Super, and 50 Super taps on one
     screen, each followed at once by a digit on the other, never change the other's

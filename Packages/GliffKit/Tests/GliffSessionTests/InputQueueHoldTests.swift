@@ -4,7 +4,7 @@ import Testing
 
 @testable import GliffSession
 
-/// `InputQueue.hold(for:)`: the barrier's wait, on a clock the test moves.
+/// `InputQueue.holdWhatFollows(for:)`: the barrier's wait, on a clock the test moves.
 @Suite struct InputQueueHoldTests {
     private let clock = ManualClock()
     private let key = InputMessage.key(code: 30, pressed: true)
@@ -12,7 +12,7 @@ import Testing
 
     @Test func aHoldKeepsEverythingInOrder() async {
         let queue = InputQueue(clock: clock)
-        queue.hold(for: .milliseconds(30))
+        queue.holdWhatFollows(for: .milliseconds(30))
         queue.append(key)
         queue.append(.clipboard(.revoke(sendEmpty: false)))
         queue.append(release)
@@ -25,9 +25,22 @@ import Testing
         #expect(queue.take().inputs == [release])
     }
 
+    /// What was queued before a hold goes as it would: the hold keeps only what follows it.
+    @Test func aHoldKeepsOnlyWhatFollowsIt() async {
+        let queue = InputQueue(clock: clock)
+        queue.append(key)
+        queue.holdWhatFollows(for: .milliseconds(30))
+        queue.append(release)
+        #expect(queue.take().inputs == [key])
+        #expect(queue.take().inputs.isEmpty)
+        #expect(await clock.waitForSleepers(1))
+        clock.advance(by: .milliseconds(30))
+        #expect(queue.take().inputs == [release])
+    }
+
     @Test func theEndOfAHoldWakesTheDrain() async {
         let queue = InputQueue(clock: clock)
-        queue.hold(for: .milliseconds(30))
+        queue.holdWhatFollows(for: .milliseconds(30))
         var wakeups = queue.wakeups.makeAsyncIterator()
         queue.append(key)
         await wakeups.next()
@@ -38,12 +51,13 @@ import Testing
         #expect(queue.take().inputs == [key])
     }
 
-    /// Two holds, either way round: the longer one keeps the queue.
+    /// Two holds, either way round: the longer one keeps what follows both.
     @Test(arguments: [(10, 30), (30, 10)]) func theLongerHoldWins(_ first: Int, _ second: Int) async {
         let queue = InputQueue(clock: clock)
-        queue.hold(for: .milliseconds(first))
-        queue.hold(for: .milliseconds(second))
+        queue.holdWhatFollows(for: .milliseconds(first))
+        queue.holdWhatFollows(for: .milliseconds(second))
         queue.append(key)
+        #expect(queue.take().inputs.isEmpty)
         #expect(await clock.waitForSleepers(1))
         clock.advance(by: .milliseconds(10))
         #expect(queue.take().inputs.isEmpty)
@@ -51,29 +65,17 @@ import Testing
         #expect(queue.take().inputs == [key])
     }
 
-    /// Holds that end at the same time, or sooner, keep the one timer.
+    /// A hold starts its timer once reached; holds behind it that end no later start none.
     @Test func aHoldNoLongerStartsNoTimer() async {
         let queue = InputQueue(clock: clock)
-        queue.hold(for: .milliseconds(30))
-        #expect(await clock.waitForSleepers(1))
-        queue.hold(for: .milliseconds(20))
-        queue.hold(for: .milliseconds(30))
-        #expect(queue.timersStarted == 1)
-    }
-
-    /// A longer hold moves the end; the timer sleeps on to it.
-    @Test func aLongerHoldKeepsTheTimer() async {
-        let queue = InputQueue(clock: clock)
-        var wakeups = queue.wakeups.makeAsyncIterator()
-        queue.hold(for: .milliseconds(10))
-        queue.hold(for: .milliseconds(30))
+        queue.holdWhatFollows(for: .milliseconds(30))
+        queue.holdWhatFollows(for: .milliseconds(20))
+        queue.holdWhatFollows(for: .milliseconds(30))
         queue.append(key)
-        await wakeups.next()
+        #expect(queue.timersStarted == 0)
+        #expect(queue.take().inputs.isEmpty)
         #expect(await clock.waitForSleepers(1))
-        clock.advance(by: .milliseconds(10))
-        #expect(await clock.waitForSleepers(1))
-        clock.advance(by: .milliseconds(20))
-        await wakeups.next()
+        clock.advance(by: .milliseconds(30))
         #expect(queue.take().inputs == [key])
         #expect(queue.timersStarted == 1)
     }
@@ -97,10 +99,11 @@ import Testing
     @Test func aPauseBehindAHoldStartsAfterIt() async {
         let queue = InputQueue(clock: clock)
         let motion = InputMessage.pointerMotion(x: 1, y: 2)
-        queue.hold(for: .milliseconds(30))
+        queue.holdWhatFollows(for: .milliseconds(30))
         queue.append(motion)
         queue.append(.pause(.milliseconds(50)))
         queue.append(key)
+        #expect(queue.take().inputs.isEmpty)
         #expect(await clock.waitForSleepers(1))
         clock.advance(by: .milliseconds(30))
         #expect(queue.take().inputs == [motion])
@@ -110,15 +113,16 @@ import Testing
         #expect(queue.take().inputs == [key])
     }
 
-    /// How long what is appended now waits: until the hold's end or the barrier's wait,
-    /// whichever is later, then every pause still queued.
+    /// How long what is appended now waits: until what is queued before it has gone, its holds
+    /// and pauses in turn, or the barrier's wait, whichever is later.
     @Test func theDelayCountsTheHoldAndThePausesQueued() {
         let queue = InputQueue(clock: clock)
         #expect(queue.delay(holding: .milliseconds(5)) == .milliseconds(5))
-        queue.hold(for: .milliseconds(30))
+        queue.holdWhatFollows(for: .milliseconds(30))
         queue.append(.pause(.milliseconds(50)))
         #expect(queue.delay(holding: .zero) == .milliseconds(80))
-        #expect(queue.delay(holding: .milliseconds(40)) == .milliseconds(90))
+        #expect(queue.delay(holding: .milliseconds(40)) == .milliseconds(80))
+        #expect(queue.delay(holding: .milliseconds(90)) == .milliseconds(90))
         clock.advance(by: .milliseconds(30))
         _ = queue.take()
         #expect(queue.delay(holding: .zero) == .milliseconds(50))
@@ -134,7 +138,7 @@ import Testing
     /// Judging what is held: inputs kept or dropped in place, a clipboard command kept.
     @Test func heldInputCanBeJudged() {
         let queue = InputQueue(clock: clock)
-        queue.hold(for: .milliseconds(30))
+        queue.holdWhatFollows(for: .milliseconds(30))
         queue.append(key)
         queue.append(.keymap("k"))
         queue.append(.clipboard(.revoke(sendEmpty: false)))
@@ -147,7 +151,7 @@ import Testing
     /// after the ones before it.
     @Test func eachInputIsJudgedOnceInOrder() {
         let queue = InputQueue(clock: clock)
-        queue.hold(for: .milliseconds(30))
+        queue.holdWhatFollows(for: .milliseconds(30))
         queue.append(key)
         queue.append(.clipboard(.revoke(sendEmpty: false)))
         queue.append(release)
@@ -161,14 +165,14 @@ import Testing
 
     @Test func takeAllIgnoresAHold() {
         let queue = InputQueue(clock: clock)
-        queue.hold(for: .milliseconds(30))
+        queue.holdWhatFollows(for: .milliseconds(30))
         queue.append(key)
         #expect(queue.takeAll() == [key])
     }
 
     @Test func closeDropsWhatIsHeld() async {
         let queue = InputQueue(clock: clock)
-        queue.hold(for: .milliseconds(30))
+        queue.holdWhatFollows(for: .milliseconds(30))
         queue.append(key)
         queue.close()
         #expect(await clock.waitForSleepers(0))
