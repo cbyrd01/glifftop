@@ -20,6 +20,9 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   into a `ConnectFailure` with a plain-language `message` (for a changed host key, with the
   key ssh printed; the `ssh-keygen -R` name of the old key comes from the person's ssh config,
   never from that text, which a host can write).
+- **Host text:** `HostText.isHidden` is what text from a host never shows as it came: control
+  and format characters and line and paragraph breaks. ssh's lines, sign-in questions and
+  GliffFiles' names all follow it.
 - **Sign-in questions:** `SignInQuestion` (an unknown host key, a passphrase or PIN, a
   password, the host's own question, a notice) and `SignInAnswer` are the same whichever ssh
   asks them; a `SignInAsker` (the app's window) answers. A `SignInSecret` holds a typed secret

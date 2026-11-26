@@ -71,17 +71,12 @@ public enum SSHErrorClassifier {
     /// Longest remote line shown to the person.
     static let maxShownLength = 200
 
-    /// What remote text never shows: control and format characters, line and paragraph breaks.
-    static let hidden: Set<Unicode.GeneralCategory> = [
-        .control, .format, .lineSeparator, .paragraphSeparator,
-    ]
-
     /// Remote text as it may be shown: no control characters (escape codes), format characters
     /// (bidi overrides) or line breaks, at most `maxShownLength` Unicode scalars (a Character
     /// can hold any number of combining marks). Also used for the server's own Error messages
     /// and the host's monitor descriptions.
     public static func displayable(_ line: some StringProtocol) -> String {
-        let kept = line.unicodeScalars.filter { !hidden.contains($0.properties.generalCategory) }
+        let kept = line.unicodeScalars.filter { !HostText.isHidden($0) }
         var clean = String.UnicodeScalarView()
         clean.append(contentsOf: kept.prefix(maxShownLength))
         return String(clean) + (kept.count > maxShownLength ? "…" : "")

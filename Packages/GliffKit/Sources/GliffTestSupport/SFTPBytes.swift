@@ -30,9 +30,14 @@ public enum SFTPBytes {
         packet(103, u32(id) + string(bytes))
     }
 
-    /// ATTRS with no fields.
-    public static func attributes(_ id: UInt32) -> [UInt8] {
-        packet(105, u32(id) + u32(0))
+    /// ATTRS with no fields, or with only the permissions `mode`.
+    public static func attributes(_ id: UInt32, mode: UInt32? = nil) -> [UInt8] {
+        packet(105, u32(id) + attributeFields(mode: mode))
+    }
+
+    /// The attribute fields: none, or only the permissions `mode`.
+    public static func attributeFields(mode: UInt32?) -> [UInt8] {
+        mode.map { u32(0x4) + u32($0) } ?? u32(0)
     }
 
     /// NAME: each entry already laid out as a name, a long name and attributes.

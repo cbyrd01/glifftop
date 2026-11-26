@@ -10,7 +10,7 @@ extension SignInQuestion {
         var shown = String.UnicodeScalarView()
         var bytes = 0
         for scalar in text.unicodeScalars
-        where scalar == "\n" || !SSHErrorClassifier.hidden.contains(scalar.properties.generalCategory) {
+        where scalar == "\n" || !HostText.isHidden(scalar) {
             bytes += UTF8.width(scalar)
             guard bytes <= hostTextLimit else { return String(shown) + "…" }
             shown.append(scalar)
