@@ -38,8 +38,8 @@ final class MemoryLedgerStore: LedgerStore {
 
         let second = TemporaryLedger(store: store)
         #expect(await second.localLeftovers() == ["/Users/person/Downloads/.b.glifftop-0000beef"])
-        #expect(await second.remoteLeftovers(for: "omarchy") == [Self.upload])
-        #expect(await second.remoteLeftovers(for: "other").isEmpty)
+        #expect(await second.remoteEntries(for: "omarchy") == [Self.upload])
+        #expect(await second.remoteEntries(for: "other").isEmpty)
     }
 
     @Test func aForgottenEntryIsGone() async throws {
@@ -48,14 +48,14 @@ final class MemoryLedgerStore: LedgerStore {
         try await ledger.record(Self.upload)
         await ledger.forget(Self.upload)
         #expect(store.load().isEmpty)
-        #expect(await TemporaryLedger(store: store).remoteLeftovers(for: "omarchy").isEmpty)
+        #expect(await TemporaryLedger(store: store).remoteEntries(for: "omarchy").isEmpty)
     }
 
     /// A name the ledger can't keep isn't made.
     @Test func aRecordThatCantBeSavedIsRefused() async {
         let ledger = TemporaryLedger(store: MemoryLedgerStore(refuses: true))
         await #expect(throws: FilesError.local(.noSpace)) { try await ledger.record(Self.upload) }
-        #expect(await ledger.remoteLeftovers(for: "omarchy").isEmpty)
+        #expect(await ledger.remoteEntries(for: "omarchy").isEmpty)
     }
 
     /// A temporary a batch records while the app runs is that batch's, never a leftover.
@@ -65,11 +65,9 @@ final class MemoryLedgerStore: LedgerStore {
         let file = try folder.file(".report.pdf.glifftop-0000abcd", "partial")
         let ledger = TemporaryLedger(store: MemoryLedgerStore())
         try await ledger.record(.local(path: file.path(percentEncoded: false)))
-        try await ledger.record(Self.upload)
         await ledger.removeLocalLeftovers()
         #expect(FileManager.default.fileExists(atPath: file.path(percentEncoded: false)))
         #expect(await ledger.localLeftovers().isEmpty)
-        #expect(await ledger.remoteLeftovers(for: "omarchy").isEmpty)
     }
 
     /// A temporary on a volume that isn't mounted is kept for a later launch.

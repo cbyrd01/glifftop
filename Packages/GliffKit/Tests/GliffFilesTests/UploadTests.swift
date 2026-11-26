@@ -30,7 +30,7 @@
         ) async throws -> TransferProgress {
             defer { source.remove() }
             let plan = try UploadPlan.upload(names.map { source.url.appending(path: $0) }, to: target)
-            let progress = TransferProgress(plan)
+            let progress = TransferProgress.begun(plan)
             let connection = try await ProcessTransport(
                 executable: URL(filePath: "/usr/libexec/sftp-server"), arguments: []
             ).connect()
@@ -41,7 +41,7 @@
                 progress: progress, clash: clash)
             let running = Task { try await upload.run(plan) }
             await during(progress) { running.cancel() }
-            let result = await running.result
+            let result = try await running.resultWithin()
             await session.close()
             try result.get()
             return progress

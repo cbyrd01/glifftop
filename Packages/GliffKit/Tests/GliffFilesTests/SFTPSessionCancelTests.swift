@@ -17,7 +17,7 @@ import Testing
         let open = Task { try await session.open([0x2F, 0x78], flags: .read) }
         #expect(await peer.waitForRequests(1))
         open.cancel()
-        await #expect(throws: FilesError.cancelled) { try await open.value }
+        await #expect(throws: FilesError.cancelled) { try await open.valueWithin() }
         let id = try #require(peer.requests.last?.id)
         peer.send(B.handle(id, [7, 7]))
         #expect(
@@ -33,7 +33,7 @@ import Testing
             withUnsafeCurrentTask { $0?.cancel() }
             try await session.close(handle: [3])
         }
-        try await close.value
+        try await close.valueWithin()
         #expect(peer.requests.contains { $0.type == .close })
     }
 
@@ -44,7 +44,7 @@ import Testing
             withUnsafeCurrentTask { $0?.cancel() }
             return try await SFTPSession.start(over: peer, clock: clock)
         }
-        await #expect(throws: FilesError.cancelled) { try await started.value }
+        await #expect(throws: FilesError.cancelled) { try await started.valueWithin() }
         #expect(peer.requests.isEmpty)
     }
 
@@ -54,7 +54,7 @@ import Testing
         let started = Task { [clock] in try await SFTPSession.start(over: peer, clock: clock) }
         #expect(await eventually { peer.requests.count == 1 })
         started.cancel()
-        await #expect(throws: FilesError.cancelled) { try await started.value }
+        await #expect(throws: FilesError.cancelled) { try await started.valueWithin() }
     }
 
     /// A cancelled request whose reply never comes still ends the session after 60 s.
@@ -64,7 +64,7 @@ import Testing
         let read = Task { try await session.read(handle: [1], offset: 0, length: 4) }
         #expect(await clock.waitForSleepers(1))
         read.cancel()
-        await #expect(throws: FilesError.cancelled) { try await read.value }
+        await #expect(throws: FilesError.cancelled) { try await read.valueWithin() }
         clock.advance(by: .seconds(60))
         #expect(await eventually { peer.isClosed })
     }
@@ -80,7 +80,7 @@ import Testing
         #expect(clock.sleeperCount == 0)
         clock.advance(by: .seconds(61))
         gate.release()
-        try await removed.value
+        try await removed.valueWithin()
         #expect(!peer.isClosed)
     }
 
@@ -99,9 +99,9 @@ import Testing
         clock.advance(by: .seconds(61))
         defer { gate.release() }
         try #require(await eventually { peer.isClosed })
-        await #expect(throws: FilesError.timedOut) { try await second.value }
+        await #expect(throws: FilesError.timedOut) { try await second.valueWithin() }
         gate.release()
-        await #expect(throws: FilesError.timedOut) { try await first.value }
+        await #expect(throws: FilesError.timedOut) { try await first.valueWithin() }
         #expect(clock.sleeperCount == 0)
     }
 
@@ -121,8 +121,8 @@ import Testing
         clock.advance(by: .seconds(21))
         defer { clock.advance(by: .seconds(60)) }
         try #require(await eventually { peer.isClosed })
-        await #expect(throws: FilesError.timedOut) { try await second.value }
-        await #expect(throws: FilesError.timedOut) { try await first.value }
+        await #expect(throws: FilesError.timedOut) { try await second.valueWithin() }
+        await #expect(throws: FilesError.timedOut) { try await first.valueWithin() }
     }
 
     /// Any reply of the wrong kind breaks the session, its request abandoned or not; a HANDLE

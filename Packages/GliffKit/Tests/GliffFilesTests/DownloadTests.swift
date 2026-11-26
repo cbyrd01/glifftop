@@ -36,13 +36,13 @@
             let session = try await SFTPSession.start(over: connection)
             let plan = try await DownloadPlan.download(names.map(path), on: session, to: destination.url)
             try beforeRun()
-            let progress = TransferProgress(plan)
+            let progress = TransferProgress.begun(plan)
             let download = Download(
                 session: session, ledger: TemporaryLedger(store: store), pipeline: Pipeline(),
                 progress: progress)
             let running = Task { try await download.run(plan) }
             await during(progress) { running.cancel() }
-            let result = await running.result
+            let result = try await running.resultWithin()
             await session.close()
             try result.get()
             return progress

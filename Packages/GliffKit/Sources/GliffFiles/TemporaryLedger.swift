@@ -21,7 +21,8 @@ public protocol LedgerStore: Sendable {
 public actor TemporaryLedger {
     private let store: any LedgerStore
     private var entries: [LedgerEntry]
-    /// What was recorded before this launch: the leftovers. A batch running now owns the rest.
+    /// What was recorded before this launch: this Mac's leftovers. A batch running now owns the
+    /// rest.
     private let earlier: Set<LedgerEntry>
 
     public init(store: any LedgerStore) {
@@ -41,10 +42,13 @@ public actor TemporaryLedger {
     }
 
     /// Forgets `entry` once it is renamed in or removed.
-    public func forget(_ entry: LedgerEntry) {
-        guard let index = entries.firstIndex(of: entry) else { return }
-        entries.remove(at: index)
-        try? store.save(entries)
+    public func forget(_ entry: LedgerEntry) { forget(all: [entry]) }
+
+    /// Forgets each of `gone`, saving once.
+    public func forget(all gone: Set<LedgerEntry>) {
+        let count = entries.count
+        entries.removeAll { gone.contains($0) }
+        if entries.count != count { try? store.save(entries) }
     }
 
     /// This Mac's temporaries recorded before this launch and not yet forgotten.
@@ -52,9 +56,10 @@ public actor TemporaryLedger {
         entries.compactMap { if case .local(let path) = $0, earlier.contains($0) { path } else { nil } }
     }
 
-    /// `host`'s temporaries recorded before this launch and not yet forgotten.
-    public func remoteLeftovers(for host: String) -> [LedgerEntry] {
-        entries.filter { if case .remote(host, _, _) = $0 { earlier.contains($0) } else { false } }
+    /// Every temporary recorded for `host` and not yet forgotten. A host's batches run one at a
+    /// time, so outside a running try each is a leftover.
+    public func remoteEntries(for host: String) -> [LedgerEntry] {
+        entries.filter { if case .remote(host, _, _) = $0 { true } else { false } }
     }
 
     /// Removes each recorded local temporary (a folder with what the batch put in it; a link

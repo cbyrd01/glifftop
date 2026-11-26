@@ -1,4 +1,5 @@
 import Foundation
+import GliffTestSupport
 import Testing
 
 @testable import GliffFiles
@@ -9,6 +10,21 @@ import Testing
     @Test func theScriptIsOneLineWithoutQuoteOrBang() {
         let script = HostFoldersCommand.script
         #expect(!script.contains("'") && !script.contains("!") && !script.contains("\n"))
+    }
+
+    @Test func theCommandRunsTheScriptUnderSh() {
+        #expect(HostFoldersCommand.remoteCommand == "sh -c '\(HostFoldersCommand.script)'")
+    }
+
+    /// A command that stops mid-output, as a login shell waiting on something does, gives up.
+    @Test func aStalledCommandGivesNoOutput() async throws {
+        let stalled = PeerTransport {
+            let peer = ScriptedSFTPPeer(version: nil)
+            peer.send(Array("HOME\t/home/person\u{0}".utf8))
+            return peer
+        }
+        let reading = Task { await HostFoldersCommand.output(of: stalled, limit: .milliseconds(50)) }
+        #expect(try await reading.valueWithin() == nil)
     }
 
     @Test func eachKeyIsRead() {

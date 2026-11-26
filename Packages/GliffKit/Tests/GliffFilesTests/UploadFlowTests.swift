@@ -22,7 +22,7 @@ import Testing
         let session = try await SFTPSession.start(over: peer.connection)
         let upload = Upload(
             session: session, host: "omarchy", ledger: TemporaryLedger(store: store), pipeline: pipeline,
-            progress: TransferProgress(plan), clash: .keepBoth)
+            progress: TransferProgress.begun(plan), clash: .keepBoth)
         return (Task { try await upload.run(plan) }, session)
     }
 
@@ -35,7 +35,7 @@ import Testing
         chmod(try source.file("secret.txt", "x").path(percentEncoded: false), 0o600)
         let peer = UploadPeer()
         let (task, session) = try await start(peer, ["secret.txt"])
-        try await task.value
+        try await task.valueWithin()
         await session.close()
         let open = try #require(peer.connection.requests.first { $0.type == .open })
         #expect(try UploadPeer.openAttributes(open).permissions == 0o600)
@@ -57,7 +57,7 @@ import Testing
         let (task, session) = try await start(peer, ["big.bin"])
         #expect(await eventually { peer.held.count == 64 })
         task.cancel()
-        await #expect(throws: FilesError.cancelled) { try await task.value }
+        await #expect(throws: FilesError.cancelled) { try await task.valueWithin() }
         #expect(peer.writes.count == 64)
         let types = peer.connection.requests.compactMap(\.type)
         #expect(types.suffix(2) == [.close, .remove])
@@ -78,12 +78,13 @@ import Testing
         let (task, session) = try await start(peer, ["mix"])
         // The held writes are never answered: the batch must end without them.
         let ended = Mutex(false)
+        // Bounded by `eventually` below; a task left waiting doesn't hold the run.
         Task {
             _ = await task.result
             ended.withLock { $0 = true }
         }
         #expect(await eventually { ended.withLock { $0 } })
-        await #expect(throws: FilesError.permissionDenied) { try await task.value }
+        await #expect(throws: FilesError.permissionDenied) { try await task.valueWithin() }
         #expect(peer.writes.count <= 64)
         await session.close()
     }
@@ -94,7 +95,7 @@ import Testing
         try source.file("report.pdf", "x")
         let peer = UploadPeer(refusing: ".glifftop-", code: 4)
         let (task, session) = try await start(peer, ["report.pdf"])
-        await #expect(throws: FilesError.failure) { try await task.value }
+        await #expect(throws: FilesError.failure) { try await task.valueWithin() }
         await session.close()
         #expect(!peer.connection.requests.contains { $0.type == .remove })
         #expect(store.load().isEmpty)
@@ -109,7 +110,7 @@ import Testing
         #expect(mkfifo(file.path(percentEncoded: false), 0o644) == 0)
         let peer = UploadPeer()
         let session = try await SFTPSession.start(over: peer.connection)
-        let progress = TransferProgress(plan)
+        let progress = TransferProgress.begun(plan)
         try await Upload(
             session: session, host: "omarchy", ledger: TemporaryLedger(store: store), pipeline: Pipeline(),
             progress: progress, clash: .keepBoth
@@ -125,7 +126,7 @@ import Testing
         try source.file("a.bin", String(repeating: "x", count: 10_000))
         let peer = UploadPeer(space: 4_096)
         let (task, session) = try await start(peer, ["a.bin"])
-        await #expect(throws: FilesError.noSpace) { try await task.value }
+        await #expect(throws: FilesError.noSpace) { try await task.valueWithin() }
         await session.close()
         #expect(!peer.connection.requests.contains { $0.type == .open || $0.type == .mkdir })
     }
@@ -141,7 +142,7 @@ import Testing
         #expect(peer.openNow == 8 && peer.held.count == 8)
         peer.holdWrites(false)
         peer.answerHeld()
-        try await task.value
+        try await task.valueWithin()
         await session.close()
         #expect(peer.mostOpen == 8)
         #expect(peer.writes.count == 20)
@@ -163,7 +164,7 @@ import Testing
         #expect(peer.held.count == 8)
         peer.holdWrites(false)
         peer.answerHeld()
-        try await task.value
+        try await task.valueWithin()
         await session.close()
         #expect(peer.writes.count == 128)
     }

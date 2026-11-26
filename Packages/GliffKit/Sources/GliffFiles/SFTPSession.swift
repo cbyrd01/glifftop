@@ -90,6 +90,9 @@ public actor SFTPSession {
     /// it: the reader holds the session until the stream ends.
     public func close() async { await end(.ended) }
 
+    /// Whether the session has ended: every call now fails.
+    public var isEnded: Bool { ending != nil }
+
     // MARK: Requests
 
     /// Sends `request` and waits for its reply, within `limit`. A cancelled task sends nothing.

@@ -56,6 +56,23 @@ public struct TransferPlan<Source: Sendable, Destination: Sendable>: Sendable {
         return groups
     }
 
+    /// The plan without its first `count` top-level items and what they hold: what a later try
+    /// has left to do.
+    public func droppingTopLevel(_ count: Int) -> Self {
+        guard count > 0 else { return self }
+        var seen = 0
+        let start =
+            items.firstIndex { item in
+                guard item.path.count == 1 else { return false }
+                seen += 1
+                return seen > count
+            } ?? items.endIndex
+        var rest = self
+        rest.items = Array(items[start...])
+        rest.totalBytes = rest.items.reduce(0) { $0.saturatingAdding($1.size) }
+        return rest
+    }
+
     /// Counts `count` more entries seen; a cancelled caller stops here.
     private mutating func see(_ count: Int = 1) throws(FilesError) {
         guard !Task.isCancelled else { throw .cancelled }
@@ -78,8 +95,7 @@ public struct TransferPlan<Source: Sendable, Destination: Sendable>: Sendable {
                 Item(
                     source: source, path: path, isFolder: isFolder, size: size, mode: mode & 0o7777,
                     modified: modified))
-            let (sum, overflow) = totalBytes.addingReportingOverflow(size)
-            totalBytes = overflow ? .max : sum
+            totalBytes = totalBytes.saturatingAdding(size)
         case .link: linksSkipped += 1
         default: specialsSkipped += 1
         }
@@ -191,5 +207,13 @@ extension TransferPlan where Source == RemotePath, Destination == URL {
             try await addRemote(
                 source.appending(child.name), entry: child, path: path + [child.name], on: session)
         }
+    }
+}
+
+extension UInt64 {
+    /// The sum, or `.max` past it.
+    func saturatingAdding(_ other: UInt64) -> UInt64 {
+        let (sum, overflow) = addingReportingOverflow(other)
+        return overflow ? .max : sum
     }
 }

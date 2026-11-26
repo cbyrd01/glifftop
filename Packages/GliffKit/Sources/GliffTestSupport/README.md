@@ -9,6 +9,9 @@ part of the `GliffKit` product.
   script for a fake sftp server.
 - `eventually`: waits up to 10 s of real time for a condition, a bound only a broken test
   reaches.
+- `resultWithin` and `valueWithin`: a test's wait on a task, ended after 10 s of real time by
+  `TimedOut`, so a broken test fails instead of hanging its run. Swift Testing's `.timeLimit`
+  can't do this: it records the overrun but still waits for a body that ignores cancellation.
 - `onThread`: runs blocking work (a socket's `accept` or `read`) on a thread of its own, never
   on the cooperative pool, where blocked calls can take every thread and hang the test run.
 

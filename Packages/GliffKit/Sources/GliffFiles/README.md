@@ -48,8 +48,9 @@ The sftp client: a session over any byte stream.
 - `Quarantine` (macOS): marks a download as a browser does, with agent Glifftop and no origin.
 - `TemporaryLedger`: every temporary name, on this Mac or a host, recorded before it is made
   and forgotten once renamed in or removed, so leftovers are removed by exact name, never by a
-  pattern, and only a batch's top-level temporaries are recorded. Leftovers are what was
-  recorded before this launch (a running batch's are its own); one whose folder is missing,
+  pattern, and only a batch's top-level temporaries are recorded. This Mac's leftovers are
+  what was recorded before this launch (a running batch's are its own); a host's are all its
+  entries outside a running try, as its batches run one at a time. A local one whose folder is missing,
   on a volume not mounted now, is kept for a later launch. A name that can't be
   recorded isn't made. `FileLedgerStore` keeps it as a JSON file written atomically before a
   name is made (it survives a quit or crash, not a power loss), skipping an entry it can't
@@ -89,8 +90,31 @@ The sftp client: a session over any byte stream.
 - `FolderFill`: how either way fills a folder: items in the plan's order, files up to 8 at
   once (within the server's open-handle limit), the first failure or a cancel stopping the
   rest.
-- `TransferProgress`: a batch's counts (items and bytes done of total, top-level items done,
-  files skipped as special at open, items renamed inside a download's folder), polled.
+- `TransferProgress`: a batch's state (queued, running, finished, failed, cancelled) and its
+  try's counts (items and bytes done of total, top-level items done, files skipped as special
+  at open, items renamed inside a download's folder) and rate since the try began, polled.
+- `HostFiles`, one per host (`FilesRegistry`, by the host as typed): the host's one sftp
+  channel (`FilesChannels`: a `.subsystem("sftp")` channel on the shared connection), which
+  serves browsing and transfers.
+  - Its users are the Files window while open and each queued or running batch. It opens at
+    the first user's first request and closes when the last leaves.
+  - Callers waiting for it share one opening. A cancelled caller stops waiting at once; the
+    last to go cancels the opening, and the next request opens afresh.
+  - An opening's sign-in questions go to the oldest user with an asker when each is asked.
+  - The first session reads the host's folders, or takes where sftp-server starts as home and
+    Downloads. A command that hasn't ended within 15 s counts as failed.
+  - A session opened with no try running removes the host's leftovers by exact name
+    (`RemoteLeftovers`). A folder, when LSTAT still finds a real directory, goes with what it
+    holds; anything else gets REMOVE, so no link is followed.
+  - Its pipeline narrows to 8 while a session window to the host streams.
+- The queue (`HostFiles+Queue`, `TransferBatch`): one batch at a time, in order, browsing
+  between its requests.
+  - Each try first removes the host's leftovers, then starts over the top-level items not
+    finished. Dismiss removes them when connected with no try running.
+  - Try Again takes the window that tries again: its asker, and, for an upload that asks about
+    taken names, its asking.
+  - `TransferActivity` (`ProcessInfo`'s, user-initiated with idle sleep held off) is held
+    while a batch is queued or running.
 - The module's logger: counts, byte totals, kinds and outcomes only; never a file name, a path,
   a single item's size, host text or a socket path.
 

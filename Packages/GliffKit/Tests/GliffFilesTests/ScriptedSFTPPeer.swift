@@ -103,7 +103,7 @@ final class ScriptedSFTPPeer: ByteConnection {
         let read = Task { try await session.read(handle: [1], offset: 0, length: 4) }
         #expect(await waitForRequests(1))
         read.cancel()
-        await #expect(throws: FilesError.cancelled) { try await read.value }
+        await #expect(throws: FilesError.cancelled) { try await read.valueWithin() }
         return try #require(requests.last?.id)
     }
 }

@@ -1,5 +1,6 @@
 import Foundation
 import GliffSFTP
+import GliffTestSupport
 import Testing
 
 @testable import GliffFiles
@@ -43,6 +44,23 @@ import Testing
         #expect(plan.items.allSatisfy { $0.modified != nil })
     }
 
+    /// A later try's plan leaves out the top-level items done, with all they hold.
+    @Test func droppingTopLevelItemsDropsWhatTheyHold() throws {
+        let folder = try TemporaryFolder()
+        defer { folder.remove() }
+        try folder.file("photos/2026/b.jpg", "hello")
+        try folder.file("a.txt", "abc")
+        try folder.file("c.txt", "c")
+        let plan = try upload(["photos", "a.txt", "c.txt"].map { folder.url.appending(path: $0) })
+        #expect(Self.names(plan.droppingTopLevel(0)) == Self.names(plan))
+        #expect(plan.droppingTopLevel(0).totalBytes == 9)
+        let rest = plan.droppingTopLevel(1)
+        #expect(Self.names(rest) == ["a.txt", "c.txt"])
+        #expect(rest.totalBytes == 4)
+        #expect(plan.droppingTopLevel(3).items.isEmpty)
+        #expect(plan.droppingTopLevel(5).totalBytes == 0)
+    }
+
     /// A link that leads nowhere is skipped and counted; the rest of the batch goes on.
     @Test func aDanglingTopLevelLinkIsSkipped() async throws {
         let folder = try TemporaryFolder()
@@ -80,10 +98,10 @@ import Testing
         let folder = try TemporaryFolder()
         defer { folder.remove() }
         _ = try folder.file("a.txt")
-        let result = await Task {
+        let result = try await Task {
             withUnsafeCurrentTask { $0?.cancel() }
             return Result { () throws(FilesError) in try upload([folder.url]) }
-        }.value
+        }.valueWithin()
         #expect(throws: FilesError.cancelled) { try result.get() }
     }
 

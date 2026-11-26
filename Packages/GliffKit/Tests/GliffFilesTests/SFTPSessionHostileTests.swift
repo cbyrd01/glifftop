@@ -52,7 +52,7 @@ import Testing
         let read = Task { try await session.read(handle: [1], offset: 0, length: 4) }
         #expect(await peer.waitForRequests(1))
         peer.send(B.status(77, 0))
-        await #expect(throws: FilesError.protocolBroken) { try await read.value }
+        await #expect(throws: FilesError.protocolBroken) { try await read.valueWithin() }
         await #expect(throws: FilesError.protocolBroken) { try await session.realpath([0x2E]) }
         #expect(await eventually { peer.isClosed })
     }
@@ -87,7 +87,7 @@ import Testing
         let started = Task { try await start(peer) }
         #expect(await clock.waitForSleepers(1))
         clock.advance(by: .seconds(60))
-        await #expect(throws: FilesError.timedOut) { try await started.value }
+        await #expect(throws: FilesError.timedOut) { try await started.valueWithin() }
         #expect(peer.isClosed)
     }
 
@@ -101,7 +101,7 @@ import Testing
         clock.advance(by: .seconds(59))
         #expect(!peer.isClosed)
         clock.advance(by: .seconds(1))
-        await #expect(throws: FilesError.timedOut) { try await read.value }
+        await #expect(throws: FilesError.timedOut) { try await read.valueWithin() }
         #expect(await eventually { peer.isClosed })
     }
 
@@ -114,7 +114,7 @@ import Testing
         clock.advance(by: .seconds(315))
         #expect(!peer.isClosed)
         clock.advance(by: .seconds(1))
-        await #expect(throws: FilesError.timedOut) { try await sync.value }
+        await #expect(throws: FilesError.timedOut) { try await sync.valueWithin() }
     }
 
     /// sftp-server answers in order: a request queued behind a slow fsync waits with it, and
@@ -131,8 +131,8 @@ import Testing
         #expect(!peer.isClosed)
         let ids = peer.requests.map(\.id).filter { $0 != 0 }
         peer.send(B.status(ids[0], 0) + B.attributes(ids[1]))
-        try await sync.value
-        _ = try await stat.value
+        try await sync.valueWithin()
+        _ = try await stat.valueWithin()
     }
 
     /// Each reply starts the limit afresh, as the longest among the requests still outstanding.
@@ -147,13 +147,13 @@ import Testing
         clock.advance(by: .seconds(119))
         let ids = peer.requests.map(\.id).filter { $0 != 0 }
         peer.send(B.status(ids[0], 0))
-        try await sync.value
+        try await sync.valueWithin()
         #expect(await clock.waitForSleepers(1))
         clock.advance(by: .seconds(59))
         #expect(await clock.waitForSleepers(1))
         #expect(!peer.isClosed)
         clock.advance(by: .seconds(1))
-        await #expect(throws: FilesError.timedOut) { try await stat.value }
+        await #expect(throws: FilesError.timedOut) { try await stat.valueWithin() }
     }
 
     /// sftp-server answers a READ of 0 bytes with empty DATA; no such READ is sent.
@@ -171,7 +171,7 @@ import Testing
         #expect(await peer.waitForRequests(1))
         peer.send(Array(B.data(try #require(peer.requests.last?.id), [1, 2, 3, 4]).prefix(9)))
         peer.end()
-        await #expect(throws: FilesError.ended) { try await read.value }
+        await #expect(throws: FilesError.ended) { try await read.valueWithin() }
     }
 
     @Test func theStreamEndingFailsEveryWaiter() async throws {
@@ -182,7 +182,7 @@ import Testing
         }
         #expect(await peer.waitForRequests(3))
         peer.end()
-        for read in reads { await #expect(throws: FilesError.ended) { try await read.value } }
+        for read in reads { await #expect(throws: FilesError.ended) { try await read.valueWithin() } }
     }
 
     @Test func aLostLinkFailsEveryWaiterAsLost() async throws {
@@ -191,7 +191,7 @@ import Testing
         let read = Task { try await session.read(handle: [1], offset: 0, length: 4) }
         #expect(await peer.waitForRequests(1))
         peer.fail(.exited(status: 255, failure: .sharedConnectionLost))
-        await #expect(throws: FilesError.connectionLost) { try await read.value }
+        await #expect(throws: FilesError.connectionLost) { try await read.valueWithin() }
     }
 
     /// A failed write leaves the verdict to the stream's end, which says why.
@@ -202,7 +202,7 @@ import Testing
         let lstat = Task { try await session.lstat([0x2F]) }
         #expect(await clock.waitForSleepers(1))
         peer.fail(.exited(status: 255, failure: .sharedConnectionLost))
-        await #expect(throws: FilesError.connectionLost) { try await lstat.value }
+        await #expect(throws: FilesError.connectionLost) { try await lstat.valueWithin() }
     }
 
     /// A failed write on a stream that never ends still ends the session within the limit.
@@ -213,7 +213,7 @@ import Testing
         let lstat = Task { try await session.lstat([0x2F]) }
         #expect(await clock.waitForSleepers(1))
         clock.advance(by: .seconds(60))
-        await #expect(throws: FilesError.timedOut) { try await lstat.value }
+        await #expect(throws: FilesError.timedOut) { try await lstat.valueWithin() }
     }
 
     /// A broken reply found after the session ended reports that end, as every other call does.
@@ -238,7 +238,7 @@ import Testing
         let lstat = Task { try await session.lstat([0x2F]) }
         #expect(await peer.waitForRequests(1))
         peer.send([0, 0, 0, 5, 2, 0, 0, 0, 4])
-        await #expect(throws: FilesError.protocolBroken) { try await lstat.value }
+        await #expect(throws: FilesError.protocolBroken) { try await lstat.valueWithin() }
     }
 
     @Test func statusTextIsNeverInTheMessage() async throws {

@@ -21,7 +21,7 @@ import Testing
         let session = try await SFTPSession.start(over: peer)
         let plan = try await DownloadPlan.download(
             paths.compactMap { RemotePath(absolute: Array($0.utf8)) }, on: session, to: destination.url)
-        let progress = TransferProgress(plan)
+        let progress = TransferProgress.begun(plan)
         let result = await Result { () async throws(FilesError) in
             try await Download(
                 session: session, ledger: TemporaryLedger(store: store), pipeline: Pipeline(),
@@ -110,7 +110,7 @@ import Testing
                 return nil
             }
         }
-        await #expect(throws: FilesError.cancelled) { try await filling.value }
+        await #expect(throws: FilesError.cancelled) { try await filling.valueWithin() }
         #expect(stepped.withLock { $0 } == 0)
     }
 }

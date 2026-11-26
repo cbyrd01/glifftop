@@ -75,25 +75,13 @@ extension Upload {
         let removed = await Task {
             for item in made.reversed() {
                 guard
-                    await Self.remove(
+                    await RemoteLeftovers.removeItem(
                         Self.path(of: item, in: temporary), isFolder: item.isFolder, on: session)
                 else { return false }
             }
-            return await Self.remove(temporary, isFolder: isFolder, on: session)
+            return await RemoteLeftovers.removeItem(temporary, isFolder: isFolder, on: session)
         }.value
         if removed { await ledger.forget(entry) }
-    }
-
-    /// Removes one item by its exact path; true when it is gone.
-    static func remove(_ path: RemotePath, isFolder: Bool, on session: SFTPSession) async -> Bool {
-        do {
-            if isFolder { try await session.rmdir(path.raw) } else { try await session.remove(path.raw) }
-            return true
-        } catch .noSuchFile {
-            return true
-        } catch {
-            return false
-        }
     }
 }
 

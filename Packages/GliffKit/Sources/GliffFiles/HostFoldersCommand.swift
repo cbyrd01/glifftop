@@ -23,6 +23,9 @@ public enum HostFoldersCommand {
         + #"for k in DOWNLOAD DESKTOP DOCUMENTS; do d=$(xdg-user-dir $k 2>/dev/null); "#
         + #"[ -d "$d" ] && printf "%s\t%s\0" "$k" "$d"; done; exit 0"#
 
+    /// The line the host's login shell runs.
+    public static var remoteCommand: String { "sh -c '\(script)'" }
+
     public static let maxOutput = 16 * 1024
 
     /// The folders the output names; nil without an absolute HOME.
