@@ -102,6 +102,68 @@ public final class Pipeline: Sendable {
         }
     }
 
+    /// How far past its planned size a download may run before it fails as changed.
+    static let slack: UInt64 = 1 << 20
+
+    /// Reads the open `handle` into `file`, a block per request within the window, writing each
+    /// reply at its offset and adding it to `progress`. Each read stops at `count`, and one more,
+    /// at `count`, confirms the end in the same window, so a small file costs two reads; a short
+    /// read re-asks for the rest at its offset. A file that ends before `count` (a hole would be
+    /// left), or still goes on past `count` plus `slack`, fails `.changedWhileCopying`; one that
+    /// grew less arrives whole.
+    func receive(
+        _ handle: [UInt8], count: UInt64, into file: LocalFile, on session: SFTPSession, block: UInt32,
+        progress: TransferProgress
+    ) async throws(FilesError) {
+        let size = UInt64(block)
+        let reads = count / size + (count % size == 0 ? 0 : 1)
+        let grew = Flag()
+        try await each(0...reads) { (index) async throws(FilesError) in
+            let offset = index == reads ? count : index * size
+            let length = UInt32(min(size, count - offset))
+            let read = try await Self.read(
+                handle, at: offset, length: length == 0 ? block : length, into: file, on: session,
+                progress: progress)
+            if length == 0 {
+                if read == size { grew.set() }
+            } else if read < length {
+                throw .changedWhileCopying
+            }
+        }
+        // The file grew by a block or more: read on, one block at a time, within the slack (a
+        // count of blocks, so a hostile size can't overflow it).
+        var offset = count
+        for _ in 0..<(grew.isSet ? Self.slack / size : 0) {
+            offset &+= size
+            try await acquire()
+            defer { release() }
+            let read = try await Self.read(
+                handle, at: offset, length: block, into: file, on: session, progress: progress)
+            guard read == size else { return }
+        }
+        if grew.isSet { throw .changedWhileCopying }
+    }
+
+    /// Reads `length` bytes at `offset` into `file`, re-asking after a short read; how many came
+    /// before the file ended.
+    private static func read(
+        _ handle: [UInt8], at offset: UInt64, length: UInt32, into file: LocalFile, on session: SFTPSession,
+        progress: TransferProgress
+    ) async throws(FilesError) -> UInt64 {
+        var done: UInt64 = 0
+        while done < length {
+            // The session ends on empty DATA, or DATA longer than asked.
+            guard
+                let bytes = try await session.read(
+                    handle: handle, offset: offset + done, length: length - UInt32(done))
+            else { break }
+            try file.write(bytes, at: offset + done)
+            progress.add(bytes: UInt64(bytes.count))
+            done += UInt64(bytes.count)
+        }
+        return done
+    }
+
     /// Runs `request` for each element, as many at once as the window allows. The first
     /// failure stops new requests, and is thrown once those out have finished.
     func each<Element: Sendable>(
@@ -130,4 +192,13 @@ public final class Pipeline: Sendable {
         }
         try failure.check()
     }
+}
+
+/// Whether a download's read past its planned size found a whole block more.
+private final class Flag: Sendable {
+    private let state = Atomic(false)
+
+    var isSet: Bool { state.load(ordering: .relaxed) }
+
+    func set() { state.store(true, ordering: .relaxed) }
 }

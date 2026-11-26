@@ -53,4 +53,14 @@ struct TemporaryFolder {
         lstat(url.path(percentEncoded: false), &status)
         return status
     }
+
+    /// An item's `com.apple.quarantine`, never following a link; nil when it has none.
+    static func quarantine(of url: URL) -> String? {
+        let path = url.path(percentEncoded: false)
+        let size = getxattr(path, "com.apple.quarantine", nil, 0, 0, XATTR_NOFOLLOW)
+        guard size > 0 else { return nil }
+        var bytes = [UInt8](repeating: 0, count: size)
+        _ = getxattr(path, "com.apple.quarantine", &bytes, size, 0, XATTR_NOFOLLOW)
+        return String(decoding: bytes, as: UTF8.self)
+    }
 }

@@ -42,16 +42,17 @@ public final class LocalFile: Sendable {
         }
     }
 
-    /// Sets a file's final permissions (`FileMetadata.mode`) and its times, by descriptor.
-    public func finish(mode: UInt32, modified: UInt32) throws(FilesError) {
+    /// Sets a file's final permissions (`FileMetadata.mode`) and its times (when known), by
+    /// descriptor.
+    public func finish(mode: UInt32, modified: UInt32?) throws(FilesError) {
         try apply(FileMetadata.mode(mode, isFolder: false), modified: modified)
     }
 
-    fileprivate func apply(_ mode: mode_t, modified: UInt32) throws(FilesError) {
+    fileprivate func apply(_ mode: mode_t, modified: UInt32?) throws(FilesError) {
+        guard fchmod(descriptor, mode) == 0 else { throw .local(LocalFailure(errno: errno)) }
+        guard let modified else { return }
         let time = timespec(tv_sec: Int(modified), tv_nsec: 0)
-        guard fchmod(descriptor, mode) == 0, futimens(descriptor, [time, time]) == 0 else {
-            throw .local(LocalFailure(errno: errno))
-        }
+        guard futimens(descriptor, [time, time]) == 0 else { throw .local(LocalFailure(errno: errno)) }
     }
 }
 
@@ -110,8 +111,9 @@ public enum LocalFiles {
         }
     }
 
-    /// Sets a folder's final permissions (`FileMetadata.mode`) and times, never following a link.
-    public static func finishFolder(_ url: URL, mode: UInt32, modified: UInt32) throws(FilesError) {
+    /// Sets a folder's final permissions (`FileMetadata.mode`) and times (when known), never
+    /// following a link.
+    public static func finishFolder(_ url: URL, mode: UInt32, modified: UInt32?) throws(FilesError) {
         let descriptor = open(
             url.path(percentEncoded: false), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         guard descriptor >= 0 else { throw .local(LocalFailure(errno: errno)) }

@@ -24,9 +24,6 @@ public struct Upload: Sendable {
     let progress: TransferProgress
     let clash: NameClashPolicy
 
-    /// The most files a folder's upload has open at once.
-    static let filesAtOnce = 8
-
     public init(
         session: SFTPSession, host: String, ledger: TemporaryLedger, pipeline: Pipeline,
         progress: TransferProgress, clash: NameClashPolicy
@@ -35,28 +32,12 @@ public struct Upload: Sendable {
             (session, host, ledger, pipeline, progress, clash)
     }
 
-    /// What the server allows, read once per batch.
-    struct Settings {
-        var block = Pipeline.blockSize
-        var filesAtOnce = Upload.filesAtOnce
-        var flush = false
-    }
-
     public func run(_ plan: UploadPlan) async throws(FilesError) {
         if session.extensions.statvfs {
             let space = try await session.statvfs(plan.destination.raw)
             guard space.availableBytes >= plan.totalBytes else { throw .noSpace }
         }
-        var settings = Settings(flush: session.extensions.fsync)
-        if session.extensions.limits {
-            let limits = try await session.limits()
-            settings.block = min(Pipeline.blockSize, limits.writeChunk)
-            // One handle is left for browsing; 0 means no limit.
-            if limits.openHandles != 0 {
-                settings.filesAtOnce = Int(
-                    clamping: max(1, min(limits.openHandles - 1, UInt64(Self.filesAtOnce))))
-            }
-        }
+        let settings = try await TransferSettings.read(on: session, chunk: \.writeChunk)
         var remembered: ClashChoice?
         for (top, contents) in plan.topLevel {
             try await upload(
@@ -68,7 +49,7 @@ public struct Upload: Sendable {
     /// Uploads one top-level item and what it holds under a temporary name, then renames it in.
     private func upload(
         _ top: UploadPlan.Item, contents: ArraySlice<UploadPlan.Item>, into destination: RemotePath,
-        settings: Settings, remembered: inout ClashChoice?
+        settings: TransferSettings, remembered: inout ClashChoice?
     ) async throws(FilesError) {
         guard let name = top.path.last, let temporaryName = name.temporary() else { throw .failure }
         let temporary = destination.appending(temporaryName)
@@ -100,54 +81,29 @@ public struct Upload: Sendable {
         await ledger.forget(entry)
     }
 
-    /// Makes the folder at `temporary` and fills it, folders inline (each before what it
-    /// holds) and files several at once. `made` is set once the folder is made, and counts
-    /// the items of `contents` begun; the first failure stops the files copying beside it.
+    /// Makes the folder at `temporary` and fills it (`FolderFill`). `made` is set once the
+    /// folder is made, and counts the items of `contents` begun.
     private func fill(
         _ top: UploadPlan.Item, at temporary: RemotePath, contents: ArraySlice<UploadPlan.Item>,
-        settings: Settings, made: inout Int?
+        settings: TransferSettings, made: inout Int?
     ) async throws(FilesError) {
         try await session.mkdir(temporary.raw, attributes: SFTPAttributes(permissions: Self.mode(top)))
         made = 0
         progress.finishItem()
-        let failure = FirstFailure()
-        await withTaskGroup(of: Void.self) { group in
-            var running = 0
-            for item in contents {
-                guard failure.isClear else { break }
-                let path = Self.path(of: item, in: temporary)
-                made? += 1
-                if item.isFolder {
-                    do throws(FilesError) {
-                        try await session.mkdir(
-                            path.raw, attributes: SFTPAttributes(permissions: Self.mode(item)))
-                        progress.finishItem()
-                    } catch {
-                        failure.record(error)
-                    }
-                    continue
-                }
-                if running == settings.filesAtOnce {
-                    await group.next()
-                    running -= 1
-                    guard failure.isClear else { break }
-                }
-                running += 1
-                group.addTask {
-                    do throws(FilesError) {
-                        var created = false
-                        _ = try await copy(
-                            item, to: path, block: settings.block, flush: false, created: &created)
-                    } catch {
-                        failure.record(error)
-                    }
-                }
+        try await FolderFill.run(contents, atOnce: settings.filesAtOnce) {
+            (item) async throws(FilesError) -> FolderFill.Copy? in
+            made? += 1
+            let path = Self.path(of: item, in: temporary)
+            guard !item.isFolder else {
+                try await session.mkdir(path.raw, attributes: SFTPAttributes(permissions: Self.mode(item)))
+                progress.finishItem()
+                return nil
             }
-            while await group.next() != nil {
-                if !failure.isClear { group.cancelAll() }
+            return { () async throws(FilesError) in
+                var created = false
+                _ = try await copy(item, to: path, block: settings.block, flush: false, created: &created)
             }
         }
-        try failure.check()
         // Filling a folder sets its time, so the times go on once every folder is full. Setting
         // one folder's times leaves its parent's alone, so they go together.
         let session = session

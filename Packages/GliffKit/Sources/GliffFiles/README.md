@@ -69,14 +69,28 @@ The sftp client: a session over any byte stream.
   file, on a server with `posix-rename`.
 - `Pipeline`: a host's flow of reads and writes: 32 KiB blocks (or the server's smaller
   limit), at most 64 in flight across a batch, or 8 while the host streams; a new window
-  applies at the next request.
+  applies at the next request. A download's reads stop at its planned size and one more there
+  confirms the end, a short read re-asked at its offset; a file that ends early, or still goes
+  on 1 MiB past its size, fails as changed.
+- `TransferSettings`: what the server allows a batch (block size, files at once, `fsync`),
+  read once per batch.
 - `Upload`: a batch from this Mac to the host under `.<name>.glifftop-<8 hex>` names, opened
   with their final permissions, renamed in when whole (plain RENAME, so a name taken meanwhile
   is never overwritten; Replace is `posix-rename`). A folder is filled under real names, up
   to 8 files at once, and the first failure stops the rest. Every temporary is in the ledger
   before it is made; a failure or cancel removes it by name once it was made.
+- `Download`: a batch from the host to this Mac under such names, made with `O_EXCL` and never
+  over anything, each item quarantined and given its final permissions and time, then moved
+  in with `RENAME_EXCL` or as "name 2". Inside a folder, a name this Mac takes as one already
+  there gets " 2" and is counted. A host item that is no longer a regular file (LSTAT before
+  OPEN, which follows links and waits on a FIFO; FSTAT after) is skipped and counted. The
+  volume's free space is checked first; a failure or cancel removes the temporary with what it
+  holds. A download never asks about a name.
+- `FolderFill`: how either way fills a folder: items in the plan's order, files up to 8 at
+  once (within the server's open-handle limit), the first failure or a cancel stopping the
+  rest.
 - `TransferProgress`: a batch's counts (items and bytes done of total, top-level items done,
-  files skipped as special at open), polled.
+  files skipped as special at open, items renamed inside a download's folder), polled.
 - The module's logger: counts, byte totals, kinds and outcomes only; never a file name, a path,
   a single item's size, host text or a socket path.
 

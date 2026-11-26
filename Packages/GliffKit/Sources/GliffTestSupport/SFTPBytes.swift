@@ -45,6 +45,11 @@ public enum SFTPBytes {
         packet(104, u32(id) + u32(UInt32(entries.count)) + entries.flatMap { $0 })
     }
 
+    /// The `limits@openssh.com` reply with every limit 0 (none).
+    public static func limits(_ id: UInt32) -> [UInt8] {
+        packet(201, u32(id) + [UInt64](repeating: 0, count: 4).flatMap(u64))
+    }
+
     /// VERSION 3 with OpenSSH's four extensions at the versions it offers.
     public static let version: [UInt8] = packet(
         2,

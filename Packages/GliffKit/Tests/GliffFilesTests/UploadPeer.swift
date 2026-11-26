@@ -88,7 +88,7 @@ final class UploadPeer: Sendable {
                 let numbers: [UInt64] = [4096, 1, 0, 0, space, 0, 0, 0, 0, 0, 255]
                 return B.packet(201, B.u32(request.id) + numbers.flatMap(B.u64))
             case "limits@openssh.com":
-                return B.packet(201, B.u32(request.id) + [UInt64](repeating: 0, count: 4).flatMap(B.u64))
+                return B.limits(request.id)
             default:
                 return B.status(request.id, 0)
             }
