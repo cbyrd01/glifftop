@@ -24,7 +24,8 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   either `CaptureMode`: `.integrated` ("Integrated", the default) or `.confined` ("Capture").
   Both capture while the window is key, the app active, the picture showing, the link live
   and no menu open, unless Shift+Esc released it (until the picture is clicked; a new picture
-  starts captured), which `isReleased` says. `isReleasable`: captured, or held off only by an open menu (any, Release
+  starts captured), which `isReleased` says. A `quiet` rise (a window the app made key again
+  itself) is no activation. `isReleasable`: captured, or held off only by an open menu (any, Release
   Input's own among them). In `.confined`, the pointer is confined once it enters the picture
   (`.pointerOnPicture(true)`, or the click that takes input back), until capture falls, a
   suspension (`.pointerOnPicture(false)`), `.away`, a mode change or a new picture; the app

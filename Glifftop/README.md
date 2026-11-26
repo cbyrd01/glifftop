@@ -201,7 +201,8 @@ AppKit adapters for what SwiftUI can't do:
   visible top-left (`WindowPlacement`; a display gone leaves it where macOS put it), else
   from the source's top-left (from its display's visible frame in full screen), and the
   source is made key again then and after SwiftUI's update, unless the person has moved to
-  another window;
+  another window, quietly (`CaptureController.rekeyQuietly`: no activation's nudge, the
+  host's focus never having left its screen);
 - switching tabs (`TabSwitcher`): Window ▸ Previous Tab and Next Tab (⇧⌘[, ⇧⌘]), and the same
   chord over the picture, taken by `CaptureController`'s key monitor before the remote (while
   captured, too), select the window's previous or next tab; in a window of one tab, the

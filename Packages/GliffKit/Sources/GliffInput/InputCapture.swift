@@ -39,7 +39,8 @@ public struct CaptureChange: Sendable, Equatable {
     /// Capture rose: the window became key, the app active, the picture or the link came back,
     /// or a click took input back, so the host's focus should follow this window. A rise at a
     /// menu's close activates only when one of those happened while the menu was open; a mode
-    /// change never moves capture.
+    /// change never moves capture; a quiet rise (`apply(_:quiet:)`: a window the app made key
+    /// again itself) never activates, nor does a menu's close after it.
     public var activates: Bool
 
     public init(showHint: Bool = false, activates: Bool = false) {
@@ -100,7 +101,9 @@ public struct InputCapture: Sendable {
     /// open menu (any menu: the Input menu itself while the item is chosen).
     public var isReleasable: Bool { capturedBesideMenu }
 
-    public mutating func apply(_ event: CaptureEvent) -> CaptureChange {
+    /// `quiet`: a rise that is no activation (a window made key again by the app itself, the
+    /// host's focus never having left it).
+    public mutating func apply(_ event: CaptureEvent, quiet: Bool = false) -> CaptureChange {
         let wasCaptured = isCaptured
         let wasBesideMenu = capturedBesideMenu
         switch event {
@@ -138,7 +141,7 @@ public struct InputCapture: Sendable {
         }
         isCaptured = conditionsHold && !released
         if wasCaptured, !isCaptured { pointerOnPicture = false }
-        if menuOpen, capturedBesideMenu, !wasBesideMenu { roseUnderMenu = true }
+        if menuOpen, capturedBesideMenu, !wasBesideMenu, !quiet { roseUnderMenu = true }
         let rose = isCaptured && !wasCaptured
         // A menu closing alone is no activation: the window stayed key, and the host's focus
         // with it.
@@ -148,6 +151,6 @@ public struct InputCapture: Sendable {
         let hintState = mode == .confined ? isConfined : isCaptured
         return CaptureChange(
             showHint: hintState && hintsShown.insert(mode).inserted,
-            activates: rose && (!menuClosing || roseUnderMenu))
+            activates: rose && !quiet && (!menuClosing || roseUnderMenu))
     }
 }

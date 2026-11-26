@@ -12,7 +12,6 @@ final class MonitorHandoverCoordinator {
 
     private static let logger = Logger(subsystem: "me.cbyrd.Glifftop", category: "handover")
 
-    private let captures = NSHashTable<CaptureController>.weakObjects()
     /// The capture of the key window.
     private weak var key: CaptureController?
     /// A watcher installed, with the capture it reports for.
@@ -35,16 +34,9 @@ final class MonitorHandoverCoordinator {
 
     private var now: Duration { .now - origin }
 
-    /// A capture's group or video view changed: the watchers follow.
-    func changed(_ capture: CaptureController) {
-        captures.add(capture)
-        updateWatchers()
-    }
-
     /// A capture's window became key or stopped being key. A new key window stops the count
     /// and drops a handover's entry point left with any other window; the watchers follow.
     func keyChanged(_ capture: CaptureController, isKey: Bool) {
-        captures.add(capture)
         let newKey = isKey ? capture : (key === capture ? nil : key)
         // A session starting applies the window's key state again: no change.
         if newKey !== key {
@@ -52,17 +44,18 @@ final class MonitorHandoverCoordinator {
             rule.keyChanged(to: newKey.map(ObjectIdentifier.init))
             disarm()
             if isKey {
-                for other in captures.allObjects where other !== capture { other.entry.clear() }
+                for other in CaptureController.all.allObjects where other !== capture { other.entry.clear() }
             }
         }
         updateWatchers()
     }
 
-    /// Each live mirror's picture is watched while its window isn't key. A watch whose view or
+    /// Each live mirror's picture is watched while its window isn't key (on a capture's group,
+    /// video view or key change). A watch whose view or
     /// capture went, or whose view's address a new view took, is replaced.
-    private func updateWatchers() {
+    func updateWatchers() {
         var wanted: [ObjectIdentifier: (capture: CaptureController, view: VideoNSView)] = [:]
-        for capture in captures.allObjects {
+        for capture in CaptureController.all.allObjects {
             guard capture.handoverGroup != nil, let view = capture.videoView, let window = view.window,
                 window === capture.window, !window.isKeyWindow
             else { continue }
@@ -112,7 +105,7 @@ final class MonitorHandoverCoordinator {
     private func tick() {
         armedFor = nil
         guard let id = rule.target,
-            let target = captures.allObjects.first(where: { ObjectIdentifier($0) == id }),
+            let target = CaptureController.all.allObjects.first(where: { ObjectIdentifier($0) == id }),
             let view = target.videoView, let location = view.window?.mouseLocationOutsideOfEventStream,
             let source = key, source.handoverFacts.canLeave
         else {

@@ -122,8 +122,8 @@ final class TabbingView: NSView {
                 return
             }
             if ownWindow { window.order(.below, relativeTo: source.windowNumber) }
-            source.tabGroup?.selectedWindow = source
-            source.makeKeyAndOrderFront(nil)
+            // Selected and key with no nudge: the host's focus never left the source's screen.
+            CaptureController.rekeyQuietly(source)
         }
         rekey()
         Task {

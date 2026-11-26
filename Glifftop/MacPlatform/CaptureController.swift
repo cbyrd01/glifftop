@@ -51,10 +51,14 @@ import Observation
     /// it), nil otherwise: the pointer hands over between windows of one group
     /// (`CaptureController+Handover.swift`).
     @ObservationIgnored var handoverGroup: String? {
-        didSet { if handoverGroup != oldValue { MonitorHandoverCoordinator.shared.changed(self) } }
+        didSet { if handoverGroup != oldValue { MonitorHandoverCoordinator.shared.updateWatchers() } }
     }
     /// Where a handover's pointer entered this picture: the next activation's target.
     @ObservationIgnored var entry = HandoverEntry()
+    /// The window is being made key again by the app itself (`rekeyQuietly`).
+    @ObservationIgnored private var rekeying = false
+    /// Every live controller, weakly: the handover's windows and a quiet re-key's.
+    @ObservationIgnored static let all = NSHashTable<CaptureController>.weakObjects()
     @ObservationIgnored private var monitor: Any?
     @ObservationIgnored var windowObservers: [any NSObjectProtocol] = []
     /// App, workspace and distributed observers, each with its centre: for the controller's life.
@@ -69,7 +73,7 @@ import Observation
     /// first choice after a handover's entry point, and its frame tells the picture from the
     /// chrome for ⌘ chords.
     @ObservationIgnored weak var videoView: VideoNSView? {
-        didSet { if videoView !== oldValue { MonitorHandoverCoordinator.shared.changed(self) } }
+        didSet { if videoView !== oldValue { MonitorHandoverCoordinator.shared.updateWatchers() } }
     }
     /// Integrated or Capture: applied on change, and to each session attached.
     var mode: CaptureMode = .integrated {
@@ -81,7 +85,21 @@ import Observation
         nil
     }
 
-    init() { observeApp() }
+    init() {
+        observeApp()
+        Self.all.add(self)
+    }
+
+    /// Makes `window` its group's selected tab and key again without an activation's nudge: a
+    /// window that lost key only to one opened by the app (Show All Monitors), the host's focus
+    /// still on its screen. AppKit posts the key change within these calls, on the main thread.
+    static func rekeyQuietly(_ window: NSWindow) {
+        let capture = all.allObjects.first { $0.window === window }
+        capture?.rekeying = true
+        defer { capture?.rekeying = false }
+        window.tabGroup?.selectedWindow = window
+        window.makeKeyAndOrderFront(nil)
+    }
 
     isolated deinit {
         for (center, observer) in observers { center.removeObserver(observer) }
@@ -162,7 +180,8 @@ import Observation
         }
         // Only this key change's activation uses a handover's entry point.
         defer { if case .windowKey = event { entry.clear() } }
-        guard let result = controller?.capture(event) else { return }
+        guard let result = controller?.capture(event, quiet: rekeying && event == .windowKey(true))
+        else { return }
         handle(result)
     }
 

@@ -80,6 +80,26 @@ import Testing
         #expect(apply(&capture, [.picture(false), .picture(true)]) == [false, true])
     }
 
+    /// The source window of Show All Monitors key again after a new window took key: captured,
+    /// with no activation (the host's focus never left its screen).
+    @Test func aQuietRiseDoesNotActivate() {
+        var capture = InputCapture()
+        apply(&capture, allHold + [.windowKey(false)])
+        #expect(!capture.apply(.windowKey(true), quiet: true).activates)
+        #expect(capture.isCaptured)
+        apply(&capture, [.windowKey(false)])
+        #expect(capture.apply(.windowKey(true)).activates)
+    }
+
+    /// A quiet rise under an open menu: the menu's close is no activation either.
+    @Test func aQuietRiseUnderAMenuStaysQuiet() {
+        var capture = InputCapture()
+        apply(&capture, allHold + [.windowKey(false), .menuOpen(true)])
+        _ = capture.apply(.windowKey(true), quiet: true)
+        #expect(!capture.apply(.menuOpen(false)).activates)
+        #expect(capture.isCaptured)
+    }
+
     @Test func awayKeepsCapture() {
         var capture = InputCapture()
         apply(&capture, allHold + [.away])

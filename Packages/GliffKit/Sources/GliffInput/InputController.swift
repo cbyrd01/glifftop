@@ -253,8 +253,8 @@ public struct InputController: Sendable {
         return [.pointerMotion(x: x, y: y)]
     }
 
-    public mutating func capture(_ event: CaptureEvent) -> InputResult {
-        let change = capture.apply(event)
+    public mutating func capture(_ event: CaptureEvent, quiet: Bool = false) -> InputResult {
+        let change = capture.apply(event, quiet: quiet)
         let wasConfined = virtual != nil
         if !capture.isConfined { unconfine() }
         if event == .pointerOnPicture(false) { recentMotions = [] }
