@@ -21,8 +21,9 @@ the feature seam.
   `AsyncStream`. It reports `.interrupted(true)` when `Liveness` says so (a Ping unanswered
   for 2 s and not a byte for 4 s, on a clock that stops in sleep), and `.interrupted(false)`
   at the next bytes. `probe()` (after a wake or a network change, while streaming) sends a
-  Ping at once and ends the session as `.connectionLost` unless that Ping's Pong, or any
-  bytes 1 s or more after it, arrive within 3 s; bytes sooner may predate the sleep, so they
+  Ping at once and ends the session as `.connectionLost` unless that Ping's Pong (or a later
+  Ping's, as upstream's writer may drop it), or any bytes 1 s or more after it, arrive within
+  3 s; bytes sooner may predate the sleep, so they
   don't answer it. `withdrawProbe()` (the network went away) drops a probe waiting; the
   next probe decides. The handshake isn't probed. Closing waits up to 1 s for queued frames (Bye), then closes the
   connection, or abandons it (`ByteConnection.abandon()`) after an unanswered probe or when it ends while interrupted. Cancelling `run()` is a disconnect. A run of decode failures logs each
@@ -41,22 +42,39 @@ the feature seam.
   each session reaches the host by its own channel and `gliff-server`, and Hyprland can read
   one session's next key before another's modifier release. `InputBarrier` (one for the app,
   handed to each `Session`) keeps the last modifier key release (the eight evdev codes of
-  `MacKeyTranslator.modifierCodes`): for `InputBarrier.gap` (30 ms) after it goes, another
-  session's input waits: a hold queued in front of it (`InputQueue.holdWhatFollows(for:)`,
-  `Queued.until`) keeps it and what follows until then. What that session queued before the
-  hold goes as it would: another session's wait counted on it, and holding it back would let
-  that session's input overtake it, an activation's motions and keys included. A release that
-  waits counts
-  from when it leaves its queue: after the barrier's wait and whatever is queued in front of it,
-  each hold and activation pause in turn (`InputQueue.delay`). Sessions are told apart by an
-  `InputBarrier.Sender` each, never reused. A hold or pause starts its timer once reached, one
-  at a time. `disconnect()` sends a held queue anyway, before Bye.
+  `MacKeyTranslator.modifierCodes`), and another session's input waits until that release is
+  answered:
+  - The releasing session queues a fence behind the release (`Queued.fence`); once it has gone,
+    the session sends a Ping (`Session+Barrier.swift`). Upstream's server handles a session's
+    messages in order on one task and hands each input to its input thread before answering a
+    Ping, so that Ping's Pong says the release has been handed on. Each Pong echoes its Ping's
+    `t`, and each Ping's `t` is its own (`SessionCore.pingNow`). Upstream's writer drops a Pong
+    still queued when a newer one is, so a Pong answers its own Ping and every one before it
+    (`FenceLedger`). The stats' and a probe's Pings, answered first, answer nothing. A
+    release sent while no Ping can go (no stream yet) waits for the next Ping.
+  - The waiting session queues a hold in front of its input
+    (`InputQueue.holdWhatFollows(for:awaiting:)`, `Queued.until`) that ends
+    `InputBarrier.settle` (10 ms, for the server's input thread and the compositor) after the
+    answer, or `InputBarrier.limit` (250 ms) after the release goes if none comes; the barrier
+    tells the queue of the answer (`whenAnswered`), which wakes its timer. Reaching the limit
+    is logged. A server busy encoding reads its input late, so no fixed time is enough.
+  - What that session queued before the hold goes as it would: another session's wait counted
+    on it, and holding it back would let that session's input overtake it, an activation's
+    motions and keys included.
+
+  A release that waits counts its limit from when it leaves its queue: after the barrier's
+  wait and whatever is queued in front of it, each hold and activation pause in turn
+  (`InputQueue.delay`). Sessions are told apart by an `InputBarrier.Sender` each, never
+  reused. A hold or pause starts its timer once reached, one at a time. `disconnect()` sends a
+  held queue anyway, before Bye.
   `InputBarrier`, `InputQueue` and `ReconnectMemory` time themselves with `Clock.stopwatch()`
   (`Stopwatch.swift`).
-  - The barrier is app-wide: a tab to another host can wait 30 ms too, which no one sees.
-  - It counts from when the release leaves its queue, so a release that waits longer behind
-    a stalled or backed-up link isn't covered; a release the gate drops, or one sent after
-    the end, still sets it.
+  - The barrier is app-wide: a tab to another host waits one round trip too, which no one
+    sees.
+  - At the session's end, its releases not yet answered are answered once its connection has
+    closed (the server has handled its Bye), and those never sent at once.
+  - A release held up longer than the limit (a stalled link) isn't covered. A release the gate
+    drops is still answered.
 - **Activation:** `Session.activate(_:)` queues an activation's motions
   (`InputController.activate(at:)`), then a pause (`Queued.pause`): input sent after
   them waits `Session.activationPause` (50 ms) from when they go, behind any barrier wait. The

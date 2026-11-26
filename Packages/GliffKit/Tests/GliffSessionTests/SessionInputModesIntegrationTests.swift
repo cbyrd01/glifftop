@@ -98,8 +98,9 @@
             try await expectClean(["--expect-nudge", "--expect-keys", "2"], driver.messages)
         }
 
-        /// Another session has just let go of Super: this session's keymap and keys wait 30 ms
-        /// (the queue's one sleeper on the barrier's clock), together and in order, then go.
+        /// Another session has just let go of Super, and no answer comes: this session's keymap
+        /// and keys wait out the limit (the queue's one sleeper on the barrier's clock), together
+        /// and in order, then go.
         @Test func heldInputStillArrivesInOrder() async throws {
             let clock = ManualClock()
             let barrier = InputBarrier(clock: clock)
@@ -115,9 +116,10 @@
                 #expect(await clock.waitForSleepers(1))
                 // The appends' wakeups find the queue held and pass.
                 try? await Task.sleep(for: .milliseconds(100))
-                clock.advance(by: InputBarrier.gap)
+                clock.advance(by: InputBarrier.limit)
                 // The hold's end wakes the drain: the queue empties before the disconnect.
-                #expect(await Self.emptied(session.inputs))
+                let queue = await session.inputs
+                #expect(await eventually { queue.isEmpty })
                 await session.disconnect()
             }
             await runner.value
@@ -140,7 +142,8 @@
                 try? await Task.sleep(for: .milliseconds(100))
                 #expect(await !session.inputs.isEmpty)
                 clock.advance(by: Session.activationPause)
-                #expect(await Self.emptied(session.inputs))
+                let queue = await session.inputs
+                #expect(await eventually { queue.isEmpty })
                 await session.disconnect()
             }
             await runner.value
@@ -148,7 +151,7 @@
         }
 
         /// A modifier release sent behind an activation goes once its pause ends: another
-        /// session's input waits the barrier's gap after that.
+        /// session's input waits for its answer, at most the limit after that.
         @Test func aReleaseBehindAnActivationHoldsOthersFromWhenItGoes() throws {
             let clock = ManualClock()
             let barrier = InputBarrier(clock: clock)
@@ -156,8 +159,8 @@
             session.activate([.pointerMotion(x: 99, y: 50), .pointerMotion(x: 100, y: 50)])
             session.send(Self.release(125))
             #expect(
-                barrier.wait(before: Self.press(30), from: InputBarrier.Sender())
-                    == Session.activationPause + InputBarrier.gap)
+                barrier.wait(before: Self.press(30), from: InputBarrier.Sender()).wait?.left
+                    == Session.activationPause + InputBarrier.limit)
         }
 
         /// Another session lets go of a modifier after this one's activation: only the key sent
@@ -173,14 +176,6 @@
             #expect(await session.inputs.take().inputs == motions)
         }
 
-        /// Waits until `queue` is empty; false if it isn't within 5 s.
-        private static func emptied(_ queue: InputQueue) async -> Bool {
-            for _ in 0..<500 where !queue.isEmpty {
-                try? await Task.sleep(for: .milliseconds(10))
-            }
-            return queue.isEmpty
-        }
-
         /// A press queued before the stream, held by the barrier past the handshake, is still
         /// judged at the handshake and dropped: sent once streaming, it would stay held.
         @Test func aHeldPressBeforeStreamingIsDropped() async throws {
@@ -192,7 +187,7 @@
             let runner = Task { await session.run() }
             for await status in session.status {
                 guard case .streaming = status else { continue }
-                clock.advance(by: InputBarrier.gap)
+                clock.advance(by: InputBarrier.limit)
                 await session.disconnect()
             }
             await runner.value

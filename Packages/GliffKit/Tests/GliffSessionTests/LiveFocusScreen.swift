@@ -12,6 +12,8 @@
     final class LiveFocusScreen: Sendable {
         let session: Session
         let pointer: RemotePointerSlot
+        /// What this screen's session wrote and read, and when.
+        let written = RecordingObserver()
         private let info = Mutex<StreamInfo?>(nil)
         private let input: Mutex<InputController>
         /// The host's reports as the app's capture reads them.
@@ -22,9 +24,10 @@
         /// The origin of the controller's times.
         private let start = ContinuousClock.now
 
+        /// `largest`: the largest screen the session declares, as the app's window would.
         init(
             connections: HostConnections, target: SSHTarget, mode: CaptureMode = .integrated,
-            barrier: InputBarrier? = nil
+            barrier: InputBarrier? = nil, largest: (width: UInt32, height: UInt32) = (1280, 720)
         ) {
             input = Mutex(InputController(mode: mode, keymap: ""))
             let pointer = RemotePointerSlot()
@@ -35,8 +38,9 @@
                 transport: ChannelTransport(
                     connections: connections, target: target, command: command.remoteCommand),
                 configuration: SessionConfiguration(
-                    maxWidth: 1280, maxHeight: 720, keymap: XKBKeymap.text(for: XKBLayout(layout: "us"))),
-                decoder: NullFrameDecoder(), pointer: pointer, barrier: barrier)
+                    maxWidth: largest.width, maxHeight: largest.height,
+                    keymap: XKBKeymap.text(for: XKBLayout(layout: "us"))),
+                decoder: NullFrameDecoder(), pointer: pointer, observer: written, barrier: barrier)
             let session = session
             runner.withLock {
                 $0 = Task { [self] in

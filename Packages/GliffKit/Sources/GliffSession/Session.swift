@@ -1,6 +1,6 @@
 public import Foundation
 public import GliffClipboard
-public import GliffInput
+import GliffInput
 import GliffProtocol
 public import GliffTransport
 public import GliffVideo
@@ -35,10 +35,12 @@ public actor Session {
     var writer: SessionWriter?
     private var ticks: Task<Void, Never>?
     let inputs: InputQueue
-    /// The app's barrier between sessions' input, if it keeps one.
-    private nonisolated let barrier: InputBarrier?
+    /// The app's barrier between sessions' input, if it keeps one (`Session+Barrier.swift`).
+    nonisolated let barrier: InputBarrier?
     /// This session, to the barrier.
-    private nonisolated let inputSender = InputBarrier.Sender()
+    nonisolated let inputSender = InputBarrier.Sender()
+    /// The Pings sent and Pongs heard, for the barrier's answers.
+    var fences = FenceLedger()
     private var inputGate = InputGate()
     /// Sends what `inputs` holds each time it wakes, from the handshake on.
     private var inputDrain: Task<Void, Never>?
@@ -135,18 +137,6 @@ public actor Session {
         await perform(core.stop())
     }
 
-    /// Queues input for the server, in order, from any thread. A key or button press, motion
-    /// and scrolling go only while streaming and not interrupted; a release or a scroll's stop
-    /// only if what it ends went (`InputGate`); a keymap always. Nothing is kept once the session has ended.
-    /// Within `barrier`'s wait after another session's modifier release, what is sent waits; what
-    /// was queued before it goes as it would.
-    public nonisolated func send(_ input: InputMessage) {
-        if let wait = barrier?.wait(before: input, from: inputSender, goesAfter: inputs.delay(holding:)) {
-            inputs.holdWhatFollows(for: wait)
-        }
-        inputs.append(input)
-    }
-
     /// Records the raw stream for `duration`, from the next keyframe (asked for now).
     public func record(to directory: URL, for duration: Duration) async {
         // Installed before any await, so no frame or StreamConfig can slip past it.
@@ -210,7 +200,10 @@ public actor Session {
     private func handle(_ frame: Frame) async throws {
         let message = try ServerMessage.decode(frame.body)
         observed(frame, message)
-        if case .pong(let t, _) = message { liveness.answered(ping: t) }
+        if case .pong(let t, _) = message {
+            liveness.answered(ping: t)
+            pongHeard(t: t)
+        }
         if case .streamConfig = message { config = frame }
         // A record() during the await may have installed a new recorder: keep that one.
         if let recorder, await !recorder.offer(frame: frame, message: message), self.recorder === recorder {
@@ -318,14 +311,15 @@ public actor Session {
     /// `finishing`: everything queued goes, clipboard commands dropped.
     func deliverInput(finishing: Bool = false) {
         guard finishing || !carryingOut else { return }
-        let (queued, command) = finishing ? (inputs.takeAll(), nil) : inputs.take()
-        guard writer != nil, !core.isFinished else { return }
+        let taken = finishing ? inputs.takeAll() : inputs.take()
+        guard writer != nil, !core.isFinished else { return answer(taken.fences) }
         let streaming = core.state == .streaming
-        for input in queued
+        for input in taken.inputs
         where inputGate.admits(input, streaming: streaming, interrupted: liveness.isInterrupted) {
             enqueue(input.clientMessage)
         }
-        if let command {
+        fence(taken.fences)
+        if let command = taken.command {
             carryingOut = true
             Task { await self.carryOut(command) }
         }
@@ -346,7 +340,8 @@ public actor Session {
         ticks?.cancel()
         resizeWake?.cancel()
         inputDrain?.cancel()
-        inputs.close()
+        // What close drops never goes: nothing need wait for its releases.
+        answer(inputs.close())
         await closeClipboard()
         await writer?.drain(within: Self.drainLimit)
         // A link found dead, or quiet when Reconnect Now ends the session, is abandoned: the
@@ -356,6 +351,8 @@ public actor Session {
         } else {
             await connection?.close()
         }
+        // The server has handled all it will, and no Pong is coming.
+        answer(fences.ended())
         await recorder?.finish()
         recorder = nil
         pointer.publish(nil)

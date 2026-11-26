@@ -62,12 +62,12 @@
             try server.send(fixture: "s01b_stream_config_single")
             try server.send(fixture: "s04_cursor_pos")
             let held = RemotePointerSlot.Position(x: 100.5, y: 200.75, visible: true)
-            #expect(await Self.eventually { pointer.latest == held })
+            #expect(await eventually(within: .seconds(2)) { pointer.latest == held })
             try server.send(fixture: "s01b_stream_config_single")
             try await Task.sleep(for: .milliseconds(100))
             #expect(pointer.latest == held)
             try server.send(fixture: "s01_stream_config_dual")
-            #expect(await Self.eventually { pointer.latest == nil })
+            #expect(await eventually(within: .seconds(2)) { pointer.latest == nil })
             await session.disconnect()
             await runner.value
         }
@@ -83,16 +83,10 @@
             try server.send(fixture: "s00_hello_ack")
             try server.send(fixture: "s01b_stream_config_single")
             try server.send(fixture: "s04_cursor_pos")
-            #expect(await Self.eventually { pointer.latest != nil })
+            #expect(await eventually(within: .seconds(2)) { pointer.latest != nil })
             await session.disconnect()
             await runner.value
             #expect(pointer.latest == nil)
-        }
-
-        /// Polls `condition` for up to 2 s.
-        private static func eventually(_ condition: () -> Bool) async -> Bool {
-            for _ in 0..<200 where !condition() { try? await Task.sleep(for: .milliseconds(10)) }
-            return condition()
         }
     }
 #endif

@@ -136,7 +136,7 @@ and Test Cursor Shape (`TestCursor`'s crosshair in place of the session's shapes
   Cancel go straight back to the machines), `AppConnections` (the app's one `HostConnections`:
   each session and Get Screens is a channel on its host's one signed-in ssh, which asks its
   questions through the bundle's askpass helper; and its one `InputBarrier`, handed to every
-  session, so another tab's input waits 30 ms after a modifier release), `ScreenList`
+  session, so another tab's input waits until a modifier release is answered by its server), `ScreenList`
   (the host's monitors, listed through a lister closure, by default on the host's shared
   connection, and never saved:
   one listing at a time, stopped (its error dismissed) when a session starts; a refresh keeps the list until the

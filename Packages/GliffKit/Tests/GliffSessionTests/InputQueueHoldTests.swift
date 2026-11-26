@@ -19,9 +19,9 @@ import Testing
         #expect(queue.take().inputs.isEmpty)
         #expect(await clock.waitForSleepers(1))
         clock.advance(by: .milliseconds(30))
-        let (inputs, command) = queue.take()
-        #expect(inputs == [key])
-        #expect(command == .revoke(sendEmpty: false))
+        let taken = queue.take()
+        #expect(taken.inputs == [key])
+        #expect(taken.command == .revoke(sendEmpty: false))
         #expect(queue.take().inputs == [release])
     }
 
@@ -63,6 +63,98 @@ import Testing
         #expect(queue.take().inputs.isEmpty)
         clock.advance(by: .milliseconds(20))
         #expect(queue.take().inputs == [key])
+    }
+
+    /// A hold for another session's release ends `left` after its answer, if that is sooner.
+    @Test func anAnswerEndsTheHoldSooner() async {
+        let queue = InputQueue(clock: clock)
+        let release = Self.release()
+        queue.holdWhatFollows(for: .milliseconds(250), awaiting: release)
+        queue.append(key)
+        #expect(queue.take().inputs.isEmpty)
+        #expect(await clock.waitForSleepers(1))
+        clock.advance(by: .milliseconds(4))
+        queue.answered(release, left: .milliseconds(10))
+        // The old timer's sleep is cancelled; the new one sleeps until the new end.
+        #expect(await clock.waitForSleepers(1))
+        clock.advance(by: .milliseconds(9))
+        #expect(queue.take().inputs.isEmpty)
+        clock.advance(by: .milliseconds(1))
+        #expect(queue.take().inputs == [key])
+    }
+
+    /// The end of a hold an answer shortened wakes the drain.
+    @Test func theEndOfAnAnsweredHoldWakesTheDrain() async {
+        let queue = InputQueue(clock: clock)
+        let release = Self.release()
+        queue.holdWhatFollows(for: .milliseconds(250), awaiting: release)
+        var wakeups = queue.wakeups.makeAsyncIterator()
+        queue.append(key)
+        await wakeups.next()
+        #expect(queue.take().inputs.isEmpty)
+        #expect(await clock.waitForSleepers(1))
+        queue.answered(release, left: .zero)
+        await wakeups.next()
+        #expect(queue.take().inputs == [key])
+    }
+
+    /// A hold not yet reached is shortened too: it ends no later than its answer says.
+    @Test func anAnswerShortensAHoldStillQueued() async {
+        let queue = InputQueue(clock: clock)
+        let release = Self.release()
+        queue.append(.pause(.milliseconds(50)))
+        queue.holdWhatFollows(for: .milliseconds(250), awaiting: release)
+        queue.append(key)
+        #expect(queue.take().inputs.isEmpty)
+        queue.answered(release, left: .milliseconds(10))
+        #expect(await clock.waitForSleepers(1))
+        clock.advance(by: .milliseconds(50))
+        #expect(queue.take().inputs == [key])
+    }
+
+    /// Another release's answer leaves the hold as it was.
+    @Test func anotherReleasesAnswerChangesNothing() async {
+        let queue = InputQueue(clock: clock)
+        queue.holdWhatFollows(for: .milliseconds(250), awaiting: Self.release())
+        queue.append(key)
+        #expect(queue.take().inputs.isEmpty)
+        #expect(await clock.waitForSleepers(1))
+        queue.answered(Self.release(), left: .zero)
+        clock.advance(by: .milliseconds(249))
+        #expect(queue.take().inputs.isEmpty)
+        clock.advance(by: .milliseconds(1))
+        #expect(queue.take().inputs == [key])
+    }
+
+    /// Each input sent while one release is unanswered waits for it, but one hold keeps them
+    /// all: a hold for a release already held for, queued or reached, is not queued again.
+    @Test func oneReleaseIsHeldForOnce() {
+        let queue = InputQueue(clock: clock)
+        let release = Self.release()
+        #expect(queue.holdWhatFollows(for: .milliseconds(250), awaiting: release))
+        queue.append(key)
+        #expect(!queue.holdWhatFollows(for: .milliseconds(250), awaiting: release))
+        #expect(queue.take().inputs.isEmpty)
+        #expect(!queue.holdWhatFollows(for: .milliseconds(250), awaiting: release))
+        #expect(queue.holdWhatFollows(for: .milliseconds(250), awaiting: Self.release()))
+        #expect(queue.holdWhatFollows(for: .milliseconds(250)))
+    }
+
+    /// A fence goes with the input around it, as one of the fences taken.
+    @Test func fencesAreTakenWithTheInput() {
+        let queue = InputQueue(clock: clock)
+        let release = Self.release()
+        queue.append(key)
+        queue.append(.fence(release))
+        queue.append(self.release)
+        let taken = queue.take()
+        #expect(taken.inputs == [key, self.release])
+        #expect(taken.fences == [release])
+        #expect(queue.take() == .init())
+    }
+
+    private static func release() -> InputBarrier.Release {
+        InputBarrier.Release(sender: InputBarrier.Sender(), number: 1)
     }
 
     /// A hold starts its timer once reached; holds behind it that end no later start none.
@@ -132,7 +224,7 @@ import Testing
         let queue = InputQueue(clock: clock)
         queue.append(.pause(.milliseconds(50)))
         queue.append(key)
-        #expect(queue.takeAll() == [key])
+        #expect(queue.takeAll().inputs == [key])
     }
 
     /// Judging what is held: inputs kept or dropped in place, a clipboard command kept.
@@ -144,7 +236,7 @@ import Testing
         queue.append(.clipboard(.revoke(sendEmpty: false)))
         queue.append(release)
         queue.keepInputs { $0 != key }
-        #expect(queue.takeAll() == [.keymap("k"), release])
+        #expect(queue.takeAll().inputs == [.keymap("k"), release])
     }
 
     /// The judge sees each input once, in order (clipboard commands never), so it can judge each
@@ -167,7 +259,7 @@ import Testing
         let queue = InputQueue(clock: clock)
         queue.holdWhatFollows(for: .milliseconds(30))
         queue.append(key)
-        #expect(queue.takeAll() == [key])
+        #expect(queue.takeAll().inputs == [key])
     }
 
     @Test func closeDropsWhatIsHeld() async {
@@ -177,7 +269,7 @@ import Testing
         queue.close()
         #expect(await clock.waitForSleepers(0))
         clock.advance(by: .milliseconds(30))
-        #expect(queue.takeAll().isEmpty)
+        #expect(queue.takeAll().inputs.isEmpty)
         // The append's wakeup, then the end: the hold's timer was cancelled.
         var wakeups = 0
         for await _ in queue.wakeups { wakeups += 1 }

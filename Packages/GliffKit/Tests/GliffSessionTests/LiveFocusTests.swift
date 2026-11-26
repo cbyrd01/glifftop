@@ -139,6 +139,7 @@
                     if let active, to.opened.withLock({ $0.contains(active) }) { focused += 1 }
                 }
                 try await LiveScreens.nap(1.5)
+                let burst = ContinuousClock.now
                 for _ in 0..<5 {
                     try switchKeys(from: b, to: a, typing: LiveScreens.eKey)
                     try switchKeys(from: a, to: b, typing: LiveScreens.uKey)
@@ -146,12 +147,75 @@
                 try await LiveScreens.nap(2)
                 let inA = try LiveHyprland.typed(at: counterA)
                 let inB = try LiveHyprland.typed(at: counterB)
+                let holds = LiveScreens.switchHolds(after: burst, a.written, b.written)
                 Attachment.record(
-                    "focus on the screen in front \(focused) of 10; A got \(inA ?? "none"), B got \(inB ?? "none")",
+                    "focus on the screen in front \(focused) of 10; A got \(inA ?? "none"), B got \(inB ?? "none"); "
+                        + "burst written in \(holds.total) ms, longest switch \(holds.longest) ms",
                     named: "live-focus-switch.txt")
                 #expect(focused == 10)
                 #expect(inA == "uuuuueeeee")
                 #expect(inB == "uuuuuuuuuu")
+            }
+        }
+
+        /// Tab switches by keys as fast as the poster sends them (every event about 1 ms apart),
+        /// on screens the size of a full-screen window on a Retina Mac: a focus change redraws
+        /// both, and each server, encoding the larger frames, reads its input later. Three bursts
+        /// of five round trips, after 2, 0.5 and 1 s idle, U typed into B and E into A: the
+        /// barrier must hold each switch until the other session's release is answered.
+        @Test(arguments: 0..<3) func pacedSwitchesOnLargeScreensTypeEveryKeyInFront(_ run: Int) async throws {
+            let barrier = InputBarrier(clock: ContinuousClock())
+            try await LiveScreens.with(2, barrier: barrier, terminals: false, largest: (3840, 2160)) {
+                screens in
+                let (a, b) = (screens[0].screen, screens[1].screen)
+                for screen in [a, b] {
+                    screen.session.setViewTarget(
+                        ViewTarget(width: 3024, height: 1690, backingScale: 2, textFactor: 1))
+                }
+                try await LiveScreens.nap(3)
+                let counterA = try await LiveScreens.openCounter(screens[0])
+                let counterB = try await LiveScreens.openCounter(screens[1])
+                let size = try #require(a.geometry?.logicalSize)
+                let centre = (x: size.width / 2, y: size.height / 2)
+                for screen in [b, a] {
+                    try screen.activate(macPointer: centre)
+                    try await LiveScreens.nap(0.3)
+                    if screen === b { screen.capture(.windowKey(false)) }
+                }
+                let chord = LiveScreens.superHeld.union(LiveScreens.shiftHeld)
+                func gap() async throws { try await Task.sleep(for: .milliseconds(1)) }
+                func switchKeys(from: LiveFocusScreen, to: LiveFocusScreen, typing key: UInt16) async throws {
+                    from.key(LiveScreens.superKey, .flagsChanged, flags: LiveScreens.superHeld)
+                    try await gap()
+                    from.key(LiveScreens.shiftKey, .flagsChanged, flags: chord)
+                    try await gap()
+                    from.capture(.windowKey(false))
+                    try to.activate(macPointer: centre)
+                    try await gap()
+                    to.key(LiveScreens.shiftKey, .flagsChanged, flags: LiveScreens.superHeld)
+                    try await gap()
+                    to.key(LiveScreens.superKey, .flagsChanged)
+                    try await gap()
+                    to.key(key, .down(isRepeat: false))
+                    try await gap()
+                    to.key(key, .up)
+                    try await gap()
+                }
+                for idle in [2.0, 0.5, 1.0] {
+                    try await LiveScreens.nap(idle)
+                    for _ in 0..<5 {
+                        try await switchKeys(from: a, to: b, typing: LiveScreens.uKey)
+                        try await switchKeys(from: b, to: a, typing: LiveScreens.eKey)
+                    }
+                }
+                try await LiveScreens.nap(4)
+                let inA = try LiveHyprland.typed(at: counterA)
+                let inB = try LiveHyprland.typed(at: counterB)
+                Attachment.record(
+                    "screen \(size); A got \(inA ?? "none"), B got \(inB ?? "none")",
+                    named: "live-focus-paced-\(run).txt")
+                #expect(inA == String(repeating: "e", count: 15))
+                #expect(inB == String(repeating: "u", count: 15))
             }
         }
 

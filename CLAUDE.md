@@ -178,8 +178,9 @@ This file wins over any skill, including a skill's "supersedes prior training" c
   client behaved, 1 with one `fake-server: ` line on stderr when it didn't, and 2 on bad usage.
   - `serve stream --streams DIR [--size WxH]` replays `NNN.main.h264` (and `NNN.aux.h264`
     under Dual420) from `DIR`, one file per frame, the first a keyframe.
-  - `serve input [--keymap-first] [--expect-keys N] [--expect-pointer N] [--expect-nudge]`
-    streams two frames, then checks the client's input until Bye or EOF:
+  - `serve input [--keymap-first] [--expect-keys N] [--expect-pointer N] [--expect-nudge]
+    [--pong-delay MS] [--coalesce-pongs MS]` streams two frames, then checks the client's input
+    until Bye or EOF:
     - no key or button pressed twice, released unheld, or still held at the end;
     - motion inside the streamed 1280×720 output;
     - a scroll's value finite, and its stop after a scroll of that axis;
@@ -187,7 +188,9 @@ This file wins over any skill, including a skill's "supersedes prior training" c
 
     The flags require the Keymap first, at least N keys, and at least N pointer messages;
     `--expect-nudge` requires a window activation's nudge before any other input: two motions
-    1 apart on x, at the same y.
+    1 apart on x, at the same y. `--pong-delay` answers each Ping MS late, reading nothing
+    meanwhile. `--coalesce-pongs` queues each Pong MS, still reading, and drops one still
+    queued when a newer one is, as upstream's writer does. The two don't go together.
   - `serve cursor [--valid-only]` sends three cursor shapes after the StreamConfig, then two
     frames:
     - a valid 2×2 shape (id 7), its frame four bytes longer than it declares;
