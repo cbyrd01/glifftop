@@ -128,10 +128,11 @@ extension SessionModel {
         return slots
     }
 
-    /// The monitor this window shows where it is: a live mirror's, or an ended named mirror's
-    /// that starts again in place (`restarting`).
+    /// The monitor this window shows where it is: a live mirror's (a reconnecting one's, the
+    /// monitor its try asks for), or an ended named mirror's that starts again in place
+    /// (`restarting`).
     private func placedMonitor(restarting: Set<String>) -> String? {
-        if canDisconnect { return mirroredMonitor }
+        if canDisconnect { return shownMonitor }
         guard case .named(let name) = screenChoice, restarting.contains(name) else { return nil }
         return name
     }

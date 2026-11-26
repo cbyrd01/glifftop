@@ -68,9 +68,7 @@ import Observation
         var shown = ShownMonitors()
         for model in models where model.destination == destination {
             if model.canDisconnect {
-                if let monitor = model.reconnectScreen.monitor(
-                    shownBy: model.screenChoice, output: model.outputName)
-                {
+                if let monitor = model.shownMonitor {
                     shown.live.insert(monitor)
                 } else if model.screenChoice == .focused, model.outputName == nil {
                     shown.unnamedFocused = true

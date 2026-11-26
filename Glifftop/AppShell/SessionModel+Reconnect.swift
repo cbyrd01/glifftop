@@ -83,6 +83,10 @@ extension SessionModel {
         start(destination, screen: sheetScreen ?? screenChoice, restoring: sheetScreen == nil)
     }
 
+    /// The monitor the window shows, or is about to: a reconnecting Focused Monitor mirror's, the
+    /// one its try asks for (`ReconnectScreen`). Show All Monitors' planning and placement read it.
+    var shownMonitor: String? { reconnectScreen.monitor(shownBy: screenChoice, output: outputName) }
+
     /// A session that asked for the monitor a Focused Monitor mirror last showed ended with it
     /// missing (`ReconnectScreen`): the same try, or Try Again, asks for the focused monitor at
     /// once, its end never shown nor counted as a reconnect's try.
