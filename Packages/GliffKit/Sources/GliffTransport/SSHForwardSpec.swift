@@ -3,9 +3,7 @@
 /// made.
 enum SSHForwardSpec {
     static func make(_ forward: PortForward, on loopback: Loopback) -> String {
-        let host = forward.destination.host
-        let target = host.contains(":") ? "[\(host)]" : host
-        return "\(listen(loopback)):\(forward.localPort):\(target):\(forward.remotePort)"
+        "\(listen(loopback)):\(forward.localPort):\(forward.destination.bracketedHost):\(forward.remotePort)"
     }
 
     private static func listen(_ loopback: Loopback) -> String {

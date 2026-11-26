@@ -15,6 +15,10 @@ The module for a host's port forwards and the ports it offers. It holds the modu
   counting up, else one the system picks; the loopback check is injected.
 - **What is forwarded unasked** (`AutomaticPortPolicy`): only with names, never a database or
   cache port.
+- **A host's forwards** (`HostPorts`, `PortsRegistry`, `PortsHold`, `PortsSnapshot`): one actor
+  per destination while a window holds it, on a passive lease it never opens; forwards wait
+  through a reconnect, move when their Mac port is taken, and are cancelled 10 s after the
+  last hold ends.
 
 - **Imports:** Foundation, `os`, `Synchronization` and GliffTransport only. POSIX calls come
   through Foundation's re-export of Darwin.

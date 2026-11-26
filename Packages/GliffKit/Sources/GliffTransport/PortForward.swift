@@ -44,6 +44,9 @@ public enum ForwardDestination: Hashable, Sendable {
         self = .configured(host)
     }
 
+    /// The host in brackets when it is an IPv6 address, as `-L` and `host:port` text take it.
+    public var bracketedHost: String { host.contains(":") ? "[\(host)]" : host }
+
     /// The host as ssh's `-L` names it, unbracketed.
     public var host: String {
         switch self {
