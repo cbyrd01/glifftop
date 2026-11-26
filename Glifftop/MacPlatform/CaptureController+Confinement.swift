@@ -1,5 +1,6 @@
 import AppKit
 import GliffInput
+import GliffSession
 
 /// Capture mode's confined pointer: `InputController.isConfined` holds the Mac pointer over the
 /// picture (`PointerConfinement`), whose deltas move the virtual pointer; where the pointer is
@@ -22,8 +23,9 @@ extension CaptureController {
         }
     }
 
-    /// The virtual pointer where the Mac pointer is over the picture (its centre if it isn't),
-    /// then the Mac pointer held. Where it can't be held, the pointer counts as off the picture.
+    /// The virtual pointer where an activation puts the remote pointer (the Mac pointer over the
+    /// picture, else the host's pointer, else the centre), shown or hidden as the host's is, then
+    /// the Mac pointer held. Where it can't be held, the pointer counts as off the picture.
     private func startConfinement() {
         guard confinementAllowed, let videoView, let geometry = videoView.geometry,
             let size = geometry.logicalSize
@@ -31,8 +33,13 @@ extension CaptureController {
             suspendConfinement()
             return
         }
-        let at = videoView.macPointerOverPicture() ?? (size.width / 2, size.height / 2)
-        controller?.confine(x: at.x, y: at.y, geometry: geometry, at: now)
+        let at = target(videoView.macPointerOverPicture()) ?? (size.width / 2, size.height / 2)
+        // One look at the host's pointer: whether it is hidden now, and only reports after it
+        // are followed.
+        let host = remotePointer?.read()
+        seenGeneration = host?.generation ?? 0
+        let hidden = host?.position.flatMap { $0.visible ? nil : (bufferX: $0.x, bufferY: $0.y) }
+        controller?.confine(x: at.x, y: at.y, hostHiddenAt: hidden, geometry: geometry, at: now)
         guard controller?.confinedPointer != nil else { return }
         let confinement = PointerConfinement(view: videoView) { [weak self] in self?.confined($0, delta: $1) }
         confinement.start()
@@ -43,6 +50,13 @@ extension CaptureController {
             return
         }
         self.confinement = confinement
+    }
+
+    /// Confinement began or ended: the Mac cursor hides or shows at once (not at SwiftUI's next
+    /// update), and the sprite shows or goes.
+    func confinementChanged() {
+        videoView?.setCursor(captured: isCaptured, confined: isConfined)
+        showSprite()
     }
 
     /// A mouse event while confined: motion moves the virtual pointer by `delta` (points),
@@ -59,6 +73,40 @@ extension CaptureController {
             let result = controller?.pointerMoved(dx: delta.dx, dy: delta.dy, at: now)
         else { return }
         handle(result)
+        // At event rate, ahead of the picture.
+        showSprite()
+    }
+
+    /// While confined, each tick: each CursorPos since the last tick, in order (so a warp
+    /// followed at once by an echo is still seen), moves the virtual pointer when it is the
+    /// host's own move (`hostPointer`; a new picture's wait until it is drawn); the picture's
+    /// size keeps the pointer inside it; and the sprite follows.
+    private func followHost() {
+        guard let geometry = videoView?.geometry else { return }
+        if let reports = remotePointer?.reports(after: seenGeneration) {
+            seenGeneration = reports.generation
+            for position in reports.positions {
+                // None: a new picture (or the session's end).
+                guard let position else {
+                    controller?.hostPictureChanged(at: now)
+                    continue
+                }
+                _ = controller?.hostPointer(
+                    bufferX: position.x, bufferY: position.y, visible: position.visible, geometry: geometry,
+                    at: now)
+            }
+        }
+        controller?.resizeConfined(geometry)
+        showSprite()
+    }
+
+    /// The sprite where the virtual pointer is; none while the host hides its pointer.
+    private func showSprite() {
+        guard let pointer = controller?.confinedPointer else {
+            videoView?.confinedCursor.hide()
+            return
+        }
+        videoView?.showConfinedCursor(at: (pointer.x, pointer.y), visible: pointer.visible)
     }
 
     /// The video view's hover: on the picture or off it (a repeat changes nothing). Not while
@@ -81,10 +129,12 @@ extension CaptureController {
     }
 
     /// The display link's tick: while confined, any condition for holding the pointer lost
-    /// suspends it. Leaving ends once this app is in front again with no activation edge (a
-    /// late notification of a quick switch away and back).
+    /// suspends it, and otherwise the host pointer and the picture's size are followed. Leaving
+    /// ends once this app is in front again with no activation edge (a late notification of a
+    /// quick switch away and back).
     func tick() {
         if isConfined, !confinementAllowed { suspendConfinement() }
+        if isConfined { followHost() }
         if leaving, NSApp.isActive, isFrontmostApp { leaving = false }
     }
 

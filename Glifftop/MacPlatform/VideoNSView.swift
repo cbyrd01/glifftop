@@ -80,6 +80,8 @@ final class VideoNSView: NSView {
 
     /// The pointer's look over the picture.
     let cursor = RemoteCursor()
+    /// The confined pointer's sprite, over the picture.
+    let confinedCursor = ConfinedCursorLayer()
 
     let slot: PictureSlot
     /// The cursor shape's generation and size last seen by the display link.
@@ -121,6 +123,7 @@ final class VideoNSView: NSView {
         metalLayer.backgroundColor = CGColor(gray: 0, alpha: 1)
         // While a live resize waits for the next draw, keep the last frame's proportions.
         metalLayer.contentsGravity = .resizeAspect
+        metalLayer.addSublayer(confinedCursor.layer)
         wantsLayer = true
         // Motion while the window is key, over whatever part of the view is visible (it follows
         // resizes by itself). Not while the window is in the background: nothing is captured then.

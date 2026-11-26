@@ -84,7 +84,14 @@ extension VideoNSView {
     /// A remote logical point over the picture as drawn, in AppKit screen coordinates, clamped
     /// into the picture; nil without a picture or a window.
     func screenPoint(ofRemote remote: (x: Double, y: Double)) -> NSPoint? {
-        guard let window, let layout = layout(), layout.rect.width > 0, layout.rect.height > 0,
+        guard let window, let point = viewPoint(ofRemote: remote) else { return nil }
+        return window.convertPoint(toScreen: convert(point, to: nil))
+    }
+
+    /// A remote logical point over the picture as drawn, in the view's points, clamped into the
+    /// picture; nil without a picture.
+    func viewPoint(ofRemote remote: (x: Double, y: Double)) -> NSPoint? {
+        guard let layout = layout(), layout.rect.width > 0, layout.rect.height > 0,
             let local = PointerMapper.local(
                 x: remote.x, y: remote.y, in: layout.rect, geometry: layout.picture.pointerGeometry)
         else { return nil }
@@ -93,9 +100,8 @@ extension VideoNSView {
         let x = min(max(local.x, rect.x + 0.5), rect.x + rect.width - 0.5)
         let y = min(max(local.y, rect.y + 0.5), rect.y + rect.height - 0.5)
         // Drawable pixels from the top-left to the view's points (AppKit's y grows upward).
-        let point = NSPoint(
+        return NSPoint(
             x: bounds.minX + x / layout.pixelsPerPoint.x, y: bounds.maxY - y / layout.pixelsPerPoint.y)
-        return window.convertPoint(toScreen: convert(point, to: nil))
     }
 
     /// A motion of the Mac pointer in points (NSEvent's deltas, `y` growing down) as a remote

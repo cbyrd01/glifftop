@@ -64,6 +64,9 @@ public struct InputController: Sendable {
     static let recentLimit = 64
     /// The picture the virtual pointer's coordinates belong to.
     var virtualGeometry: PictureGeometry?
+    /// A new picture the host announced while confined, not yet drawn: the picture drawn then,
+    /// and when (`hostPictureChanged`).
+    var pendingPicture: (geometry: PictureGeometry, at: Duration)?
     /// Where the virtual pointer was when confinement last ended, for the app to put the Mac
     /// cursor there; nil once confinement starts again.
     public internal(set) var unconfinedAt: (x: Double, y: Double)?

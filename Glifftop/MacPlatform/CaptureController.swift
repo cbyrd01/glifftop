@@ -1,5 +1,6 @@
 import AppKit
 import GliffInput
+import GliffSession
 import Observation
 
 /// Input capture for one window's session, keys and pointer together: feeds `InputController`
@@ -20,8 +21,15 @@ import Observation
     @ObservationIgnored var controller: InputController?
     /// Holds the Mac pointer while confined (`CaptureController+Confinement.swift`).
     @ObservationIgnored var confinement: PointerConfinement? {
-        didSet { isConfined = confinement != nil }
+        didSet {
+            isConfined = confinement != nil
+            confinementChanged()
+        }
     }
+    /// Where the session's host pointer is (`attach`): the confined pointer follows its warps.
+    @ObservationIgnored var remotePointer: RemotePointerSlot?
+    /// The host pointer's generation last followed (or seen when confinement began or ended).
+    @ObservationIgnored var seenGeneration: UInt64 = 0
     /// The start of the clock the confined pointer's times count from.
     @ObservationIgnored let clockStart = ContinuousClock.now
     /// The pointer's place last reported (`.pointerOnPicture`); nil once anything else is
@@ -58,7 +66,8 @@ import Observation
     }
     /// Where an activation puts the remote pointer, given the Mac pointer's place: the session's
     /// (`attach`), nil without a stream, and then nothing is sent.
-    @ObservationIgnored private var target: ((x: Double, y: Double)?) -> (x: Double, y: Double)? = { _ in nil
+    @ObservationIgnored private(set) var target: ((x: Double, y: Double)?) -> (x: Double, y: Double)? = { _ in
+        nil
     }
 
     init() { observeApp() }
@@ -74,11 +83,11 @@ import Observation
     /// layout first.
     func attach(
         target: @escaping ((x: Double, y: Double)?) -> (x: Double, y: Double)?,
-        send: @escaping (InputMessage) -> Void
+        send: @escaping (InputMessage) -> Void, pointer: RemotePointerSlot
     ) {
         detach()
         controller = InputController(mode: mode, keymap: "")
-        (self.target, self.send) = (target, send)
+        (self.target, self.send, remotePointer) = (target, send, pointer)
         keymapChanged()
         // The menu first: capture never rises under an open menu.
         apply(.menuOpen(MenuTracker.shared.isOpen))
@@ -93,7 +102,7 @@ import Observation
     func detach() {
         apply(.picture(false))
         controller = nil
-        send = nil
+        (send, remotePointer) = (nil, nil)
         updateMonitor()
         hideHint()
     }

@@ -234,20 +234,27 @@ AppKit adapters for what SwiftUI can't do:
   local monitor. Each motion's deltas become a remote delta at the absolute mapping's scale
   (`VideoNSView.remoteDelta`) and move the virtual pointer; buttons and scrolls land where it
   is. The start warp's displacement is taken out of the first motion within 0.25 s that
-  carries it (`StartWarp`). It doesn't start where the centre is off every display or another window
-  covers it. When it ends, the Mac pointer comes back
-  over the virtual pointer's place on the picture, if the window is on screen on the active
-  Space. Where the pointer is comes from the video view (`onHover`: over the picture drawn,
-  not its bars, at each motion, the tracking area's enter and exit, a click and a scroll;
-  ignored while confined) and, at the window's key edge and the app's active edge, from the
-  pointer's place before the edge; each is reported when it changes, or when anything else
-  was applied since. Suspensions report it off the picture: another app activating (no
-  holding until this one is active and in front again), the app about to resign (none until
-  it resigns or is active again), another Space, the window
-  moving or changing size or screen, full screen's transitions (no holding until each
-  ends), a sheet, and a check on each display-link tick (`onTick`) that the app is active,
-  the window key, on screen and on the active Space, with no sheet or modal window. While
-  confined the picture's cursor is hidden;
+  carries it (`StartWarp`). It doesn't start where the centre is off every display or another
+  window covers it. When it ends, the Mac pointer comes back over the virtual pointer's place
+  on the picture, if the window is on screen on the active Space. While confined, each
+  display-link tick follows the picture's size (`resizeConfined`) and each new `CursorPos` in
+  the session's `RemotePointerSlot` (`hostPointer`: the host's own moves are adopted, echoes
+  ignored). `ConfinedCursorLayer`, a layer over the picture, draws the pointer where the
+  virtual one is, after each motion and each tick, with the captured look (`RemoteCursor`'s
+  sprite): nothing while the host hides its pointer, or with no shape to show over a video that
+  carries it. Confinement starts where an activation puts the remote pointer, shown or hidden
+  as the host's is, and each tick reads every `CursorPos` since the last (a nil one, a new
+  picture, is `hostPictureChanged`). Where the pointer
+  is comes from the video view (`onHover`: over the picture drawn, not its bars, at each
+  motion, the tracking area's enter and exit, a click and a scroll; ignored while confined)
+  and, at the window's key edge and the app's active edge, from the pointer's place before the
+  edge; each is reported when it changes, or when anything else was applied since.
+  Suspensions report it off the picture: another app activating (no holding until this one is
+  active and in front again), the app about to resign (none until it resigns or is active
+  again), another Space, the window moving or changing size or screen, full screen's
+  transitions (no holding until each ends), a sheet, and a check on each display-link tick
+  (`onTick`) that the app is active, the window key, on screen and on the active Space, with
+  no sheet or modal window. While confined the picture's cursor is hidden;
 - `MenuTracker`: whether any of the app's menus is open (the menu bar's, a toolbar
   pull-down's, a context menu's), counting `NSMenu`'s tracking begins against its ends once
   for the app, with a debug log line of the count;

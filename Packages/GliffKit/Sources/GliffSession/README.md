@@ -63,7 +63,8 @@ the feature seam.
   pixels, which can exceed a shrunk stream's, and whether the host shows a pointer; one that
   isn't a number is dropped), cleared by a StreamConfig that brings a new picture and by the
   session's end. Each publish moves its generation (`read()`), so a poller sees a report at
-  the same place. A shape
+  the same place, and the last `recentLimit` reports are kept (`reports(after:)`), so a poller
+  sees each one since its last look. A shape
   or a position before the first StreamConfig is a protocol error (upstream).
 - **`SessionSnapshot`:** the statuses folded into what a window shows (phase, the server's
   session (headless or not), its own output from HelloAck (`output`; nil when HelloAck lists

@@ -67,7 +67,10 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
   Confined (`InputController+Confined.swift`, Capture mode once the pointer entered the
   picture): the app's logical deltas (`pointerMoved`) move a `VirtualPointer`, absolute motion
   sends nothing, and clicks and scrolls land at the virtual position; the host's CursorPos
-  (`hostPointer`) moves it when it is a warp, not an echo. Confinement ends whenever
+  (`hostPointer`) moves it when it is a warp, not an echo. It starts hidden where the host's
+  last report hid its pointer (`confine(hostHiddenAt:)`), and after `hostPictureChanged` a
+  report waits until the new picture is drawn (at most `newPictureLimit`), as it is in that
+  picture's pixels. Confinement ends whenever
   `isConfined` falls, leaving its place in `unconfinedAt` for the app to put the Mac cursor
   there; still captured (a suspension), the buttons held come up, as their releases may go
   elsewhere. A recapturing click's drag moves it but sends nothing until the up.

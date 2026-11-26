@@ -19,13 +19,24 @@ final class RemoteCursor {
 
     /// The cursor to show over the picture; `pointsPerPixel` is nil without a picture to size by.
     func current(pointsPerPixel: Double?) -> NSCursor {
+        cursor(captured: captured, confined: confined, pointsPerPixel: pointsPerPixel) ?? hidden
+    }
+
+    /// The confined pointer's sprite: the captured look, nil when nothing is to be seen (no
+    /// shape to show and the video carries the pointer).
+    func sprite(pointsPerPixel: Double?) -> NSCursor? {
+        cursor(captured: true, confined: false, pointsPerPixel: pointsPerPixel)
+    }
+
+    /// The look `CursorLook` gives as a cursor; nil for `.hidden`.
+    private func cursor(captured: Bool, confined: Bool, pointsPerPixel: Double?) -> NSCursor? {
         let latest = slot?.latest
         switch CursorLook.choose(
             captured: captured, videoHasPointer: videoHasPointer, image: latest?.image,
             pointsPerPixel: pointsPerPixel, confined: confined)
         {
         case .arrow: return .arrow
-        case .hidden: return hidden
+        case .hidden: return nil
         case .shape(let image, let pointsPerPixel):
             let generation = latest?.generation ?? 0
             if let made, made.generation == generation, made.pointsPerPixel == pointsPerPixel {

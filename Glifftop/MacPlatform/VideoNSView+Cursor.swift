@@ -58,6 +58,27 @@ extension VideoNSView {
         refreshCursor()
     }
 
+    /// Confinement began or ended (and capture with it): the cursor changes now, not at
+    /// SwiftUI's next update.
+    func setCursor(captured: Bool, confined: Bool) {
+        guard let slot = cursor.slot else { return }
+        updateCursor(
+            slot: slot, captured: captured, confined: confined, videoHasPointer: cursor.videoHasPointer)
+    }
+
+    /// The confined pointer's sprite at the remote logical point `remote` (the captured look),
+    /// or none while the host hides its pointer (`visible` false), with no shape to show over a
+    /// video that carries it, or with no picture.
+    func showConfinedCursor(at remote: (x: Double, y: Double), visible: Bool) {
+        guard visible, let window, let point = viewPoint(ofRemote: remote),
+            let sprite = cursor.sprite(pointsPerPixel: cursorPointsPerPixel())
+        else {
+            confinedCursor.hide()
+            return
+        }
+        confinedCursor.show(sprite, at: point, scale: window.backingScaleFactor)
+    }
+
     /// Whether this window would get the pointer's events: key, the app active and not leaving.
     private var isFocused: Bool {
         window?.isKeyWindow == true && NSApplication.shared.isActive && !focusLeaving

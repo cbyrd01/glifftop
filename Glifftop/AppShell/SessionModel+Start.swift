@@ -25,7 +25,8 @@ extension SessionModel {
     /// The window's keys, pointer and clipboard to `session`, whose host is `host`.
     func attachInput(to session: Session) {
         capture.attach(
-            target: { [weak self] in self?.activationTarget(macPointer: $0) }, send: { session.send($0) })
+            target: { [weak self] in self?.activationTarget(macPointer: $0) }, send: { session.send($0) },
+            pointer: remotePointer)
         clipboard.attach(session, host: host)
     }
 }

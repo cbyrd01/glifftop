@@ -19,14 +19,15 @@ public struct VirtualPointer: Sendable {
     /// Where the last report put it while hidden: the host's first shown report re-sends it.
     private var hiddenAt: (x: Double, y: Double)?
 
-    /// At (x, y), on an output `width` × `height` logical (the stream's size over its scale).
+    /// At (x, y), on an output `width` × `height` logical (the stream's size over its scale);
+    /// hidden when the host's last report hid its pointer (at `hiddenAt`).
     /// `sent`: positions sent just before (the absolute motions onto the picture), whose echoes
     /// may still come, as if sent at `time`.
     public init(
-        x: Double, y: Double, width: Double, height: Double, sent: [(x: Double, y: Double)] = [],
-        at time: Duration = .zero
+        x: Double, y: Double, hiddenAt: (x: Double, y: Double)? = nil, width: Double, height: Double,
+        sent: [(x: Double, y: Double)] = [], at time: Duration = .zero
     ) {
-        (self.width, self.height) = (width, height)
+        (self.width, self.height, self.visible, self.hiddenAt) = (width, height, hiddenAt == nil, hiddenAt)
         (self.x, self.y) = (Self.clamp(x, width), Self.clamp(y, height))
         history = sent.suffix(Self.historyLimit).map {
             (Self.applied($0.x, extent: width), Self.applied($0.y, extent: height), time)
