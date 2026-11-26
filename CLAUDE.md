@@ -142,7 +142,8 @@ This file wins over any skill, including a skill's "supersedes prior training" c
     - if `Glifftop/` or `Config/` changed, the app must build.
     - It skips the build when the tree is unchanged since its last clean pass.
   - `record-review.sh` notes each `/simplify` and `/code-review`, with the `HEAD` it ran at, in
-    `.git/claude-reviews`, for the pre-commit hook.
+    `claude-reviews` in the worktree's own git dir (`.git/claude-reviews` in the main checkout),
+    for the pre-commit hook; each worktree keeps its own record.
   - **Guardrails:** `.claude/settings.json` denies edits to:
     - `.swift-format`, `.gitleaks.toml`, `.claude/settings.json`, `.claude/hooks/`,
       `scripts/git-hooks/`;

@@ -26,4 +26,4 @@ esac
 
 cd_project || exit 0
 head=$(git rev-parse HEAD 2>/dev/null) || exit 0
-echo "$skill $head" >>"$(git rev-parse --git-common-dir)/claude-reviews"
+echo "$skill $head" >>"$(git rev-parse --absolute-git-dir)/claude-reviews"

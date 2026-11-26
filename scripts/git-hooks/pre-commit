@@ -26,7 +26,7 @@ code='(\.swift|\.rs|\.sh|\.xcconfig)$|^scripts/|^\.claude/hooks/|(^|/)Cargo\.(to
 grep -Eq "$code" <<<"$staged" || exit 0
 
 head=$(git rev-parse -q --verify HEAD || echo none)
-record="$(git rev-parse --git-common-dir)/claude-reviews"
+record="$(git rev-parse --absolute-git-dir)/claude-reviews"
 missing=
 for skill in simplify code-review; do
     grep -qx "$skill $head" "$record" 2>/dev/null || missing="$missing /$skill"
