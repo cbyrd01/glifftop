@@ -11,6 +11,8 @@ public import GliffTransport
 ///   another connection lives, else at the next `.opened`.
 /// - Re-applied, a forward takes its old Mac port when free, else the chooser's, with a
 ///   `.moved` notice.
+/// - Attached, it runs the watcher on a spare place (`HostPorts+Watcher`) and offers the new
+///   ports it reports (`HostPorts+Offers`).
 /// - 10 s after the last hold ends it cancels every forward, ends its lease and is dropped.
 /// - Logs counts only: never a port, address, destination, name or config line.
 public actor HostPorts {
@@ -26,6 +28,8 @@ public actor HostPorts {
         let exact: Bool
         /// A config forward's bind address isn't loopback.
         var bindNotLoopback = false
+        /// What the window says of it: forwarded automatically, or moved.
+        var notice: PortNotice?
         /// The Mac port it has, or last had.
         var local: Int?
         var state: ForwardState = .waiting
@@ -43,10 +47,11 @@ public actor HostPorts {
     var nextID = 0
     var lease: PassiveLease?
     var notApplied: [String] = []
-    var notices: [PortsNotice] = []
     /// The grace has run out: the pass under way is the last.
     var expiring = false
     private var holds: [Int: [PortForward]] = [:]
+    /// A window holds these ports.
+    var isHeld: Bool { !holds.isEmpty }
     private var settling = false
     private var again = false
     private var subscribed = false
@@ -55,30 +60,38 @@ public actor HostPorts {
     private(set) var isFinished = false
     /// Which grace is running: an earlier one that ends late changes nothing.
     private var grace = 0
+    // The watcher and the offers.
+    var detection = PortDetection.stopped
+    var watcher: Task<Void, Never>?
+    /// A place was freed while the watcher waited for one, or was still ending.
+    var placeWasFreed = false
+    /// The latest frame, while the watcher reads them.
+    var frame: PortFrame?
+    /// The ports of this attachment's last frame; nil before its first, which is silent.
+    var known: Set<Int>?
+    /// New Available ports with a notice, oldest first.
+    var offered: [RemotePort] = []
+    /// The ports of offers not answered when the watcher stopped: offered again when a frame
+    /// shows them, even a first.
+    var unanswered: Set<Int> = []
+    var ignored: Set<Int> = []
+    private let automaticSetting: AutomaticSetting
+    var automatic: Bool { automaticSetting.isOn }
+    /// Automatic forwards whose port is gone, each with the timer that stops it.
+    var absent: [ForwardID: Task<Void, Never>] = [:]
+    /// The cancels of each forward being stopped.
+    var stops: [ForwardID: Task<Void, Never>] = [:]
+
     /// Waiting for it to end; nil once it has.
     var endWaiters: [CheckedContinuation<Void, Never>]? = []
 
     init(
         target: SSHTarget, connections: HostConnections, clock: any Clock<Duration>,
         chooser: LocalPortChooser, publish: @escaping @Sendable (PortsSnapshot) -> Void,
-        finished: @escaping @Sendable (HostPorts) async -> Void
+        automatic: AutomaticSetting, finished: @escaping @Sendable (HostPorts) async -> Void
     ) {
         (self.target, self.connections, self.clock, self.chooser) = (target, connections, clock, chooser)
-        (publishSnapshot, self.finished) = (publish, finished)
-    }
-
-    /// The forwards and the config lines not applied, as the popover shows them.
-    public var snapshot: PortsSnapshot {
-        var snapshot = PortsSnapshot()
-        snapshot.forwarded = entries.map { entry in
-            ForwardRow(
-                id: entry.id, kind: entry.kind, localPort: entry.local ?? entry.wanted,
-                remotePort: entry.remotePort, destination: entry.destination, name: nil,
-                state: entry.state, listening: false, bindNotLoopback: entry.bindNotLoopback)
-        }
-        snapshot.notApplied = notApplied
-        snapshot.notices = notices
-        return snapshot
+        (publishSnapshot, automaticSetting, self.finished) = (publish, automatic, finished)
     }
 
     func publish() {
@@ -143,7 +156,7 @@ public actor HostPorts {
     }
 
     func removeHold(_ id: Int) {
-        guard holds.removeValue(forKey: id) != nil, holds.isEmpty, !isFinished else { return }
+        guard holds.removeValue(forKey: id) != nil, !isHeld, !isFinished else { return }
         grace += 1
         graceTask = Task { [clock, grace] in
             guard (try? await clock.sleep(for: Self.grace)) != nil else { return }
@@ -152,7 +165,7 @@ public actor HostPorts {
     }
 
     private func graceEnded(_ generation: Int) async {
-        guard generation == grace, holds.isEmpty, !isFinished else { return }
+        guard generation == grace, !isHeld, !isFinished else { return }
         expiring = true
         await settle()
     }
@@ -168,12 +181,19 @@ public actor HostPorts {
                     id: newID(), kind: .saved, destination: forward.destination,
                     remotePort: forward.remotePort, wanted: forward.localPort, exact: false))
         }
-        if entries.count != count { publish() }
+        guard entries.count != count else { return }
+        dropTakenOffers()
+        publish()
     }
 
     private func expire() async {
         isFinished = true
         events?.cancel()
+        // Its channel closes before the lease gives back the watcher's place.
+        let watching = watcher
+        endWatch()
+        await watching?.value
+        for stop in stops.values { await stop.value }
         var cancelled = 0
         if let lease {
             for entry in entries {
@@ -203,8 +223,10 @@ public actor HostPorts {
         case .ended(let id, _):
             if id == lease?.connectionID { detach() }
             if lease == nil { await settle() }
-        case .placeFreed:
-            break
+        case .placeFreed(let id):
+            guard id == lease?.connectionID else { return }
+            placeWasFreed = true
+            if watcher == nil, detection == .waitingForPlace { startWatcher() }
         }
     }
 
@@ -212,6 +234,7 @@ public actor HostPorts {
     /// the next, a failed one stays failed, and one being stopped is not applied again.
     func detach() {
         lease = nil
+        endWatch()
         var waiting = 0
         for index in entries.indices {
             switch entries[index].state {
@@ -226,7 +249,7 @@ public actor HostPorts {
 
     /// Attaches to the host's live connection, if any, and takes its config forwards.
     private func attach() async {
-        guard !holds.isEmpty, let attached = await connections.attach(to: target) else { return }
+        guard isHeld, let attached = await connections.attach(to: target) else { return }
         lease = attached
         let configured = await attached.configuredForwards
         guard lease === attached else { return }
@@ -247,18 +270,16 @@ public actor HostPorts {
                         && config.contains { $0.forwards(entry.destination, entry.remotePort) })
             }
         notApplied = configured.notApplied
+        dropTakenOffers()
         publish()
+        startWatcher()
     }
 
     /// A bind address that is loopback, or none (ssh's default, loopback). An empty one is
     /// every interface, as `*` is.
     static func isLoopbackBind(_ bind: String?) -> Bool {
         guard let bind else { return true }
-        switch ForwardDestination(configuredHost: bind) {
-        case .localhost: return true
-        case .address(let address): return address.isLoopback
-        case .configured, nil: return false
-        }
+        return ForwardDestination(configuredHost: bind)?.isLoopback ?? false
     }
 
     func newID() -> ForwardID {

@@ -101,6 +101,28 @@ extension HostPortsForwardsTests {
         await tab.end()
     }
 
+    @Test func aStopUnderWayAsTheGraceEndsFinishesItsCancels() async throws {
+        let tab = try await connections.lease(for: omarchy())
+        let hold = await registry.hold(try omarchy(), saved: [Self.forward(5173)])
+        #expect(await eventually { (try? await state(of: 5173)) == .active(local: 5173, loopbacks: .both) })
+        let ports = try await ports()
+        let id = try #require(await ports.snapshot.forwarded.first?.id)
+        opener.made[0].block(.cancel(5173, .ipv4))
+        let stopping = Task { await ports.stop(id) }
+        #expect(await parked(.cancel(5173, .ipv4), on: opener.made[0]))
+        await hold.end()
+        #expect(await clock.waitForSleepers(1))
+        clock.advance(by: .seconds(10))
+        #expect(await eventually { await ports.isFinished })
+        opener.made[0].release(.cancel(5173, .ipv4))
+        await stopping.value
+        #expect(
+            await eventually {
+                opener.made[0].calls.suffix(2) == [.cancel(5173, .ipv4), .cancel(5173, .ipv6)]
+            })
+        await tab.end()
+    }
+
     @Test func holdsAsTheGraceEndsShareOneHostPorts() async throws {
         let tab = try await connections.lease(for: omarchy())
         try await expiring()

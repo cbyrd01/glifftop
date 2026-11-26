@@ -14,16 +14,19 @@ extension HostPorts {
             Entry(
                 id: id, kind: .manual, destination: destination, remotePort: remote, wanted: localPort,
                 exact: localPort != nil))
+        dropTakenOffers()
         publish()
         await settle()
         return id
     }
 
     /// Cancels a forward on its loopbacks and removes it. A config forward comes back on the
-    /// next attachment.
+    /// next attachment. One already stopping is left to finish.
     public func stop(_ id: ForwardID) async {
-        guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
+        guard let index = entries.firstIndex(where: { $0.id == id }), entries[index].state != .stopping
+        else { return }
         let entry = entries[index]
+        absent.removeValue(forKey: id)?.cancel()
         guard case .active(let local, let loopbacks) = entry.state, let lease,
             let forward = entry.forward(local: local)
         else {
@@ -33,7 +36,11 @@ extension HostPorts {
         }
         entries[index].state = .stopping
         publish()
-        await Self.cancel(forward, loopbacks, on: lease)
+        // The grace's end waits for these cancels before it ends the lease.
+        let cancelling = Task { await Self.cancel(forward, loopbacks, on: lease) }
+        stops[id] = cancelling
+        await cancelling.value
+        stops[id] = nil
         entries.removeAll { $0.id == id }
         publish()
     }
@@ -48,8 +55,13 @@ extension HostPorts {
     }
 
     /// Dismisses a notice.
-    public func dismiss(_ notice: PortsNotice) {
-        notices.removeAll { $0 == notice }
+    public func dismiss(_ notice: PortNotice) {
+        switch notice {
+        case .listening(let port, _): offered.removeAll { $0.port == port }
+        case .several(let ports): offered.removeAll { ports.contains($0.port) }
+        case .forwarded, .moved:
+            if let index = entries.firstIndex(where: { $0.notice == notice }) { entries[index].notice = nil }
+        }
         publish()
     }
 
@@ -89,17 +101,25 @@ extension HostPorts {
         }
         switch made {
         case .success(let choice):
-            if let old = entries[index].local, old != choice.port {
-                notices.append(.moved(from: old, to: choice.port))
-            }
+            let old = entries[index].local
+            let notice: PortNotice? =
+                if entry.kind == .automatic, old == nil {
+                    .forwarded(id: entry.id, remote: entry.remotePort, local: choice.port)
+                } else if let old, old != choice.port {
+                    .moved(id: entry.id, remote: entry.remotePort, from: old, to: choice.port)
+                } else {
+                    nil
+                }
+            // The latest replaces the forward's earlier one.
+            if let notice { entries[index].notice = notice }
             entries[index].local = choice.port
             entries[index].state = .active(local: choice.port, loopbacks: choice.loopbacks)
         case .failure(.connectionLost):
             entries[index].state = .waiting
         case .failure(.localPortInUse):
-            entries[index].state = .failed(.localPortInUse)
+            (entries[index].state, entries[index].notice) = (.failed(.localPortInUse), nil)
         case .failure:
-            entries[index].state = .failed(.failed)
+            (entries[index].state, entries[index].notice) = (.failed(.failed), nil)
         }
         publish()
         if case .failure(.connectionLost) = made { return nil }

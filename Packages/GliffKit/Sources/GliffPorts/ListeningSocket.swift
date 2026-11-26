@@ -23,8 +23,10 @@ public struct PortFrame: Equatable, Sendable {
     public var uid: Int
     public var ephemeral: ClosedRange<Int>
     public var sockets: [ListeningSocket]
+    /// False when sockets past the 64 were left out: a port missing from it may still listen.
+    public var isComplete: Bool
 
-    public init(uid: Int, ephemeral: ClosedRange<Int>, sockets: [ListeningSocket]) {
-        (self.uid, self.ephemeral, self.sockets) = (uid, ephemeral, sockets)
+    public init(uid: Int, ephemeral: ClosedRange<Int>, sockets: [ListeningSocket], isComplete: Bool = true) {
+        (self.uid, self.ephemeral, self.sockets, self.isComplete) = (uid, ephemeral, sockets, isComplete)
     }
 }

@@ -31,13 +31,11 @@ public enum PortFilter {
     {
         // A port with a name never offered on any of its sockets is left out whole.
         let hidden = Set(frame.sockets.filter { isNeverOffered($0.name) }.map(\.port))
-        let kept = frame.sockets.filter { socket in
-            socket.uid == frame.uid && !forwarded.contains(socket.port) && !hidden.contains(socket.port)
-        }
+        let kept = own(frame).filter { !forwarded.contains($0.port) && !hidden.contains($0.port) }
         var available: [RemotePort] = []
         var other: [RemotePort] = []
         for (port, sockets) in Dictionary(grouping: kept, by: \.port).sorted(by: { $0.key < $1.key }) {
-            let reachable = sockets.filter { $0.isWildcard || $0.address.isLoopback }
+            let reachable = sockets.filter(reaches)
             let best = reachable.first(where: \.isWildcard) ?? reachable.first ?? sockets[0]
             let entry = RemotePort(
                 port: port, destination: destination(best),
@@ -51,9 +49,33 @@ public enum PortFilter {
         return (available, other)
     }
 
-    /// Where a forward of `socket` goes on the host.
+    /// Whether a forward to `.localhost` or a loopback address reaches `socket`.
+    static func reaches(_ socket: ListeningSocket) -> Bool { socket.isWildcard || socket.address.isLoopback }
+
+    /// The person's sockets that a forward reaches.
+    static func reachableSockets(_ frame: PortFrame) -> [ListeningSocket] { own(frame).filter(reaches) }
+
+    /// The ports of the person's sockets that a forward reaches.
+    static func reachable(_ frame: PortFrame) -> Set<Int> { Set(reachableSockets(frame).map(\.port)) }
+
+    /// The person's own sockets: the frame's uid only.
+    static func own(_ frame: PortFrame) -> [ListeningSocket] { frame.sockets.filter { $0.uid == frame.uid } }
+
+    /// Where a forward of `socket` goes on the host: `.localhost` or a loopback address.
     static func destination(_ socket: ListeningSocket) -> ForwardDestination {
         if socket.isWildcard { return .localhost }
         return .address(socket.address.unmapped)
+    }
+}
+
+extension ForwardDestination {
+    /// `.localhost` or a loopback address: a forward here reaches the host's own loopback and
+    /// wildcard sockets, the ports the watcher sees and offers.
+    var isLoopback: Bool {
+        switch self {
+        case .localhost: true
+        case .address(let address): address.isLoopback
+        case .configured: false
+        }
     }
 }

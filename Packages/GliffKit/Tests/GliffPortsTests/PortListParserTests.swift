@@ -256,4 +256,15 @@ import Testing
         #expect(sockets.allSatisfy { $0.uid == 1000 })
         #expect(sockets.first?.port == 101)
     }
+
+    @Test func aFrameCutAtSixtyFourSaysSo() throws {
+        let own = { (count: Int) in (1...count).map { String(format: "P 0100007F:%04X 1000", $0 + 100) } }
+        let frame = { (lines: [String]) -> PortFrame? in
+            guard case .frame(let frame) = Self.parse(Self.frame(lines)).outputs.first else { return nil }
+            return frame
+        }
+        #expect(try #require(frame(own(64))).isComplete)
+        #expect(try #require(frame(own(64) + own(1))).isComplete)
+        #expect(try #require(frame(own(65))).isComplete == false)
+    }
 }

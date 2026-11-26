@@ -44,12 +44,6 @@ public enum PortDetection: Equatable, Sendable {
     case waitingForPlace
 }
 
-/// Something a window shows until dismissed.
-public enum PortsNotice: Equatable, Sendable {
-    /// A forward came back on another Mac port: a browser tab on the old one is stale.
-    case moved(from: Int, to: Int)
-}
-
 /// One row of the Forwarded list.
 public struct ForwardRow: Equatable, Sendable, Identifiable {
     public let id: ForwardID
@@ -78,7 +72,7 @@ public struct PortsSnapshot: Equatable, Sendable {
     /// The ssh_config's forward lines not applied (display only, never logged).
     public var notApplied: [String] = []
     public var detection: PortDetection = .stopped
-    public var notices: [PortsNotice] = []
+    public var notices: [PortNotice] = []
 
     public init() {}
 }

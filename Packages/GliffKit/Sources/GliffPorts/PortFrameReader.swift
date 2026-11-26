@@ -2,8 +2,8 @@ import Foundation
 import GliffTransport
 
 /// One frame, read: `B <nonce> none` is `.unavailable`; `B <nonce> proc <uid> [<lo> <hi>]`
-/// is a `PortFrame` of the header's uid and range, the `P` sockets of that uid (at most 64),
-/// and their names from the `N` lines that match one exactly; any other header is nothing.
+/// is a `PortFrame` of the header's uid and range, the `P` sockets of that uid (at most 64,
+/// marked incomplete past them), and their names from the `N` lines that match one exactly; any other header is nothing.
 enum PortFrameReader {
     static let maxSockets = 64
     static let defaultEphemeral = 32768...60999
@@ -21,12 +21,11 @@ enum PortFrameReader {
         else { return nil }
         var sockets: [ListeningSocket] = []
         var names: [(ListenAddress, String)] = []
+        var isComplete = true
         for line in lines {
             // Every socket so far has this uid and no name: equal means the same address and port.
-            if line.hasPrefix("P "), sockets.count < maxSockets, let socket = listening(line, uid: uid),
-                !sockets.contains(socket)
-            {
-                sockets.append(socket)
+            if line.hasPrefix("P "), let socket = listening(line, uid: uid), !sockets.contains(socket) {
+                if sockets.count < maxSockets { sockets.append(socket) } else { isComplete = false }
             } else if line.hasPrefix("N "), let named = named(line) {
                 names.append(named)
             }
@@ -34,7 +33,7 @@ enum PortFrameReader {
         for index in sockets.indices {
             sockets[index].name = names.first { $0.0.matches(sockets[index]) }?.1
         }
-        return PortFrame(uid: uid, ephemeral: ephemeral(header), sockets: sockets)
+        return PortFrame(uid: uid, ephemeral: ephemeral(header), sockets: sockets, isComplete: isComplete)
     }
 
     /// The header's `<lo> <hi>`, or the default when they aren't two numbers in order.

@@ -9,6 +9,7 @@ public actor PortsRegistry {
     private let chooser: LocalPortChooser
     private var hosts: [String: HostPorts] = [:]
     private var nextHold = 0
+    private let automatic = AutomaticSetting()
     private nonisolated let hub = SnapshotHub()
 
     public init(
@@ -35,11 +36,14 @@ public actor PortsRegistry {
         let hub = hub
         let ports = HostPorts(
             target: target, connections: connections, clock: clock, chooser: chooser,
-            publish: { hub.publish($0, for: key) },
+            publish: { hub.publish($0, for: key) }, automatic: automatic,
             finished: { [weak self] ports in await self?.drop(ports, key) })
         hosts[key] = ports
         return ports
     }
+
+    /// Whether new ports are forwarded without a notice, on every host's ports from now on.
+    public func setAutomatic(_ on: Bool) { automatic.set(on) }
 
     /// `target`'s ports while a window holds them or their grace runs.
     public func ports(for target: SSHTarget) -> HostPorts? { hosts[target.value] }
@@ -92,4 +96,13 @@ final class SnapshotHub: Sendable {
         }
         return stream
     }
+}
+
+/// "Forward new ports automatically", as every host's ports read it.
+final class AutomaticSetting: Sendable {
+    private let state = Mutex(false)
+
+    var isOn: Bool { state.withLock { $0 } }
+
+    func set(_ on: Bool) { state.withLock { $0 = on } }
 }

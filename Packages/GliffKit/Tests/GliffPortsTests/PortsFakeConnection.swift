@@ -19,6 +19,8 @@ final class PortsFakeConnection: HostConnection {
         var waiters: [CheckedContinuation<ConnectFailure?, Never>] = []
         var blocked: Set<PortsCall?> = []
         var parked: [PortsCall?: CheckedContinuation<Void, Never>] = [:]
+        var channels: [PortsChannel] = []
+        var refusals = 0
     }
 
     private let state: Mutex<State>
@@ -56,8 +58,25 @@ final class PortsFakeConnection: HostConnection {
         }
     }
 
+    /// The watcher channels opened, in order.
+    var channels: [PortsChannel] { state.withLock { $0.channels } }
+
+    /// The next `count` channels are refused, as sshd past `MaxSessions` refuses them.
+    func refuseChannels(_ count: Int) { state.withLock { $0.refusals += count } }
+
     func channel(command: String) async throws(TransportError) -> any ByteConnection {
-        throw .cancelled
+        let channel = state.withLock { state -> PortsChannel? in
+            guard state.end == nil else { return nil }
+            if state.refusals > 0 {
+                state.refusals -= 1
+                return nil
+            }
+            let channel = PortsChannel(command: command)
+            state.channels.append(channel)
+            return channel
+        }
+        guard let channel else { throw .exited(status: 255, failure: .channelRefused) }
+        return channel
     }
 
     func forward(_ forward: PortForward, on loopback: Loopback) async throws(ForwardError) {

@@ -19,6 +19,13 @@ The module for a host's port forwards and the ports it offers. It holds the modu
   per destination while a window holds it, on a passive lease it never opens; forwards wait
   through a reconnect, move when their Mac port is taken, and are cancelled 10 s after the
   last hold ends.
+- **The watcher and offers** (`HostPorts+Watcher`, `HostPorts+Offers`, `PortNotice`): the
+  watcher runs on a spare place that yields to a tab, restarts with a back-off and stops after
+  five failures in a row; a port that appears after the first frame is offered with a notice,
+  or forwarded under the automatic setting (the registry's) until frames have shown it gone
+  10 s. A frame cut at 64 sockets shows no port gone. Only a forward to the host itself
+  (`localhost` or a loopback address) takes one of its ports; the ports go from view when the
+  watcher stops, and an offer not answered comes back with its port.
 
 - **Imports:** Foundation, `os`, `Synchronization` and GliffTransport only. POSIX calls come
   through Foundation's re-export of Darwin.

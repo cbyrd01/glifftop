@@ -89,10 +89,9 @@ import Testing
         mac.take(5173)
         _ = try await connections.lease(for: omarchy(), fresh: true)
         #expect(await eventually { (try? await state(of: 5173)) == .active(local: 5174, loopbacks: .both) })
-        #expect(
-            try await #require(await registry.ports(for: omarchy())).snapshot.notices == [
-                .moved(from: 5173, to: 5174)
-            ])
+        let snapshot = try await #require(await registry.ports(for: omarchy())).snapshot
+        let id = try #require(snapshot.forwarded.first?.id)
+        #expect(snapshot.notices == [.moved(id: id, remote: 5173, from: 5173, to: 5174)])
         await hold.end()
     }
 
