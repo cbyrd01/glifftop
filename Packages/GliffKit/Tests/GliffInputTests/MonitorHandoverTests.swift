@@ -158,6 +158,21 @@ import Testing
                 == .handOver)
     }
 
+    /// Two mirrors overlap: the covered one's motion under the counted one leaves the count alone.
+    @Test func aCoveredWindowLeavesTheCountAlone() {
+        var handover = entered()
+        var covered = Self.pointer
+        covered.frontmostAtPoint = false
+        #expect(
+            handover.moved(
+                over: c, source: Self.source, target: Self.target, pointer: covered, at: Self.ms(50))
+                == .waitUntil(Self.ms(100)))
+        #expect(handover.target == b)
+        #expect(
+            handover.tick(source: Self.source, target: Self.target, pointer: Self.pointer, at: Self.ms(100))
+                == .handOver)
+    }
+
     @Test func itAnswersOncePerEntry() {
         var handover = entered()
         #expect(

@@ -80,6 +80,9 @@ public struct InputCapture: Sendable {
     /// Capture mode, captured, and the pointer has entered the picture since.
     public var isConfined: Bool { mode == .confined && isCaptured && pointerOnPicture }
 
+    /// Shift+Esc released input, and no click on the picture or new picture took it back.
+    public var isReleased: Bool { released }
+
     /// Whether a click on the picture would take input back: only Shift+Esc's release holds it
     /// off (not an interruption, a menu, focus or the picture's end).
     public var clickRecaptures: Bool { released && conditionsHold }

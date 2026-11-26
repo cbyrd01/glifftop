@@ -85,6 +85,7 @@ public struct InputController: Sendable {
     public var mode: CaptureMode { capture.mode }
     /// `InputCapture.isReleasable`.
     public var isReleasable: Bool { capture.isReleasable }
+    public var isReleased: Bool { capture.isReleased }
     public var isConfined: Bool { capture.isConfined }
 
     /// A key event, with the pointer on the picture.

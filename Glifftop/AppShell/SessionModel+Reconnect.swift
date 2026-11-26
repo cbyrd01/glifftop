@@ -91,6 +91,8 @@ extension SessionModel {
     /// The session's phase changed: a try's session streamed or ended, or a session that may
     /// be tried again ended.
     func sessionPhaseChanged() {
+        // A monitor's mirror while streaming: the pointer hands over between the destination's.
+        capture.handoverGroup = phase == .streaming && !isVirtual ? destination?.value : nil
         switch phase {
         case .streaming:
             gaveUp = false

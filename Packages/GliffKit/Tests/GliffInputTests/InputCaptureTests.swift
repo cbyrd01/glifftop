@@ -30,6 +30,21 @@ import Testing
         #expect(!capture.isCaptured)
     }
 
+    /// Released by Shift+Esc, in the background too, until a click on the picture or a new
+    /// picture.
+    @Test func releasedUntilClickedOrANewPicture() {
+        var capture = InputCapture()
+        apply(&capture, allHold + [.release, .windowKey(false)])
+        #expect(capture.isReleased)
+        apply(&capture, [.windowKey(true), .pictureClicked])
+        #expect(!capture.isReleased)
+        apply(&capture, [.release, .picture(false), .picture(true)])
+        #expect(!capture.isReleased)
+        var controller = InputController(keymap: "")
+        for event in allHold + [.release] { _ = controller.capture(event) }
+        #expect(controller.isReleased)
+    }
+
     @Test func shiftEscHoldsUntilClicked() {
         var capture = InputCapture()
         apply(&capture, allHold + [.release])

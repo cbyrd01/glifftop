@@ -62,7 +62,8 @@ public struct HandoverPointer: Equatable, Sendable {
 /// window in front: every condition of `HandoverFacts` and `HandoverPointer` holding for 100 ms
 /// from the first qualifying motion over the same target. Times are `Duration`s since an origin
 /// the caller picks; it has no clock, and says when it next needs a `tick`. Only a motion starts
-/// a count; it answers `handOver` once per entry.
+/// a count; it answers `handOver` once per entry. A motion over a window covered at the pointer,
+/// other than the one counted, changes nothing.
 public struct MonitorHandover: Sendable {
     public enum Answer: Equatable, Sendable {
         case nothing
@@ -89,6 +90,11 @@ public struct MonitorHandover: Sendable {
         over target: ObjectIdentifier?, source: HandoverFacts, target facts: HandoverFacts?,
         pointer: HandoverPointer, at now: Duration
     ) -> Answer {
+        // Another window's picture covered here (mirrors overlap): the motion is the counted
+        // window's, which reports it too.
+        if let target, target != self.target, !pointer.frontmostAtPoint {
+            return deadline.map(Answer.waitUntil) ?? .nothing
+        }
         guard let target, target != key, let facts, source.canLeave, facts.canEnter(from: source),
             pointer.allows
         else {

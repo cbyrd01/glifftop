@@ -255,13 +255,30 @@ AppKit adapters for what SwiftUI can't do:
   window or tab coming to the front, the first picture, recapture) is an activation, but a menu
   closing is one only if capture would have risen while it was open. So are a
   wake, an unlock and a user switch back while captured: before anything else, two motions
-  onto `SessionModel.activationTarget` (`VideoNSView`'s Mac pointer over the uncovered picture, else the
+  onto `SessionModel.activationTarget` (a handover's entry point, else `VideoNSView`'s Mac pointer over the uncovered picture, else the
   session's `RemotePointerSlot`, else the centre: `FocusTarget`), so the host's focus follows
   to the tab's screen. They go through `Session.activate`, so a key typed at once after a
   switch waits for the host's focus. `CaptureTracker` tells it
   its window and whether the session's own picture shows (not a reconnect's last one); `InputSource` reads the selected layout (HIToolbox's
   TIS) as the keymap text and whether the keyboard is ISO; `MacKeyEvent+NSEvent` and
   `PointerEvent+NSEvent` turn an `NSEvent` into values.
+- The pointer handover between a host's monitor windows: `MonitorHandoverCoordinator`
+  (app-wide) watches the picture of each live mirror whose window isn't key through a
+  `PictureHoverWatcher`, the owner of a second tracking area on its video view (motion and
+  exit while the app is active). Each capture tells it of its key changes, group and video
+  view. At each motion, while the key window can leave, it gathers the
+  key window's and the other window's facts (`CaptureController+Handover.swift`: the group the
+  app sets from `SessionModel.sessionPhaseChanged`, the destination while the session streams a
+  monitor; the mode; the picture live; released; captured; a sheet) and the pointer's (the app
+  active, no button, over the picture drawn, that window frontmost there, asked of the window
+  server only while the app is active and no button is held) for GliffInput's
+  `MonitorHandover`, arms a timer for its deadline and checks the facts again then. When it
+  hands over, the other window's capture keeps the last motion's remote position as its entry
+  point (GliffInput's `HandoverEntry`) and the window comes in front (`makeKeyAndOrderFront`,
+  after the event that answered, whose watcher the key change removes);
+  its activation nudges the host's pointer there instead of asking the window server. The entry
+  point is used once, by that key change's activation, and goes on any other key change or
+  after 500 ms.
 - Which window is on top at a point (`NSWindow.shownNumber`): the window server's answer, read
   through tab groups (`NSWindow.shownTab`, a group's selected tab). At a tab switch the server
   still names the tab just left for a frame or so; the tab now selected stands for it, so the
