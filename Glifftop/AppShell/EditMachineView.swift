@@ -60,7 +60,7 @@ struct EditMachineView: View {
                 }
                 MachineOptionsForm(
                     options: $machine.options, screenList: screenList, host: machine.destination,
-                    getScreens: { screenList.list(host: committed().destination) })
+                    getScreens: { screenList.list(host: committed().destination) }, showsPorts: true)
             }
             .onPreferenceChange(PendingEntryKey.self) { pendingEntry = $0 }
             HStack {

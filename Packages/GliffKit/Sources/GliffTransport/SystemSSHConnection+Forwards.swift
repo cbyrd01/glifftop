@@ -28,9 +28,9 @@ extension ConfiguredForwards {
 
         public var configuredForwards: ConfiguredForwards { get async { configured } }
 
-        /// One request, read by `classify`. A failure or timeout is the connection lost when the
-        /// master is gone or exits within a second, whatever ssh said; so a request that really
-        /// failed takes that second longer to say so.
+        /// One request, read by `classify`. Any failure is the connection lost when the master
+        /// is gone or exits within a second, whatever ssh said, and only then; so a request
+        /// that really failed takes that second longer to say so.
         private func ask(
             _ arguments: [String], _ classify: (Int32, String) -> Result<Void, ForwardError>
         ) async throws(ForwardError) {
@@ -43,10 +43,10 @@ extension ConfiguredForwards {
             case .failure(.timedOut): error = .timedOut
             case .failure: error = .failed
             }
-            if error == .failed || error == .timedOut, await masterEnds(within: .seconds(1)) {
-                throw .connectionLost
-            }
-            throw error
+            guard error != .localPortInUse else { throw error }
+            if await masterEnds(within: .seconds(1)) { throw .connectionLost }
+            // ssh named the control socket, yet the master lives: this request failed.
+            throw error == .connectionLost ? .failed : error
         }
 
         /// The master's answer to one control request, in turn; nil once the connection ended.

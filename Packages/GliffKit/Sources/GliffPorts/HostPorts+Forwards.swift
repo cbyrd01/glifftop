@@ -21,7 +21,8 @@ extension HostPorts {
     }
 
     /// Cancels a forward on its loopbacks and removes it. A config forward comes back on the
-    /// next attachment. One already stopping is left to finish.
+    /// next attachment. One already stopping is left to finish; one whose cancel the master
+    /// refuses stays active, as it may still listen.
     public func stop(_ id: ForwardID) async {
         guard let index = entries.firstIndex(where: { $0.id == id }), entries[index].state != .stopping
         else { return }
@@ -39,9 +40,14 @@ extension HostPorts {
         // The grace's end waits for these cancels before it ends the lease.
         let cancelling = Task { await Self.cancel(forward, loopbacks, on: lease) }
         stops[id] = cancelling
-        await cancelling.value
+        let gone = await cancelling.value
         stops[id] = nil
-        entries.removeAll { $0.id == id }
+        if !gone, self.lease === lease, let index = entries.firstIndex(where: { $0.id == id }) {
+            HostPortsLog.refused(cancels: 1)
+            entries[index].state = entry.state
+        } else {
+            entries.removeAll { $0.id == id }
+        }
         publish()
     }
 
@@ -183,10 +189,24 @@ extension HostPorts {
         return .timedOut
     }
 
-    /// Cancels `forward` on the loopbacks it holds.
-    static func cancel(_ forward: PortForward, _ loopbacks: Loopbacks, on lease: PassiveLease) async {
-        try? await lease.cancel(forward, on: .ipv4)
-        if loopbacks == .both { try? await lease.cancel(forward, on: .ipv6) }
+    /// Cancels `forward` on the loopbacks it holds: true once it is gone, cancelled or ended
+    /// with its connection; false when the master refused a cancel, so it may still listen.
+    @discardableResult
+    static func cancel(_ forward: PortForward, _ loopbacks: Loopbacks, on lease: PassiveLease) async -> Bool {
+        var gone = await cancelled(forward, on: .ipv4, lease)
+        if loopbacks == .both { gone = await cancelled(forward, on: .ipv6, lease) && gone }
+        return gone
+    }
+
+    private static func cancelled(_ forward: PortForward, on loopback: Loopback, _ lease: PassiveLease) async
+        -> Bool
+    {
+        do {
+            try await lease.cancel(forward, on: loopback)
+            return true
+        } catch {
+            return error == .connectionLost
+        }
     }
 }
 
@@ -222,5 +242,10 @@ enum HostPortsLog {
 
     static func ended(forwards count: Int) {
         GliffPorts.log.info("ports released: \(count, privacy: .public) forwards cancelled")
+    }
+
+    /// Cancels the master refused: their listeners stay until the connection ends.
+    static func refused(cancels count: Int) {
+        GliffPorts.log.error("forward cancels refused: \(count, privacy: .public)")
     }
 }

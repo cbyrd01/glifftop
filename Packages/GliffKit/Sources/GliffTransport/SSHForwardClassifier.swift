@@ -14,7 +14,8 @@ import Foundation
 ///   listener.
 ///
 /// A request that failed while the master ended is the connection gone, which the caller tells
-/// from what it knows of the master, not from this text.
+/// from what it knows of the master, not from this text; "Control socket" while the master
+/// stays up is a request that failed.
 enum SSHForwardClassifier {
     static func forward(status: Int32, stderr: String) -> Result<Void, ForwardError> {
         if status == 0 { return .success(()) }

@@ -80,7 +80,7 @@ public actor HostPorts {
     /// Automatic forwards whose port is gone, each with the timer that stops it.
     var absent: [ForwardID: Task<Void, Never>] = [:]
     /// The cancels of each forward being stopped.
-    var stops: [ForwardID: Task<Void, Never>] = [:]
+    var stops: [ForwardID: Task<Bool, Never>] = [:]
 
     /// Waiting for it to end; nil once it has.
     var endWaiters: [CheckedContinuation<Void, Never>]? = []
@@ -193,20 +193,21 @@ public actor HostPorts {
         let watching = watcher
         endWatch()
         await watching?.value
-        for stop in stops.values { await stop.value }
+        for stop in stops.values { _ = await stop.value }
         var cancelled = 0
+        var refused = 0
         if let lease {
             for entry in entries {
                 guard case .active(let local, let loopbacks) = entry.state,
                     let forward = entry.forward(local: local)
                 else { continue }
-                await Self.cancel(forward, loopbacks, on: lease)
-                cancelled += 1
+                if await Self.cancel(forward, loopbacks, on: lease) { cancelled += 1 } else { refused += 1 }
             }
             await lease.end()
         }
         lease = nil
         HostPortsLog.ended(forwards: cancelled)
+        if refused > 0 { HostPortsLog.refused(cancels: refused) }
         entries = []
         await finished(self)
         for waiter in endWaiters ?? [] { waiter.resume() }

@@ -226,6 +226,23 @@ import Testing
         await tab.end()
     }
 
+    /// A cancel the master refuses leaves the forward listening: it stays, active, for Stop
+    /// again; one the connection took with it is gone.
+    @Test func aStopTheMasterRefusesKeepsTheForward() async throws {
+        let tab = try await connections.lease(for: omarchy())
+        let hold = await registry.hold(try omarchy(), saved: [Self.forward(5173)])
+        let row = try #require(try await rows().first)
+        let ports = try #require(await registry.ports(for: omarchy()))
+        opener.made[0].answer(.cancel(5173, .ipv6), with: .timedOut)
+        await ports.stop(row.id)
+        #expect(try await rows().map(\.state) == [.active(local: 5173, loopbacks: .both)])
+        opener.made[0].answer(.cancel(5173, .ipv4), with: .connectionLost)
+        await ports.stop(row.id)
+        #expect(try await rows().isEmpty)
+        await hold.end()
+        await tab.end()
+    }
+
     @Test func snapshotsFollowTheHost() async throws {
         let tab = try await connections.lease(for: omarchy())
         var snapshots = registry.snapshots(for: try omarchy()).makeAsyncIterator()

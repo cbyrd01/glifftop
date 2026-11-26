@@ -57,6 +57,21 @@
             await connection.close()
         }
 
+        /// ssh naming the control socket while the master stays up is a request that failed: the
+        /// connection still carries everything else.
+        @Test func aControlSocketAnswerWithTheMasterUpFails() async throws {
+            let connection = try await open(
+                "STUB_FORWARD_STATUS=255; STUB_FORWARD_ERROR='Control socket connect(/x): Connection refused'"
+            )
+            await #expect(throws: ForwardError.failed) {
+                try await connection.forward(Self.web, on: .ipv4)
+            }
+            await #expect(throws: ForwardError.failed) {
+                try await connection.cancel(Self.web, on: .ipv4)
+            }
+            await connection.close()
+        }
+
         @Test func aCancelOfAnAbsentForwardIsFine() async throws {
             let connection = try await open("STUB_FORWARD_ERROR='mux_client_forward: port not forwarded'")
             try await connection.cancel(Self.web, on: .ipv6)
