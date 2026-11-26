@@ -23,7 +23,10 @@ desktop for Hyprland/Omarchy, written in Swift. Not affiliated with Gliff.
   - the shared clipboard: text, HTML and images, both ways, off until turned on;
   - saved machines with their options, and reconnecting by itself after a lost link;
   - tabs and windows, one session each, sharing one ssh connection per host, with input and
-    the host's focus following the window on top.
+    the host's focus following the window on top;
+  - port forwards on that connection, to this Mac's loopback: the host's new listening ports
+    offered as they appear (or forwarded, under a setting), the ssh config's `LocalForward`
+    lines, a machine's saved ports, and ports typed in the Ports popover.
 - **Not yet:**
   - files over the clipboard;
   - an optional event tap for ⌘Space and ⌘Tab (they stay with the Mac);
@@ -221,7 +224,7 @@ This file wins over any skill, including a skill's "supersedes prior training" c
     - Then it offers its own clipboard and waits for Bye.
 - **Live check** (needs a real host; a headless session): run
   `GLIFFTOP_LIVE_HOST=<ssh host> GLIFFTOP_LIVE_SECONDS=60 swift test --no-parallel --filter
-  'LiveSessionTests|LiveResolutionTests|LiveScreenListTests|LiveClipboardTests|LiveHostConnectionTests|LiveFocusTests|LiveCaptureTests'
+  'LiveSessionTests|LiveResolutionTests|LiveScreenListTests|LiveClipboardTests|LiveHostConnectionTests|LiveFocusTests|LiveCaptureTests|LivePortsTests'
   --attachments-path DIR` in `Packages/GliffKit`.
   - It streams the screen, resizes a virtual screen (which the server removes at the end),
     asks for one at Standard (and at Automatic with `--video cpu`) and lists the monitors.
@@ -241,6 +244,10 @@ This file wins over any skill, including a skill's "supersedes prior training" c
     screen, each followed at once by a digit on the other, never change the other's
     workspace. Whether a key hides the host's pointer is recorded, not checked. They need the
     host's Super+digit to keep to the monitor in front, as omarchy's do, and stop otherwise.
+  - It runs a web server on the host's 127.0.0.1 for at most 60 s, serving a directory it makes
+    under `$XDG_RUNTIME_DIR` and removes at the end (skipped without either or `python3`): the
+    port watcher sees it within 4 s, a forward serves its page, a forward comes back on the same
+    Mac port after the connection dies, and no watcher shell is left once the graces end.
   - It writes numbers-only `live-*.txt` files. It is off in the gate.
 - **Loopback sign-in check** (no host needed): `GLIFFTOP_LIVE_SSHD=1 swift test --no-parallel
   --filter 'LiveSignInTests|LiveForwardTests'` in `Packages/GliffKit`.
@@ -249,9 +256,13 @@ This file wins over any skill, including a skill's "supersedes prior training" c
   - Through the askpass helper and the real peer check: an unknown key allowed (added by its
     fingerprint) and denied, an encrypted key's passphrase, Cancel (no signature sent), and a
     banner imitating ssh's words. A user-run sshd has no PAM, so passwords aren't tested.
-  - The config's forwards: a `LocalForward` on a port the test holds, under
-    `ExitOnForwardFailure yes`, leaves the master up and a channel working; a free one is
-    forwarded on 127.0.0.1 only and carries a TCP connection.
+  - The config's forwards, applied by GliffPorts' `PortsRegistry`: a `LocalForward` on a port
+    the test holds, under `ExitOnForwardFailure yes`, fails as in use and leaves the master up
+    and a channel working; a free one is forwarded on both loopbacks and carries a TCP
+    connection on each.
+  - A forward on each loopback carries a TCP connection on both, and cancelling frees the
+    port; a cancel once the master is gone is the connection lost; a config with
+    `ForwardAgent`, `RemoteCommand` and `RequestTTY` still gives a working channel.
   - It is off in the gate.
 - **Captures:** screenshots, screen recordings and `.gliffrec` stream recordings stay local in
   `.recordings/` (git-ignored).
@@ -271,6 +282,8 @@ Glifftop.app   Glifftop/: AppShell (SwiftUI windows, settings) + MacPlatform (Ap
 GliffKit       Packages/GliffKit/, platform-neutral, one target per module
   GliffMachines   saved machines and their options, as JSON for the app to store; a new tab's
                   options and the tabs' titles
+  GliffPorts      a host's port forwards on its shared connection, the watcher of its
+                  listening ports, and what is offered or forwarded unasked
   GliffSession    per-window actor: handshake, reader/writer tasks, acks, resize, input order
   GliffClipboard  offer/request/data/ack/abort state machine, sharing policy (no pasteboard)
   GliffVideo      H.264 → VideoToolbox (2 sessions) → Metal recombine → BGRA texture
@@ -304,7 +317,8 @@ GliffKit       Packages/GliffKit/, platform-neutral, one target per module
 - **Upstream code** enters only through the pinned git rev in `tools/fake-server`
   (`Cargo.lock`). Clones kept for reference are read, never built or run.
 - **A test host:** read-only checks are fine. Ask before installing, changing or deleting
-  anything there. A live test may set the host's clipboard to a test string.
+  anything there. A live test may set the host's clipboard to a test string, and may make a
+  directory under `$XDG_RUNTIME_DIR` and serve it on 127.0.0.1 for a minute; it removes both.
 - **Pushing:** pushing a work branch and opening its PR is part of the workflow. Ask before
   any other push; never force-push.
 - **Third-party code needs the maintainer's OK.** Before installing, adding or first building

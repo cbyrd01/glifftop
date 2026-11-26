@@ -23,17 +23,17 @@ the remote holds, and when input is captured. Values in, values out: no I/O beyo
 - **`InputCapture`:** when keys and the pointer go to the remote (one capture for both), in
   either `CaptureMode`: `.integrated` ("Integrated", the default) or `.confined` ("Capture").
   Both capture while the window is key, the app active, the picture showing, the link live
-  and no menu open, unless Shift+Esc released it (until the picture is clicked; a new picture
-  starts captured). `isReleasable`: captured, or held off only by an open menu (any, Release
-  Input's own among them). In `.confined`, the pointer is confined once it enters the picture
-  (`.pointerOnPicture(true)`, or the click that takes input back when the last report has the
-  pointer on the picture, not beside it), until capture falls, a
-  suspension (`.pointerOnPicture(false)`), `.away`, a mode change or a new picture; the app
-  reports the pointer's place again after each. `apply` returns a `CaptureChange`:
-  `activates` on a rise of capture, except at a menu's close when nothing else changed under
-  the menu (a mode change never moves capture), and `showHint` on the first capture or switch
-  to it while captured (Integrated) or the first confinement (Capture) of each picture and
-  after each release.
+  and no overlay (an open menu, or the Ports popover over the window) holds it off, unless
+  Shift+Esc released it (until the picture is clicked; a new picture starts captured).
+  `isReleasable`: captured, or held off only by an overlay (any menu, Release Input's own
+  among them, or the popover). In `.confined`, the pointer is confined once it enters the
+  picture (`.pointerOnPicture(true)`, or the click that takes input back when the last report
+  has the pointer on the picture, not beside it), until capture falls, a suspension
+  (`.pointerOnPicture(false)`), `.away`, a mode change or a new picture; the app reports the
+  pointer's place again after each. `apply` returns a `CaptureChange`: `activates` on a rise
+  of capture, except at an overlay's close when nothing else changed under it (a mode change
+  never moves capture), and `showHint` on the first capture or switch to it while captured
+  (Integrated) or the first confinement (Capture) of each picture and after each release.
 - **`PointerPlace`:** where a ⌘ event happened for Integrated's routing (`classify`): the
   picture (its video view, or a drag from it), the chrome (the rest of the key session
   window, a window attached to it, or the menu bar's strip elsewhere), or outside. The app's

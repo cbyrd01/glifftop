@@ -153,28 +153,46 @@
         }
     }
 
-    /// A listening TCP socket on a port the kernel hands out on 127.0.0.1, held until `close`.
+    /// A listening TCP socket on `address` (numeric) at `port` (0: the kernel picks), without
+    /// `SO_REUSEADDR` and an IPv6 one IPv6-only, as a Mac server might hold it; until `close`.
     struct HeldPort {
         let socket: Int32
         let port: Int
 
-        init() throws {
-            let fd = Darwin.socket(AF_INET, SOCK_STREAM, 0)
-            socket = fd
-            var address = sockaddr_in()
-            address.sin_family = sa_family_t(AF_INET)
-            address.sin_addr.s_addr = inet_addr("127.0.0.1")
-            var length = socklen_t(MemoryLayout<sockaddr_in>.size)
-            let bound = withUnsafeMutablePointer(to: &address) { pointer in
+        init(address: String = "127.0.0.1", port: Int = 0) throws {
+            var hints = addrinfo()
+            hints.ai_flags = AI_NUMERICHOST | AI_NUMERICSERV | AI_PASSIVE
+            hints.ai_socktype = SOCK_STREAM
+            var found: UnsafeMutablePointer<addrinfo>?
+            guard getaddrinfo(address, String(port), &hints, &found) == 0, let info = found?.pointee else {
+                throw CocoaError(.featureUnsupported)
+            }
+            defer { freeaddrinfo(found) }
+            let fd = Darwin.socket(info.ai_family, SOCK_STREAM, 0)
+            guard fd >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+            var on: Int32 = 1
+            if info.ai_family == AF_INET6 {
+                setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &on, socklen_t(MemoryLayout<Int32>.size))
+            }
+            var bound = sockaddr_storage()
+            var length = socklen_t(MemoryLayout<sockaddr_storage>.size)
+            let held = withUnsafeMutablePointer(to: &bound) { pointer in
                 pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    bind(fd, $0, length) == 0 && listen(fd, 4) == 0 && getsockname(fd, $0, &length) == 0
+                    bind(fd, info.ai_addr, info.ai_addrlen) == 0 && listen(fd, 4) == 0
+                        && getsockname(fd, $0, &length) == 0
                 }
             }
-            guard bound else {
+            guard held else {
                 Darwin.close(fd)
                 throw CocoaError(.featureUnsupported)
             }
-            port = Int(UInt16(bigEndian: address.sin_port))
+            socket = fd
+            // sockaddr_in and sockaddr_in6 both keep the port, in network order, at byte 2.
+            self.port = Int(
+                UInt16(
+                    bigEndian: withUnsafeBytes(of: bound) {
+                        $0.loadUnaligned(fromByteOffset: 2, as: UInt16.self)
+                    }))
         }
 
         func close() { Darwin.close(socket) }

@@ -15,6 +15,8 @@ public enum CaptureEvent: Sendable, Equatable {
     case appActive(Bool)
     case picture(Bool)
     case interrupted(Bool)
+    /// A popover with fields (Ports) is over the window: its keys are the Mac's while it is.
+    case popover(Bool)
     /// Shift+Esc, or Input ▸ Release Input: keys and pointer go back to the Mac.
     case release
     /// A click on the view takes input back after a release: an entry only if the last
@@ -39,8 +41,8 @@ public struct CaptureChange: Sendable, Equatable {
     public var showHint: Bool
     /// Capture rose: the window became key, the app active, the picture or the link came back,
     /// or a click took input back, so the host's focus should follow this window. A rise at a
-    /// menu's close activates only when one of those happened while the menu was open; a mode
-    /// change never moves capture.
+    /// menu's or the Ports popover's close activates only when one of those happened while it
+    /// was open; a mode change never moves capture.
     public var activates: Bool
 
     public init(showHint: Bool = false, activates: Bool = false) {
@@ -62,6 +64,7 @@ public struct InputCapture: Sendable {
     private var picture = false
     private var interrupted = false
     private var menuOpen = false
+    private var popover = false
     private var released = false
     /// The last `.pointerOnPicture`, or a recapturing click on the picture; each fall of
     /// capture, `.away`, a new picture and a change of mode make it false, so confinement needs a
@@ -71,8 +74,8 @@ public struct InputCapture: Sendable {
     /// The last `.pointerOnPicture` as reported: where the pointer is, which nothing else
     /// changes. The app reports it for each click, just before the click.
     private var pointerOver = false
-    /// Capture would have risen while a menu held it off: its close is an activation.
-    private var roseUnderMenu = false
+    /// Capture would have risen while an overlay held it off: its close is an activation.
+    private var roseUnderOverlay = false
     /// The modes whose hint has shown for this picture since the last release; each mode's hint
     /// has its own moment.
     private var hintsShown: Set<CaptureMode> = []
@@ -85,25 +88,28 @@ public struct InputCapture: Sendable {
     public var isConfined: Bool { mode == .confined && isCaptured && pointerOnPicture }
 
     /// Whether a click on the picture would take input back: only Shift+Esc's release holds it
-    /// off (not an interruption, a menu, focus or the picture's end).
+    /// off (not an interruption, a menu, the popover, focus or the picture's end).
     public var clickRecaptures: Bool { released && conditionsHold }
 
     /// The conditions for capture, Shift+Esc's release aside: the same in both modes.
-    private var conditionsHold: Bool { conditionsBesideMenu && !menuOpen }
+    private var conditionsHold: Bool { conditionsBesideOverlay && !overlaid }
 
-    /// The window, the app, the picture and the link: the conditions an open menu doesn't touch.
-    private var conditionsBesideMenu: Bool { windowKey && appActive && picture && !interrupted }
+    /// An open menu or the Ports popover: each holds capture off while the window stays key.
+    private var overlaid: Bool { menuOpen || popover }
 
-    /// Captured but for an open menu.
-    private var capturedBesideMenu: Bool { conditionsBesideMenu && !released }
+    /// The window, the app, the picture and the link: the conditions an overlay doesn't touch.
+    private var conditionsBesideOverlay: Bool { windowKey && appActive && picture && !interrupted }
+
+    /// Captured but for an overlay.
+    private var capturedBesideOverlay: Bool { conditionsBesideOverlay && !released }
 
     /// Whether Input ▸ Release Input has something to release: captured, or held off only by an
-    /// open menu (any menu: the Input menu itself while the item is chosen).
-    public var isReleasable: Bool { capturedBesideMenu }
+    /// overlay (any menu, the Input menu itself while the item is chosen, or the popover).
+    public var isReleasable: Bool { capturedBesideOverlay }
 
     public mutating func apply(_ event: CaptureEvent) -> CaptureChange {
         let wasCaptured = isCaptured
-        let wasBesideMenu = capturedBesideMenu
+        let wasBesideOverlay = capturedBesideOverlay
         switch event {
         case .windowKey(let key): windowKey = key
         case .appActive(let active): appActive = active
@@ -117,6 +123,9 @@ public struct InputCapture: Sendable {
             }
             picture = shown
         case .interrupted(let on): interrupted = on
+        case .popover(let on):
+            if on, !overlaid { roseUnderOverlay = false }
+            popover = on
         case .release:
             released = true
             hintsShown.removeAll()
@@ -130,7 +139,7 @@ public struct InputCapture: Sendable {
         case .away: pointerOnPicture = false
         case .menuOpen(let open):
             // A new menu session, not a submenu's report within one.
-            if open, !menuOpen { roseUnderMenu = false }
+            if open, !overlaid { roseUnderOverlay = false }
             menuOpen = open
         case .pointerOnPicture(let on):
             pointerOnPicture = on
@@ -141,16 +150,20 @@ public struct InputCapture: Sendable {
         }
         isCaptured = conditionsHold && !released
         if wasCaptured, !isCaptured { pointerOnPicture = false }
-        if menuOpen, capturedBesideMenu, !wasBesideMenu { roseUnderMenu = true }
+        if overlaid, capturedBesideOverlay, !wasBesideOverlay { roseUnderOverlay = true }
         let rose = isCaptured && !wasCaptured
-        // A menu closing alone is no activation: the window stayed key, and the host's focus
-        // with it.
-        let menuClosing = if case .menuOpen(false) = event { true } else { false }
+        // An overlay closing alone is no activation: the window stayed key, and the host's
+        // focus with it.
+        let overlayClosing =
+            switch event {
+            case .menuOpen(false), .popover(false): true
+            default: false
+            }
         // The mode's state, the first time it holds since the last release or new picture
         // (a switch to Integrated while captured included).
         let hintState = mode == .confined ? isConfined : isCaptured
         return CaptureChange(
             showHint: hintState && hintsShown.insert(mode).inserted,
-            activates: rose && (!menuClosing || roseUnderMenu))
+            activates: rose && (!overlayClosing || roseUnderOverlay))
     }
 }

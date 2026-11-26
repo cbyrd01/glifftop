@@ -62,16 +62,25 @@ public struct SSHCommand: Equatable, Sendable {
             + (connectTimeout ? SSHConnectTimeout.options : [])
     }
 
-    /// No port forward from the person's ssh_config: Glifftop's master adds the `LocalForward`s
-    /// itself (`SystemSSHConnection`).
+    /// No port forward from the person's ssh_config: the open's probe reads its `LocalForward`s
+    /// and GliffPorts applies them on the master.
     static let noConfigForwards = ["-o", "ClearAllForwardings=yes"]
+
+    /// What every channel turns off, whatever the config says, as `sftp(1)` does: no agent or
+    /// X11 forwarding, no local or remote command, no terminal, no subsystem; and stdin kept, in
+    /// the foreground.
+    static let channelOptions = [
+        "-o", "ForwardAgent=no", "-o", "ForwardX11=no", "-o", "PermitLocalCommand=no", "-o",
+        "RemoteCommand=none", "-o", "RequestTTY=no", "-o", "SessionType=default", "-o", "StdinNull=no", "-o",
+        "ForkAfterAuthentication=no",
+    ]
 
     private static let shellSafe = Set(
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_@%+=:,./-")
 
     /// `text` as one word for a POSIX shell: unchanged when every character is safe,
     /// otherwise in single quotes, with each `'` written as `'\''`.
-    static func shellQuoted(_ text: String) -> String {
+    package static func shellQuoted(_ text: String) -> String {
         if !text.isEmpty && text.allSatisfy(shellSafe.contains) { return text }
         return "'" + text.replacing("'", with: "'\\''") + "'"
     }

@@ -4,8 +4,8 @@ public import GliffSession
 public import GliffTransport
 
 /// How a machine connects: the screen, and for a virtual screen its text size and resolution;
-/// Scale to Fit; whether a dropped link is tried again; and its clipboard sharing (nil: as
-/// Settings says).
+/// Scale to Fit; whether a dropped link is tried again; its clipboard sharing (nil: as
+/// Settings says); and the ports it forwards when connected.
 public struct MachineOptions: Codable, Equatable, Sendable {
     public var screen: ScreenChoice
     public var textSize: TextSize
@@ -13,15 +13,18 @@ public struct MachineOptions: Codable, Equatable, Sendable {
     public var scaleToFit: Bool
     public var reconnects: Bool
     public var clipboard: ClipboardSharing?
+    public var forwards: [SavedForward]
 
     public init(
         screen: ScreenChoice = .focused, textSize: TextSize = .mac,
         resolution: VirtualResolution = .automatic,
-        scaleToFit: Bool = false, reconnects: Bool = true, clipboard: ClipboardSharing? = nil
+        scaleToFit: Bool = false, reconnects: Bool = true, clipboard: ClipboardSharing? = nil,
+        forwards: [SavedForward] = []
     ) {
         (self.screen, self.textSize, self.resolution, self.scaleToFit, self.reconnects, self.clipboard) = (
             screen, textSize, resolution, scaleToFit, reconnects, clipboard
         )
+        self.forwards = forwards
     }
 
     /// An option missing or unreadable (stored by another version) takes its default.
@@ -36,7 +39,8 @@ public struct MachineOptions: Codable, Equatable, Sendable {
             resolution: value(.resolution, defaults.resolution),
             scaleToFit: value(.scaleToFit, defaults.scaleToFit),
             reconnects: value(.reconnects, defaults.reconnects),
-            clipboard: value(.clipboard, defaults.clipboard))
+            clipboard: value(.clipboard, defaults.clipboard),
+            forwards: SavedForward.once(value(.forwards, [Lossy<SavedForward>]()).compactMap(\.value)))
     }
 }
 
@@ -74,10 +78,12 @@ extension MachineOptions {
     /// `saved`: but for the screen when `keepsScreen` (a reconnect's try, or a tab's own
     /// screen: not the machine's to change) and the clipboard when `keepsClipboard` (the window
     /// chose none since it was last kept, and another window may have changed the machine's).
+    /// The forwards are always the machine's: a window doesn't keep its own.
     public func recorded(over saved: MachineOptions, keepsScreen: Bool, keepsClipboard: Bool)
         -> MachineOptions
     {
         var options = self
+        options.forwards = saved.forwards
         if keepsScreen { options.screen = saved.screen }
         if keepsClipboard { options.clipboard = saved.clipboard }
         return options

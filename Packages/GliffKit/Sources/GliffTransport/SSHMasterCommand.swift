@@ -4,14 +4,16 @@
 /// arguments never hold `-M`, which toggles, or the Control options.
 ///
 /// - `master`: `SSHCommand.options` (with `ClearAllForwardings=yes`) and the master's own
-///   (`ControlMaster=yes`, `ControlPersist=no`, `-S socket`, `-N`): a master with no command
+///   (`ControlMaster=yes`, `ControlPersist=no`, `ForkAfterAuthentication=no`, `-S socket`,
+///   `-N`): a master with no command, in the foreground,
 ///   that ends with its process, opening none of the config's forwards.
 ///   `SystemSSHConnection` adds the config's `LocalForward`s itself, with `forward`.
 /// - With `asking`, the master may ask its questions through askpass: no `BatchMode=yes`,
 ///   ssh's stdin `/dev/null` (`-n`), `StrictHostKeyChecking` from `MasterAsking` first, and
 ///   `UpdateHostKeys=no` when it says so.
-/// - `check`, `exit` and `forward` ask the master whether it is up, to end, and for one forward
-///   on 127.0.0.1; `channel` runs one command through it. Each has `ControlMaster=no` (a
+/// - `check`, `exit`, `forward` and `cancel` ask the master whether it is up, to end, and to
+///   add or end one forward (an `SSHForwardSpec`); `channel` runs one command through it, with
+///   `SSHCommand.channelOptions`. Each has `ControlMaster=no` (a
 ///   config's `ControlMaster yes` would make ssh ignore the socket and sign in),
 ///   `ProxyCommand=/usr/bin/false` (which wins over any proxy in the config) and
 ///   `BatchMode=yes`, so none of them ever signs in on its own.
@@ -37,7 +39,10 @@ public struct SSHMasterCommand: Equatable, Sendable {
     }
 
     public var master: [String] {
-        let own = ["-o", "ControlMaster=yes", "-o", "ControlPersist=no", "-S", socketArgument, "-N"]
+        let own = [
+            "-o", "ControlMaster=yes", "-o", "ControlPersist=no", "-o", "ForkAfterAuthentication=no", "-S",
+            socketArgument, "-N",
+        ]
         return SSHCommand.options(sshArguments, connectTimeout: connectTimeout, own: own, asking: asking) + [
             "--", target.value,
         ]
@@ -47,13 +52,15 @@ public struct SSHMasterCommand: Equatable, Sendable {
 
     public var exit: [String] { askMaster("exit") }
 
-    func forward(_ forward: SSHLocalForward) -> [String] { askMaster("forward", ["-L", forward.argument]) }
+    /// `spec` is an `SSHForwardSpec`, built from typed values only.
+    func forward(_ spec: String) -> [String] { askMaster("forward", ["-L", spec]) }
+
+    func cancel(_ spec: String) -> [String] { askMaster("cancel", ["-L", spec]) }
 
     /// `command` is one line for the remote login shell, quoted by the caller.
     public func channel(_ command: String) -> [String] {
-        ["-T", "-S", socketArgument] + Self.guards + SSHCommand.noConfigForwards + sshArguments + [
-            "--", target.value, command,
-        ]
+        ["-T", "-S", socketArgument] + Self.guards + SSHCommand.noConfigForwards + SSHCommand.channelOptions
+            + sshArguments + ["--", target.value, command]
     }
 
     private static let guards = [

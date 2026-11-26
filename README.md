@@ -25,12 +25,17 @@ The name combines *gliff*, the Scots word for a glimpse, with *desktop* and *cli
   follows the window's size.
 - A shared clipboard (text, HTML and images, both ways), off until you turn it on.
 - Saved machines, each with its options, and reconnecting by itself after a lost link.
+- Port forwards: a port that starts listening on the host is offered, one click from
+  `localhost` on the Mac. Your ssh config's `LocalForward` lines, a machine's saved ports and
+  ports you type are forwarded too, while a window to the host is open.
 
 <img src="docs/media/screensaver.png" width="480" alt="Omarchy's screensaver in Glifftop: the logo's colour gradient, sharp at full chroma">
 
 **Not yet:**
 
 - Files over the clipboard.
+- Forwards the other way (a port on the host reaching the Mac) or a SOCKS proxy: of your ssh
+  config's forwards only `LocalForward` lines apply, not `RemoteForward` or `DynamicForward`.
 - ⌘Space and ⌘Tab stay with the Mac.
 - Signed releases: for now, build it yourself.
 
@@ -61,7 +66,8 @@ encode).
 2. While the window is in front, the keyboard and pointer go to the remote computer. With
    the pointer over the toolbar, tab bar or menu bar, ⌘ shortcuts are the Mac's (⌘T, ⌘W,
    ⌘Q); everything else still goes to the remote. **Input ▸ Capture** keeps the pointer in
-   the picture too. **Input ▸ Release Input** (⇧Esc) gives everything back to the Mac.
+   the picture too. **Input ▸ Release Input** (⇧Esc) gives everything back to the Mac, as
+   does the Ports popover while it is open.
 3. **View ▸ Actual Size** (⌘0) shows the remote 1:1, turning Scale to Fit off; **View ▸ Scale
    to Fit** (⌥⌘0) scales a smaller screen up.
 4. **Settings ▸ Clipboard**, or the clipboard button in the toolbar, shares the clipboard,
@@ -85,6 +91,15 @@ encode).
    - Hyprland combines the modifiers of every keyboard, so two tabs to one host share their
      held keys; switching tabs lets go of the old tab's keys first, and the new tab's first
      input waits until the host has them, one round trip when the host is idle.
+6. **Connection ▸ Show Ports** (⌥⌘P), or the Ports button in the toolbar, lists the ports
+   forwarded to this Mac and those listening on the host. A port that starts listening while
+   a window to the host is open shows a notice: **Forward** listens on the same port on this
+   Mac (the next free one if it's taken) and **Open** opens it in the browser. Forwards
+   listen on this Mac's `127.0.0.1` and `::1` only, and end 10 s after the host's last window
+   closes. **Forward new ports automatically** (in Settings and the popover) forwards new
+   ports without asking, though never a database or cache port, and stops each once it has
+   been gone 10 s. A machine's **Ports forwarded when connected** (in its sheet, ⌘E) are
+   forwarded each time it connects.
 
 ## Build
 

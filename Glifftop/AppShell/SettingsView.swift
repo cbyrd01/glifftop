@@ -28,6 +28,8 @@ enum AppSettings {
     static let showsStatusBarKey = "showsStatusBar"
     /// The input mode a new window starts in (`CaptureMode.stored`); Integrated by default.
     static let inputModeKey = "inputMode"
+    /// "Forward new ports automatically" (`AppPorts.automatic`), app-wide; off by default.
+    static let forwardNewPortsKey = "forwardNewPortsAutomatically"
 
     /// Settings' input mode, which each new window starts in.
     static var inputMode: CaptureMode {
@@ -54,7 +56,7 @@ enum AppSettings {
 }
 
 /// Settings ▸ General: the options each new host or machine starts from, the clipboard, and
-/// the input mode.
+/// the input mode and forwarding new ports.
 struct SettingsView: View {
     @AppStorage(AppSettings.connectScreenKey) private var connectScreen = "focused"
     @AppStorage(AppSettings.virtualTextSizeKey) private var virtualTextSize = TextSize.mac.factor
@@ -96,6 +98,7 @@ struct SettingsView: View {
             )
             .font(.callout)
             .foregroundStyle(.secondary)
+            PortsSettingsSection()
         }
         .formStyle(.grouped)
         .clipboardSharingConfirmation($askingClipboard) {

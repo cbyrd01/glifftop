@@ -162,9 +162,9 @@
             }
         }
 
-        /// The stderr kept so far, for tests.
+        /// The stderr kept so far.
         var stderrTail: [UInt8] { state.withLock { $0.stderrTail } }
-        /// The exit status once the process has exited (negative: the signal), for tests.
+        /// The exit status once the process has exited (negative: the signal).
         var exitStatus: Int32? { state.withLock { $0.exitStatus } }
 
         func write(_ bytes: [UInt8]) async throws(TransportError) {
@@ -254,7 +254,7 @@
 
         /// Whether the process has exited (and been reaped) within `limit`. A timer, not the
         /// task's sleep: it works the same from a cancelled task.
-        private func waitForExit(within limit: Duration) async -> Bool {
+        func waitForExit(within limit: Duration) async -> Bool {
             await withCheckedContinuation { continuation in
                 let waiter = ExitWaiter(continuation)
                 let exited = state.withLock { state in

@@ -22,7 +22,7 @@ let package = Package(
             name: "GliffKit",
             targets: [
                 "GliffProtocol", "GliffTransport", "GliffVideo", "GliffInput", "GliffClipboard",
-                "GliffSession", "GliffMachines",
+                "GliffSession", "GliffMachines", "GliffPorts",
             ]),
         // The askpass helper's logic, for the app's helper tool, which links only this.
         .library(name: "GliffAskpass", targets: ["GliffAskpass"]),
@@ -48,7 +48,8 @@ let package = Package(
             swiftSettings: strictSettings),
         .testTarget(
             name: "GliffTransportTests",
-            dependencies: ["GliffTransport", "GliffAskpass", "GliffTestSupport"],
+            // GliffPorts: the live check of the config's forwards, applied as the app applies them.
+            dependencies: ["GliffTransport", "GliffAskpass", "GliffTestSupport", "GliffPorts"],
             swiftSettings: strictSettings),
         .target(
             name: "GliffVideo", dependencies: ["GliffProtocol"], exclude: ["README.md"],
@@ -91,6 +92,12 @@ let package = Package(
             name: "GliffMachinesTests",
             dependencies: ["GliffMachines", "GliffTransport", "GliffSession", "GliffClipboard"],
             swiftSettings: strictSettings),
+        .target(
+            name: "GliffPorts", dependencies: ["GliffTransport"], exclude: ["README.md"],
+            swiftSettings: strictSettings),
+        .testTarget(
+            name: "GliffPortsTests", dependencies: ["GliffPorts", "GliffTransport", "GliffTestSupport"],
+            resources: [.copy("Fixtures")], swiftSettings: strictSettings),
         // Test doubles shared by the test targets (a clock tests move by hand); not in the product.
         .target(name: "GliffTestSupport", exclude: ["README.md"], swiftSettings: strictSettings),
     ]

@@ -43,6 +43,7 @@ struct RootView: View {
             EditMachineView(model: model, machine: $0.machine, isNew: $0.isNew)
         }
         .signInSheet(model.signIn, shown: model.machineEdit == nil)
+        .portsSheet(model)
         .background {
             AttentionTracker(question: model.signIn.current?.id) { [signIn = model.signIn] in
                 signIn.windowReady = $0
@@ -61,7 +62,10 @@ struct RootView: View {
             // the old screen.
             CaptureTracker(
                 controller: model.capture, picture: model.shownStream != nil && !model.isReconnecting,
-                interrupted: model.isInterrupted)
+                interrupted: model.isInterrupted,
+                // The Ports popover's keys, its fields' among them, are the Mac's while it shows;
+                // the click that closes it is the Mac's too.
+                popover: AppPorts.shared.ports(for: model).popoverShown)
         }
         .background { ClipboardTracker(controller: model.clipboard) }
         .background { LiveResizeTracker(changed: model.liveResizeChanged) }
