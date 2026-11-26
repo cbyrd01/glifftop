@@ -161,6 +161,16 @@ AppKit adapters for what SwiftUI can't do:
 - quitting that waits for the sessions' Bye (`AppDelegate`, which knows only a `beforeQuit`
   closure; `GlifftopApp` hands it `OpenSessions.shutdownAll`, then `AppConnections.closeAll`),
   and closing the last window quits;
+- the ⌘Q guard: while a session is live in some window (connecting, streaming, interrupted or
+  reconnecting: `guardsQuit`, from `OpenSessions`), a quit whose current event is a key-down
+  with ⌘ (Quit's key equivalent, whatever the layout) is held back by `QuitGuard`, which
+  drives `QuitHold` on the events' own times: "Hold ⌘Q to Quit" shows at once in
+  `QuitHoldPanel` (borderless, non-activating, click-through, floating, on the key window's
+  screen, glass on its own content, announced to VoiceOver); ⌘ and the key held 1 s (the
+  observing monitor's key-ups end it; at the deadline `CGEventSource.keyState` and the
+  modifier flags confirm it) or a fresh press while it shows quits, from the run loop; let go
+  early, it stays 1.5 s, then fades. Quit from a menu, the Dock, logout or restart isn't
+  guarded;
 - native tabs (`WindowTabbing`): a SwiftUI window is already ordered in when its content
   reaches it, so a new tab joins its group with `addTabbedWindow`, after the group's last tab,
   and a window opened alone that macOS tabbed anyway leaves its group, as does a new window

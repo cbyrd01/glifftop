@@ -17,8 +17,6 @@ public struct QuitHold: Sendable {
     public static let hold: Duration = .seconds(1)
     /// How long the message stays after an early let-go.
     public static let linger: Duration = .milliseconds(1500)
-    /// The message's fade, for the panel.
-    public static let fade: Duration = .milliseconds(200)
 
     private enum State: Sendable {
         case idle
