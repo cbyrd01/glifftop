@@ -79,6 +79,12 @@ public struct HostClipboardLedger: Sendable {
         return holder.session != session && holder.changeCount == changeCount
     }
 
+    /// The session holds its host's clipboard.
+    public func holds(_ session: UUID) -> Bool {
+        guard let host = members[session]?.host else { return false }
+        return holders[host]?.session == session
+    }
+
     /// The session offered the Mac clipboard: it holds the host's clipboard now. Returns the
     /// host's other sessions, whose offers it supersedes, and, inside the fence after the
     /// host's last empty offer, when to send it.

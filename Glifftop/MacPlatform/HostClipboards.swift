@@ -111,8 +111,12 @@ final class HostClipboards {
         NotificationCenter.default.removeObserver(observer)
         let stayed = Set(sessions(in: windows.filter { !closed.contains(ObjectIdentifier($0)) }))
         ledger.stayed(stayed)
-        // A tab that stayed whose offer never left holds nothing: another window offers the copy.
-        for id in stayed.intersection(unsent) { _ = withdrew(id, empty: false) }
+        // A tab that stayed whose offer never left: if it holds the copy still (no one took it
+        // over), it offers it again; else it lets it go.
+        for id in stayed.intersection(unsent)
+        where !(ledger.holds(id) && controllers[id]?.controller?.handOver() == true) {
+            _ = withdrew(id, empty: false)
+        }
     }
 
     private func sessions(in windows: [NSWindow]) -> [UUID] {

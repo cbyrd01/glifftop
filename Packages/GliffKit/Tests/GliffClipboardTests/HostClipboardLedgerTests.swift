@@ -127,6 +127,7 @@ import Testing
         _ = ledger.detaching([a], macCount: 5)
         ledger.stayed([a])
         #expect(ledger.heldElsewhere(b, changeCount: 5))
+        #expect(ledger.holds(a))
     }
 
     /// A holder that stays after another took its copy over holds it no more.
@@ -137,6 +138,8 @@ import Testing
         _ = ledger.offered(b, changeCount: 5, at: ms(1))
         ledger.stayed([a])
         #expect(ledger.heldElsewhere(a, changeCount: 5))
+        #expect(!ledger.holds(a))
+        #expect(ledger.holds(b))
     }
 
     /// Only a detaching session sends nothing: an unknown one withdraws as it asks.
