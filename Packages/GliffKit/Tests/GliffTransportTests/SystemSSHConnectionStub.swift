@@ -44,7 +44,12 @@
               echo $$ > "$sock"
               while :; do sleep 0.05; done
             fi
-            if [ "$request" = check ]; then [ -f "$sock" ] && exit 0; exit 255; fi
+            if [ "$request" = check ]; then
+              # STUB_CHECK_FAILS: the first that many checks fail, each counted in `checks`.
+              echo x >> "${sock%/*}/checks"
+              [ -n "$STUB_CHECK_FAILS" ] && [ "$(wc -l < "${sock%/*}/checks")" -le "$STUB_CHECK_FAILS" ] && exit 255
+              [ -f "$sock" ] && exit 0; exit 255
+            fi
             if [ "$request" = forward ] || [ "$request" = cancel ]; then
               [ "$request" = forward ] && echo "$forward" >> "${sock%/*}/forwards"
               echo "+$request $forward" >> "${sock%/*}/requests"

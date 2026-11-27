@@ -204,6 +204,27 @@
                 executable: stub(environment))
         }
 
+        /// A connect waits at most one look after ssh's socket appears. The looks are fewer
+        /// after the first 2 s, while a sign-in question is open (nothing comes quickly) and
+        /// after a failed check (each is an ssh process).
+        @Test func theSocketIsLookedForOftenAtFirst() {
+            #expect(SystemSSHConnection.pollInterval(waited: .zero, slowed: false) == .milliseconds(10))
+            #expect(
+                SystemSSHConnection.pollInterval(waited: .seconds(2), slowed: false) == .milliseconds(100))
+            #expect(SystemSSHConnection.pollInterval(waited: .zero, slowed: true) == .milliseconds(100))
+        }
+
+        /// Each failed check is followed by the slower look: 8 take at least 0.8 s.
+        @Test func aFailedCheckSlowsTheLooks() async throws {
+            let started = ContinuousClock.now
+            let connection = try await open("STUB_CHECK_FAILS=8")
+            let waited = ContinuousClock.now - started
+            await connection.close()
+            let checks = try String(contentsOfFile: root.path + "/checks", encoding: .utf8)
+            #expect(checks.split(separator: "\n").count == 9)
+            #expect(waited >= .milliseconds(800))
+        }
+
         @Test func openWaitsForTheCheck() async throws {
             let connection = try await open("STUB_DELAY=0.3")
             #expect(FileManager.default.fileExists(atPath: socket))
