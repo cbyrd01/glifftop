@@ -97,7 +97,7 @@
 
         static func open(
             command: SSHMasterCommand, executable: URL, signIn: SignIn? = nil, knownHostsName: String? = nil,
-            configured: ConfiguredForwards = .none, poll: Duration = .milliseconds(100),
+            configured: ConfiguredForwards = .none,
             limit: Duration = .seconds(60),
             ceiling: Duration = .seconds(300)
         ) async throws(TransportError) -> SystemSSHConnection {
@@ -132,7 +132,7 @@
             Task { await connection.watch() }
             do throws(TransportError) {
                 try await connection.waitUntilReady(
-                    poll: poll, limit: limit, ceiling: ceiling, asking: bridge)
+                    limit: limit, ceiling: ceiling, asking: bridge)
             } catch {
                 let outcome = bridge?.outcome
                 // ssh first: a question it started once the bridge was gone would fail, and ssh
@@ -276,11 +276,19 @@
             for waiter in waiters { waiter.resume(returning: end) }
         }
 
-        /// Until the socket exists (a cheap look, every `poll`), then one `-O check`; the master's
-        /// exit, a cancel, `limit` of time with no question open, or `ceiling` in all (the master
-        /// is then ended) first ends the wait.
+        /// How long between looks for the master's socket, `waited` into the wait: 10 ms for the
+        /// first 2 s, where most masters are ready, else 100 ms; 100 ms too when `slowed`, while
+        /// a sign-in question is open (nothing comes quickly) or after a failed check (each is an
+        /// ssh process).
+        static func pollInterval(waited: Duration, slowed: Bool) -> Duration {
+            .milliseconds(slowed || waited >= .seconds(2) ? 100 : 10)
+        }
+
+        /// Until the socket exists (a cheap look, every `pollInterval`), then one `-O check`; the
+        /// master's exit, a cancel, `limit` of time with no question open, or `ceiling` in all (the
+        /// master is then ended) first ends the wait.
         private func waitUntilReady(
-            poll: Duration, limit: Duration, ceiling: Duration, asking: AskpassBridge?
+            limit: Duration, ceiling: Duration, asking: AskpassBridge?
         )
             async throws(TransportError)
         {
@@ -293,13 +301,17 @@
                         status: master.exitStatus ?? 255,
                         failure: state.withLock { $0.end ?? nil } ?? .other("ssh ended"))
                 }
+                var checkFailed = false
                 if FileManager.default.fileExists(atPath: command.socket) {
                     let check = await ProcessOutput.read(
                         executable: executable, arguments: command.check, maxBytes: 4096,
                         timeout: .seconds(5))
                     if case .success = check { return }
+                    checkFailed = true
                 }
-                try? await Task.sleep(for: poll)
+                try? await Task.sleep(
+                    for: Self.pollInterval(
+                        waited: last - start, slowed: checkFailed || asking?.questionOpen == true))
                 let now = ContinuousClock.now
                 if asking?.questionOpen != true { counted += now - last }
                 last = now

@@ -29,6 +29,9 @@ the feature seam.
   queued frames (Bye), then closes the connection, or abandons it (`ByteConnection.abandon()`)
   after an unanswered probe or when it ends while interrupted. Cancelling `run()` is a
   disconnect. A run of decode failures logs each reason once; the next picture ends the run.
+  While `run()` runs, the session holds an `Awake` (a process activity that still allows idle
+  system sleep), so App Nap never delays a hidden app's acks, which the server would read as
+  congestion. A reconnect's wait between sessions holds none.
 - **Input:** `Session.send(_:)` queues an `InputMessage` from any thread (`InputQueue`, in
   order); the session sends what `InputGate` admits: a key or button press, motion and
   scrolling only while streaming and not interrupted; a release (or a scroll's stop) only if

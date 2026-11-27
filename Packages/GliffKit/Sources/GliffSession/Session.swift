@@ -35,6 +35,8 @@ public actor Session {
     var writer: SessionWriter?
     private var ticks: Task<Void, Never>?
     let inputs: InputQueue
+    /// Held while `run()` runs.
+    private let awake: Awake
     /// The app's barrier between sessions' input, if it keeps one (`Session+Barrier.swift`).
     nonisolated let barrier: InputBarrier?
     /// This session, to the barrier.
@@ -86,7 +88,7 @@ public actor Session {
         transport: any Transport, configuration: SessionConfiguration, decoder: any FrameDecoder,
         features: [any SessionFeature] = [], cursor: CursorSlot = CursorSlot(),
         pointer: RemotePointerSlot = RemotePointerSlot(), clipboard: ClipboardSetup? = nil,
-        observer: (any ProtocolObserver)? = nil, barrier: InputBarrier? = nil
+        observer: (any ProtocolObserver)? = nil, barrier: InputBarrier? = nil, awake: Awake = .process
     ) {
         precondition(Set(features.map(\.name)).count == features.count, "two features have the same name")
         let claimed = features.flatMap(\.serverVariants)
@@ -100,6 +102,7 @@ public actor Session {
         (status, continuation) = AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(256))
         self.clipboard = Self.makeClipboard(clipboard, wire: clipboardWire)
         self.barrier = barrier
+        self.awake = awake
         inputs = InputQueue(clock: barrier?.clock ?? ContinuousClock())
     }
 
@@ -115,6 +118,8 @@ public actor Session {
             await shutdown?.value
             return
         }
+        let endAwake = awake.begin()
+        defer { endAwake() }
         // Not a child task: cancelling run() must not cancel the reader before Bye is sent.
         let reader = Task { await self.connectAndRead() }
         self.reader = reader

@@ -108,17 +108,19 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   those of Glifftops no longer running (or with this app's own pid) are removed, sockets only,
   each master first ended with `-O exit`. `SystemSSHConnection` (macOS) is a `HostConnection` on
   such a master: `open` reads the config once (`ssh -G`) and waits until the socket answers
-  `-O check`, up to 60 s not counting time a sign-in question is open, and 5 min in all (then
-  `ConnectFailure.signInTimedOut`, not retried). With a `SignInAsker`, the askpass helper and a
-  config that allows it, the master asks (`SSH_ASKPASS`, `SSH_ASKPASS_REQUIRE=force`, its stderr
-  unlogged) through a bridge revoked once the master is ready or has failed; the bridge's
-  outcome names the failure (`hostKeyDenied`, `signInCancelled`, `tooManyQuestions`,
-  `unknownQuestion`), and a changed key's known_hosts name is the config's, none when it keeps
-  its own known_hosts file. Without them, or when the probe fails, the master runs in batch
-  mode. Each channel is one ssh through the socket; the master's own exit, even a clean one, is
-  a lost connection, and `close()` ends it with `-O exit`. `SystemSSH.opener(helper:)` is the
-  app's opener for `HostConnections`, asking through the asker `HostConnections` gives it; every
-  opener shares one socket directory and one numbering.
+  `-O check` (looked for every 10 ms for the first 2 s, then every 100 ms, as while a sign-in
+  question is open or after a failed check), up to 60 s not counting time a sign-in question is
+  open, and 5 min in all (then `ConnectFailure.signInTimedOut`, not retried). With a
+  `SignInAsker`, the askpass helper and a config that allows it, the master asks (`SSH_ASKPASS`,
+  `SSH_ASKPASS_REQUIRE=force`, its stderr unlogged) through a bridge revoked once the master is
+  ready or has failed; the bridge's outcome names the failure (`hostKeyDenied`,
+  `signInCancelled`, `tooManyQuestions`, `unknownQuestion`), and a changed key's known_hosts
+  name is the config's, none when it keeps its own known_hosts file. Without them, or when the
+  probe fails, the master runs in batch mode. Each channel is one ssh through the socket; the
+  master's own exit, even a clean one, is a lost connection, and `close()` ends it with
+  `-O exit`. `SystemSSH.opener(helper:)` is the app's opener for `HostConnections`, asking
+  through the asker `HostConnections` gives it; every opener shares one socket directory and one
+  numbering.
 - **The config's port forwards:** every ssh this module starts runs with
   `ClearAllForwardings=yes` (`SSHCommand`'s options, a channel's), and control requests read no
   config (`-F none`), so ssh opens none of the config's forwards: one on a busy port would end
