@@ -11,7 +11,7 @@ struct MonitorsAlert {
     var message: String?
 }
 
-private let logger = Logger(subsystem: "me.cbyrd.Glifftop", category: "monitors")
+private let logger = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "monitors")
 
 /// Connection ▸ Show All Monitors: every monitor of the window's host not shown yet, each as a
 /// mirror of its own (`MonitorPlanning`), in tabs of the window's group or in windows behind it:

@@ -53,6 +53,13 @@
             #expect(directory.path == fallback.path)
         }
 
+        @Test func theCachesDirectoryFitsALongUserName() {
+            let caches = URL(filePath: "/Users/\(String(repeating: "u", count: 24))/Library/Caches")
+            let preferred = ControlSocketDirectory.preferred(caches: caches)
+            #expect(preferred.path.hasPrefix(caches.path + "/"))
+            #expect(ControlSocketDirectory.fits(preferred.path))
+        }
+
         @Test func theDirectoryIsPrivate() throws {
             let preferred = root.appending(path: "ssh")
             try FileManager.default.createDirectory(

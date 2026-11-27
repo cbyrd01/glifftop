@@ -80,7 +80,7 @@ public actor Session {
     static let tickInterval = Duration.milliseconds(500)
     /// How long closing waits for queued frames (Bye) to be written.
     static let drainLimit = Duration.seconds(1)
-    static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "GliffSession")
+    static let log = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "GliffSession")
 
     public init(
         transport: any Transport, configuration: SessionConfiguration, decoder: any FrameDecoder,

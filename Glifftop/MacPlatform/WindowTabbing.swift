@@ -54,7 +54,7 @@ struct WindowPlace: Codable, Hashable {
 }
 
 final class TabbingView: NSView {
-    private static let logger = Logger(subsystem: "me.cbyrd.Glifftop", category: "window")
+    private static let logger = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "window")
     var changed: (_ group: (window: Int, tabs: [Int])) -> Void = { _ in }
     var closed: () -> Void = {}
     private let tabOf: Int?

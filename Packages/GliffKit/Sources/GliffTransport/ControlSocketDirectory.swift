@@ -40,8 +40,18 @@
                 FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
                 ?? URL(filePath: NSTemporaryDirectory())
             return try prepare(
-                preferred: caches.appending(path: "me.cbyrd.Glifftop/ssh"),
-                fallback: URL(filePath: "/tmp/glifftop-\(getuid())"))
+                preferred: preferred(caches: caches), fallback: URL(filePath: "/tmp/glifftop-\(getuid())"))
+        }
+
+        /// The directory in `caches`: a short name, not the bundle identifier, leaves room for a
+        /// long home directory's path.
+        static func preferred(caches: URL) -> URL {
+            caches.appending(path: "Glifftop/ssh")
+        }
+
+        /// Whether a master's socket in `path`, and ssh's temporary name for it, fit `sun_path`.
+        static func fits(_ path: String) -> Bool {
+            path.utf8.count + 1 + nameLimit + sshSuffix < sunPathLimit
         }
 
         func socketPath(number: UInt32) -> String { path + "/\(getpid())-\(number)" }
@@ -82,9 +92,7 @@
         }
 
         private static func make(_ path: String, isMine: (Attributes) -> Bool) throws(Refused) -> Self {
-            guard path.utf8.count + 1 + nameLimit + sshSuffix < sunPathLimit else {
-                throw Refused(reason: "too long")
-            }
+            guard fits(path) else { throw Refused(reason: "too long") }
             let files = FileManager.default
             if !files.fileExists(atPath: path) {
                 do {

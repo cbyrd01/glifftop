@@ -41,7 +41,7 @@ extension SessionCore {
     /// A server that never answers can't grow the list without bound.
     static let maxOutstandingPings = 4
 
-    private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "GliffSession")
+    private static let log = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "GliffSession")
 
     /// A StreamConfig once HelloAck is in, or a new one while streaming, with a Resize due now:
     /// the window's size goes with the first, not at the next tick, and ahead of the decoder's

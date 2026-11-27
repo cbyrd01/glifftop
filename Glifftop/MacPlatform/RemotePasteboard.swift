@@ -6,7 +6,7 @@ import os
 /// PNG, each type fetched only when a Mac app pastes it (`PasteProvider`). A remote password
 /// is marked concealed, so Mac clipboard managers skip it. Files aren't shared.
 enum RemotePasteboard {
-    private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "clipboard")
+    private static let log = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "clipboard")
 
     /// The pasteboard's `changeCount` after writing, or nil if the offer holds nothing the Mac
     /// can take (files alone, or only other types): the pasteboard is left as it is. Once

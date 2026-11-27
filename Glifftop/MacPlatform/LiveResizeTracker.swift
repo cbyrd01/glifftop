@@ -21,7 +21,7 @@ struct LiveResizeTracker: NSViewRepresentable {
 
 /// `LiveResizeTracker`'s view: draws nothing; AppKit tells it of its window's live resize.
 final class LiveResizeView: NSView {
-    private static let logger = Logger(subsystem: "me.cbyrd.Glifftop", category: "window")
+    private static let logger = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "window")
 
     var changed: (Bool) -> Void = { _ in }
     private var inLiveResizeReported = false

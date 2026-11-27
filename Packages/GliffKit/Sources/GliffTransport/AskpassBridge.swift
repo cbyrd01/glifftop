@@ -67,8 +67,8 @@
         private let accepted: AsyncStream<Int32>
         private let acceptor: AsyncStream<Int32>.Continuation
         /// Where connections are accepted (internal: a test holds it to keep one in the listen queue).
-        let queue = DispatchQueue(label: "me.cbyrd.Glifftop.askpass")
-        private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "AskpassBridge")
+        let queue = DispatchQueue(label: "io.github.cbyrd01.Glifftop.askpass")
+        private static let log = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "AskpassBridge")
 
         /// `names` are the destination's names in ssh's questions (`SSHResolvedConfig.names`).
         public init(

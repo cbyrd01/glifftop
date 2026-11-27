@@ -22,7 +22,7 @@ public enum TransferEvent: Equatable, Sendable {
 public actor ClipboardTransfers {
     public typealias Send = @Sendable (ClipboardMessage, [UInt8]) async -> Void
 
-    static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "GliffClipboard")
+    static let log = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "GliffClipboard")
 
     private let send: Send
     let side: TransferSide

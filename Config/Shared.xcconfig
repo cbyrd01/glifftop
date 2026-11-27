@@ -2,7 +2,7 @@
 // scripts/check-xcodeproj.sh fails if a setting is set in both places.
 
 MACOSX_DEPLOYMENT_TARGET = 27.0
-PRODUCT_BUNDLE_IDENTIFIER = me.cbyrd.Glifftop
+PRODUCT_BUNDLE_IDENTIFIER = io.github.cbyrd01.Glifftop
 
 // Swift 6, strict concurrency, warnings are errors.
 SWIFT_VERSION = 6.0

@@ -14,7 +14,7 @@ enum ClipboardCommand: Equatable, Sendable {
 /// data in the bulk lane, behind input and acks.
 final class ClipboardWire: Sendable {
     private let writer = Mutex<SessionWriter?>(nil)
-    private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "GliffSession")
+    private static let log = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "GliffSession")
 
     func attach(_ writer: SessionWriter) {
         self.writer.withLock { $0 = writer }

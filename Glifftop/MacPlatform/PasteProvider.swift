@@ -9,7 +9,7 @@ import os
 /// sharing is off or the app is quitting (AppKit may ask for promised data as it quits), nor
 /// for a second paste while one runs.
 final class PasteProvider: NSObject, NSPasteboardItemDataProvider {
-    private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "clipboard")
+    private static let log = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "clipboard")
     /// The paste being fetched: a second one gets nothing; quitting cancels it.
     private static var running: Task<Void, Never>?
     /// Changes to the pasteboard that came while a paste was being answered, in order.

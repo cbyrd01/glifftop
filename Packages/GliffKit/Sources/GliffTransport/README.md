@@ -102,8 +102,8 @@ Owns the byte stream to a gliff-server: the `Transport` seam, and ssh.
   `SSHCommand.channelOptions` turn off agent and X11 forwarding, local and remote commands, a
   terminal and a subsystem, keep stdin and stay in the foreground, whatever the config says),
   and `-O forward` and `-O cancel`. `ControlSocketDirectory` (macOS) is where the sockets live:
-  the caches directory's `ssh/`, else `/tmp/glifftop-<uid>` when that path is too long for a
-  socket or is refused; each is created 0700, and refused if it is a symbolic link, not a
+  the caches directory's `Glifftop/ssh/`, else `/tmp/glifftop-<uid>` when that path is too long
+  for a socket or is refused; each is created 0700, and refused if it is a symbolic link, not a
   directory or another user's. Sockets are named `<pid>-<n>`; before the app's first master,
   those of Glifftops no longer running (or with this app's own pid) are removed, sockets only,
   each master first ended with `-O exit`. `SystemSSHConnection` (macOS) is a `HostConnection` on
