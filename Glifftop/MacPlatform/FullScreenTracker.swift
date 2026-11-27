@@ -25,7 +25,7 @@ struct FullScreenTracker: NSViewRepresentable {
 
 /// `FullScreenTracker`'s view: draws nothing, watches its window.
 final class FullScreenNSView: NSView {
-    private static let logger = Logger(subsystem: "me.cbyrd.Glifftop", category: "window")
+    private static let logger = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "window")
 
     var changed: (Bool) -> Void = { _ in }
     var wanted = false {

@@ -40,7 +40,7 @@
             var closing = false
         }
         private let state = Mutex(State())
-        static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "SystemSSHConnection")
+        static let log = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "SystemSSHConnection")
 
         private init(
             command: SSHMasterCommand, executable: URL, master: ProcessConnection,

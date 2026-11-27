@@ -9,7 +9,7 @@ enum InputSource {
     /// Posted (distributed) when the selected keyboard layout changes.
     static let changed = Notification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String)
 
-    private static let logger = Logger(subsystem: "me.cbyrd.Glifftop", category: "GliffInput")
+    private static let logger = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "GliffInput")
 
     static func currentKeymap() -> String {
         let layout = currentLayout()

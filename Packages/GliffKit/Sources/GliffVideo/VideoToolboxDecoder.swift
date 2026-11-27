@@ -9,7 +9,7 @@ import os
 /// It runs on its own serial queue, so VideoToolbox's blocking decode never holds the session
 /// actor or the cooperative pool.
 public actor VideoToolboxDecoder: FrameDecoder {
-    private let queue = DispatchSerialQueue(label: "me.cbyrd.Glifftop.video-decoder")
+    private let queue = DispatchSerialQueue(label: "io.github.cbyrd01.Glifftop.video-decoder")
     private let commandQueue: any MTLCommandQueue
     private let recombiner: Recombiner
     private let textureCache: PlaneTextureCache
@@ -23,7 +23,7 @@ public actor VideoToolboxDecoder: FrameDecoder {
     /// black, the rest would only repeat it.
     private var loggedHold = false
 
-    private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "GliffVideo")
+    private static let log = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "GliffVideo")
 
     public nonisolated var unownedExecutor: UnownedSerialExecutor {
         queue.asUnownedSerialExecutor()

@@ -60,7 +60,7 @@ desktop for Hyprland/Omarchy, written in Swift. Not affiliated with Gliff.
 - **No third-party Swift packages.** Rust is allowed only in `tools/`, as test tooling.
 - Swift Testing (`import Testing`), with TDD: watch each test fail before writing the code
   that passes it.
-- Log through `os.Logger` with subsystem `me.cbyrd.Glifftop`. No `print`.
+- Log through `os.Logger` with subsystem `io.github.cbyrd01.Glifftop`. No `print`.
 - **Never log clipboard contents, remote mime types, file names or paths.** Log counts only.
 - Small, single-purpose files of at most 400 lines. Each module has a `README.md` saying what
   it owns and what it must not import.
@@ -124,7 +124,7 @@ This file wins over any skill, including a skill's "supersedes prior training" c
   - gitleaks;
   - `swift format lint --strict` (GliffKit, the app and `tools/encode-fixtures`);
   - `scripts/check-sources.sh` (no `print`/`debugPrint`/`dump`/`NSLog` outside tests, files of
-    at most 400 lines, a `// reason` line above each `swift-format-ignore`);
+    at most 400 lines, a `// reason` line above each `swift-format-ignore`, one log subsystem);
   - `scripts/check-xcodeproj.sh` (no setting both in the project and in `Config/`);
   - the scripts' own tests, `scripts/tests/*-test.sh` (stub tools, no network);
   - `cargo build` and `cargo test` of `tools/fake-server` (`--locked`);

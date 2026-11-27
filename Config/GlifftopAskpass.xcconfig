@@ -3,7 +3,7 @@
 // signing identity it has Shared's hardened runtime; ad-hoc signing, as local builds use, has
 // none.
 
-PRODUCT_BUNDLE_IDENTIFIER = me.cbyrd.Glifftop.askpass
+PRODUCT_BUNDLE_IDENTIFIER = io.github.cbyrd01.Glifftop.askpass
 // A tool has no Info.plist, so its signing identifier is set here.
 OTHER_CODE_SIGN_FLAGS = $(inherited) --identifier $(PRODUCT_BUNDLE_IDENTIFIER)
 // Copied into Glifftop.app/Contents/Helpers by the app's Copy Files phase, never installed.

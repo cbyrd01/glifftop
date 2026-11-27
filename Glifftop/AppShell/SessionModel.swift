@@ -225,7 +225,7 @@ import os
     /// Counts View ▸ Actual Size: each one fits the window to the remote view again.
     private(set) var actualSizeRequests = 0
 
-    private static let logger = Logger(subsystem: "me.cbyrd.Glifftop", category: "session")
+    private static let logger = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "session")
 
     /// Whether there's a picture, set only when that flips: what the menus read. `picture`
     /// changes with each StreamConfig (every settled resize on a virtual screen), and a View

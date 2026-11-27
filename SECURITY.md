@@ -37,9 +37,9 @@ the latest commit on `main` is supported.
   front, what you copy on the Mac, passwords included, goes to the remote computer; an item
   marked as a password is flagged so the remote's clipboard history can leave it out. A copy
   made on the remote before you connected is never brought to the Mac.
-- **Logs** go to the system log (subsystem `me.cbyrd.Glifftop`). They never contain clipboard
-  contents, clipboard types, file names or paths, nor port numbers, addresses, destinations
-  or process names.
+- **Logs** go to the system log (subsystem `io.github.cbyrd01.Glifftop`). They never contain
+  clipboard contents, clipboard types, file names or paths, nor port numbers, addresses,
+  destinations or process names.
 
 ## How the app is built
 

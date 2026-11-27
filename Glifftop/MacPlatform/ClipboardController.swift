@@ -10,7 +10,7 @@ import os
 /// carries out what it says through the session. Only the pasteboard's types are read here; the data is read when the
 /// remote pastes (`PasteboardSource`).
 final class ClipboardController {
-    private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "clipboard")
+    private static let log = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "clipboard")
     /// The sharing in force for this window, read again whenever the app's defaults change
     /// (Settings, or a saved machine) and at `sharingChanged()`.
     private let inForce: () -> ClipboardSharing

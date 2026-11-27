@@ -8,7 +8,7 @@ import os
 /// keys' real state when the hold is due. Times are the events' own, so a busy main thread
 /// can't turn a tap into a hold.
 @MainActor final class QuitGuard {
-    private static let logger = Logger(subsystem: "me.cbyrd.Glifftop", category: "quit")
+    private static let logger = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "quit")
 
     /// The guard confirmed a quit: the next quit passes.
     private var confirmed = false

@@ -135,7 +135,7 @@ final class InputQueue: Sendable {
         }
     }
 
-    private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "GliffSession")
+    private static let log = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "GliffSession")
 
     /// How long after now what is appended now goes, if it is also held `wait`: once what is
     /// queued before it has gone (the hold now, then each pause and hold queued, in turn) and

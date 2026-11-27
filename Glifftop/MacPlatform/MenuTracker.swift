@@ -7,8 +7,8 @@ import os
 @MainActor final class MenuTracker {
     static let shared = MenuTracker()
     /// Posted on the default centre when `isOpen` changes.
-    static let changed = Notification.Name("me.cbyrd.Glifftop.MenuTracker.changed")
-    private static let logger = Logger(subsystem: "me.cbyrd.Glifftop", category: "input")
+    static let changed = Notification.Name("io.github.cbyrd01.Glifftop.MenuTracker.changed")
+    private static let logger = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "input")
 
     private var open = 0
     var isOpen: Bool { open > 0 }

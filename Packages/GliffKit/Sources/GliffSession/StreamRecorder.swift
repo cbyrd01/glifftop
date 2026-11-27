@@ -16,7 +16,7 @@ actor StreamRecorder {
     private var file: FileHandle?
     private var done = false
 
-    private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "GliffSession")
+    private static let log = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "GliffSession")
 
     /// `config` is the StreamConfig frame in force, for a recording started mid-stream.
     init(directory: URL, duration: Duration, now: Date, config: Frame? = nil) {

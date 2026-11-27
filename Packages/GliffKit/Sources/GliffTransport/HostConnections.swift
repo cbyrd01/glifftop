@@ -103,7 +103,7 @@ public actor HostConnections {
     var closing: [String: Int] = [:]
     /// Connections opened while others closed, announced once those have ended.
     var heldOpened: [String: [Int]] = [:]
-    static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "HostConnections")
+    static let log = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "HostConnections")
 
     public init(
         open: @escaping Open, clock: any Clock<Duration> = ContinuousClock(), grace: Duration = .seconds(10),

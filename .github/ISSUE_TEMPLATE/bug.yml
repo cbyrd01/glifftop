@@ -45,6 +45,6 @@ body:
     attributes:
       label: Log
       description: >-
-        Optional. `log show --last 10m --predicate 'subsystem == "me.cbyrd.Glifftop"'` in
-        Terminal. The log never holds clipboard contents, but read it before you paste it.
+        Optional. `log show --last 10m --predicate 'subsystem == "io.github.cbyrd01.Glifftop"'`
+        in Terminal. The log never holds clipboard contents, but read it before you paste it.
       render: text

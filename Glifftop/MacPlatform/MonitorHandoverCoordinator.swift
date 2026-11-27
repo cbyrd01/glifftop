@@ -10,7 +10,7 @@ import os
 final class MonitorHandoverCoordinator {
     static let shared = MonitorHandoverCoordinator()
 
-    private static let logger = Logger(subsystem: "me.cbyrd.Glifftop", category: "handover")
+    private static let logger = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "handover")
 
     /// The capture of the key window.
     private weak var key: CaptureController?

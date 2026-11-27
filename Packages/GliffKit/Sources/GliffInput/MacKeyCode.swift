@@ -30,7 +30,7 @@ public enum MacKeyCode {
     private static let isoSection: UInt16 = 0x0A
     private static let fn: UInt16 = 0x3F
     private static let unknown = Mutex<Set<UInt16>>([])
-    private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "GliffInput")
+    private static let log = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "GliffInput")
 
     static let table: [UInt16: UInt32] = [
         // Letters, A to Z.

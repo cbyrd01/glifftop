@@ -22,7 +22,7 @@
         let incoming: AsyncThrowingStream<[UInt8], any Error>
 
         private static let stderrLimit = 16 * 1024
-        private static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "GliffTransport")
+        private static let log = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "GliffTransport")
 
         private struct State {
             var stdoutDone = false
@@ -57,7 +57,7 @@
         private let continuation: AsyncThrowingStream<[UInt8], any Error>.Continuation
         private let classify: @Sendable (Int32, String) -> ConnectFailure
         private let logsStderr: Bool
-        private let queue = DispatchQueue(label: "me.cbyrd.Glifftop.process")
+        private let queue = DispatchQueue(label: "io.github.cbyrd01.Glifftop.process")
         private let stdin: DispatchIO
         private let stdout: DispatchIO
         private let stderr: DispatchIO

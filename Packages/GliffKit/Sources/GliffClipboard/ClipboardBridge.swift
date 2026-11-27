@@ -11,7 +11,7 @@ public enum ClipboardBridgeEvent: Equatable, Sendable {
 /// their serials and the rules a request must pass. Remote → Mac: the remote's
 /// offer, and fetching its types into memory. Files aren't shared.
 public actor ClipboardBridge {
-    static let log = Logger(subsystem: "me.cbyrd.Glifftop", category: "GliffClipboard")
+    static let log = Logger(subsystem: "io.github.cbyrd01.Glifftop", category: "GliffClipboard")
 
     let transfers: ClipboardTransfers
     let source: any LocalClipboardSource
